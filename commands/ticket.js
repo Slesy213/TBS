@@ -5,7 +5,7 @@ const {
   ButtonStyle,
   ActionRowBuilder,
   ChannelType,
-  EmbedBuilder,
+ EmbedBuilder,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
@@ -24,7 +24,6 @@ const TICKET_TURLERI = [
     id: 'genel',
     label: 'Genel Destek',
     emoji: '🎫',
-    aciklama: 'Genel sorunlarınız için destek alın.',
     renk: 0x5865f2,
     kanalAdi: 'genel-destek',
   },
@@ -32,7 +31,6 @@ const TICKET_TURLERI = [
     id: 'teknik',
     label: 'Teknik Destek',
     emoji: '🔧',
-    aciklama: 'Teknik sorunlarınız için destek alın.',
     renk: 0x57f287,
     kanalAdi: 'teknik-destek',
   },
@@ -40,7 +38,6 @@ const TICKET_TURLERI = [
     id: 'sikayet',
     label: 'Şikayet',
     emoji: '📋',
-    aciklama: 'Şikayetlerinizi buradan iletebilirsiniz.',
     renk: 0xfee75c,
     kanalAdi: 'sikayet',
   },
@@ -48,7 +45,6 @@ const TICKET_TURLERI = [
     id: 'ban_itiraz',
     label: 'Ban İtiraz',
     emoji: '🔨',
-    aciklama: 'Ban kararına itiraz etmek için açın.',
     renk: 0xed4245,
     kanalAdi: 'ban-itiraz',
   },
@@ -108,17 +104,14 @@ module.exports = {
 
     const mesajInput = new TextInputBuilder()
       .setCustomId('ticket_mesaj')
-      .setLabel('Panel mesajını buraya yaz')
+      .setLabel('Panel mesajını yaz')
       .setStyle(TextInputStyle.Paragraph)
-      .setPlaceholder('🎫 Turkey Bus Simulator\n\nDestek almak için aşağıdaki butonlardan kategori seç.')
-      .setRequired(true)
-      .setMaxLength(2000);
+      .setRequired(true);
 
     const resimInput = new TextInputBuilder()
       .setCustomId('ticket_resim')
       .setLabel('Resim URL (opsiyonel)')
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder('https://...')
       .setRequired(false);
 
     modal.addComponents(
@@ -201,13 +194,13 @@ module.exports = {
 
       const sebepInput = new TextInputBuilder()
         .setCustomId('ban_sebep')
-        .setLabel('Neden banlandığını düşünüyorsun?')
+        .setLabel('Ban sebebi')
         .setStyle(TextInputStyle.Paragraph)
         .setRequired(true);
 
       const itirazInput = new TextInputBuilder()
         .setCustomId('ban_itiraz_metni')
-        .setLabel('İtiraz gerekçen nedir?')
+        .setLabel('İtirazın')
         .setStyle(TextInputStyle.Paragraph)
         .setRequired(true);
 
@@ -219,7 +212,7 @@ module.exports = {
       return interaction.showModal(modal);
     }
 
-    await this._kanalAc(interaction, tur, null);
+    await this._kanalAc(interaction, tur);
   },
 
   async handleBanItirazModal(interaction) {
@@ -231,8 +224,7 @@ module.exports = {
 
     await this._kanalAc(
       interaction,
-      tur,
-      null
+      tur
     );
   },
 
@@ -363,5 +355,137 @@ module.exports = {
         `✅ Ticket oluşturuldu → <#${kanal.id}>`,
       ephemeral: true,
     });
+  },
+
+  async handleSahiplen(interaction) {
+
+    if (
+      !interaction.member.roles.cache.has(
+        global.ticketYetkiliRol
+      )
+    ) {
+      return interaction.reply({
+        content: '❌ Bunun için yetkin yok.',
+        ephemeral: true,
+      });
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(0x5865f2)
+      .setDescription(
+        `👤 Ticket ${interaction.user} tarafından sahiplenildi.`
+      )
+      .setTimestamp();
+
+    await interaction.reply({
+      embeds: [embed]
+    });
+  },
+
+  async handleEkle(interaction) {
+
+    const modal = new ModalBuilder()
+      .setCustomId('ticket_ekle_modal')
+      .setTitle('Tickete Kullanıcı Ekle');
+
+    const userInput = new TextInputBuilder()
+      .setCustomId('eklencek_user')
+      .setLabel('Kullanıcı ID')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Kullanıcı ID gir')
+      .setRequired(true);
+
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        userInput
+      )
+    );
+
+    await interaction.showModal(modal);
+  },
+
+  async handleEkleModal(interaction) {
+
+    const userId =
+      interaction.fields.getTextInputValue(
+        'eklencek_user'
+      );
+
+    try {
+
+      const member =
+        await interaction.guild.members.fetch(userId);
+
+      await interaction.channel.permissionOverwrites.edit(member.id, {
+
+        ViewChannel: true,
+        SendMessages: true,
+        ReadMessageHistory: true,
+
+      });
+
+      await interaction.reply({
+        content:
+          `✅ <@${member.id}> tickete eklendi.`,
+      });
+
+    } catch {
+
+      await interaction.reply({
+        content:
+          '❌ Geçersiz kullanıcı IDsi girdin.',
+        ephemeral: true,
+      });
+    }
+  },
+
+  async handleKapat(interaction) {
+
+    const kanal = interaction.channel;
+
+    const logKanal =
+      interaction.guild.channels.cache.get(
+        global.ticketLogKanal
+      );
+
+    if (logKanal) {
+
+      const logEmbed = new EmbedBuilder()
+        .setColor(0xed4245)
+        .setTitle('🔒 Ticket Kapatıldı')
+        .addFields(
+          {
+            name: '👤 Kapatan',
+            value: `${interaction.user}`,
+          },
+          {
+            name: '📄 Kanal',
+            value: `${interaction.channel.name}`,
+          }
+        )
+        .setTimestamp();
+
+      logKanal.send({
+        embeds: [logEmbed]
+      });
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(0xed4245)
+      .setTitle('🔒 Ticket Kapatılıyor...')
+      .setDescription(
+        `Ticket <@${interaction.user.id}> tarafından kapatıldı.\nKanal 5 saniye içinde silinecek.`
+      )
+      .setTimestamp();
+
+    await interaction.reply({
+      embeds: [embed]
+    });
+
+    setTimeout(() => {
+
+      kanal.delete().catch(() => {});
+
+    }, 5000);
   },
 };
