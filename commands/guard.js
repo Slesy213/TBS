@@ -1,7 +1,6 @@
 const {
     SlashCommandBuilder,
     PermissionFlagsBits,
-    EmbedBuilder,
     AuditLogEvent
 } = require("discord.js");
 
@@ -26,7 +25,9 @@ module.exports = {
             PermissionFlagsBits.Administrator
         ),
 
-    async execute(interaction, client) {
+    async execute(interaction) {
+
+        const client = interaction.client;
 
         const secim =
             interaction.options.getString("durum");
