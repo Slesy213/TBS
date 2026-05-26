@@ -48,6 +48,12 @@ const client = new Client({
 client.commands = new Collection();
 
 // =========================
+// OTO ROL DEĞİŞKENİ
+// =========================
+
+global.autoRoleId = null;
+
+// =========================
 // KOMUTLAR
 // =========================
 
@@ -92,6 +98,35 @@ client.once('ready', () => {
 
     status: 'online',
   });
+});
+
+// =========================
+// OTO ROL SİSTEMİ
+// =========================
+
+client.on('guildMemberAdd', async member => {
+
+  if (!global.autoRoleId) return;
+
+  const role =
+    member.guild.roles.cache.get(
+      global.autoRoleId
+    );
+
+  if (!role) return;
+
+  try {
+
+    await member.roles.add(role);
+
+    console.log(
+      `✅ ${member.user.tag} kullanıcısına oto rol verildi.`
+    );
+
+  } catch (err) {
+
+    console.log(err);
+  }
 });
 
 // =========================
@@ -175,8 +210,6 @@ client.on('interactionCreate', async interaction => {
 
   if (interaction.isModalSubmit()) {
 
-    // DM MODAL
-
     if (interaction.customId === 'dm_modal') {
 
       const command =
@@ -196,8 +229,6 @@ client.on('interactionCreate', async interaction => {
         }
       }
     }
-
-    // TICKET PANEL MODAL
 
     if (
       interaction.customId ===
@@ -223,8 +254,6 @@ client.on('interactionCreate', async interaction => {
         }
       }
     }
-
-    // BAN İTİRAZ MODAL
 
     if (
       interaction.customId ===
@@ -253,8 +282,6 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // TICKET EKLE MODAL
-
     if (
       interaction.customId ===
       'ticket_ekle_modal'
@@ -281,8 +308,6 @@ client.on('interactionCreate', async interaction => {
         }
       }
     }
-
-    // DUYURU MODAL
 
     if (
       interaction.customId ===
@@ -321,8 +346,6 @@ client.on('interactionCreate', async interaction => {
         'ticket-kur'
       );
 
-    // Ticket Aç
-
     if (
       interaction.customId.startsWith(
         'ticket_ac_'
@@ -341,8 +364,6 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // Ticket Kapat
-
     if (
       interaction.customId ===
       'ticket_kapat'
@@ -360,8 +381,6 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    // Ticket Sahiplen
-
     if (
       interaction.customId ===
       'ticket_sahiplen'
@@ -378,8 +397,6 @@ client.on('interactionCreate', async interaction => {
         console.error(e);
       }
     }
-
-    // Ticket Kullanıcı Ekle
 
     if (
       interaction.customId ===
