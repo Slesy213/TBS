@@ -48,10 +48,11 @@ const client = new Client({
 client.commands = new Collection();
 
 // =========================
-// OTO ROL DEĞİŞKENİ
+// GLOBAL DEĞİŞKENLER
 // =========================
 
 global.autoRoleId = null;
+global.guardDurum = false;
 
 // =========================
 // KOMUTLAR
@@ -70,7 +71,7 @@ for (const file of commandFiles) {
     require(path.join(commandsPath, file));
 
   client.commands.set(
-    command.data.name,
+    command.name || command.data?.name,
     command
   );
 }
@@ -155,6 +156,47 @@ client.on('messageCreate', async message => {
     await message.reply(
       'As Kardeşim! 👋'
     );
+  }
+});
+
+// =========================
+// PREFIX KOMUT SİSTEMİ
+// =========================
+
+client.on('messageCreate', async message => {
+
+  if (message.author.bot) return;
+
+  const prefix = ".";
+
+  if (!message.content.startsWith(prefix)) return;
+
+  const args = message.content
+    .slice(prefix.length)
+    .trim()
+    .split(/ +/);
+
+  const commandName =
+    args.shift().toLowerCase();
+
+  const command =
+    client.commands.get(commandName);
+
+  if (!command) return;
+
+  if (!command.execute) return;
+
+  try {
+
+    command.execute(
+      message,
+      args,
+      client
+    );
+
+  } catch (err) {
+
+    console.error(err);
   }
 });
 
