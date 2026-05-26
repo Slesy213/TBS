@@ -53,6 +53,8 @@ client.commands = new Collection();
 
 global.autoRoleId = null;
 global.guardDurum = false;
+global.guvenliListe = [];
+global.spamMap = new Map();
 
 // =========================
 // KOMUTLAR
@@ -73,6 +75,7 @@ for (const file of commandFiles) {
       require(path.join(commandsPath, file));
 
     // SLASH KOMUT
+
     if (command.data && command.execute) {
 
       client.commands.set(
@@ -80,10 +83,13 @@ for (const file of commandFiles) {
         command
       );
 
-      console.log(`✅ Slash yüklendi: ${command.data.name}`);
+      console.log(
+        `✅ Slash yüklendi: ${command.data.name}`
+      );
     }
 
     // PREFIX KOMUT
+
     else if (command.name && command.execute) {
 
       client.commands.set(
@@ -91,17 +97,35 @@ for (const file of commandFiles) {
         command
       );
 
-      console.log(`✅ Prefix yüklendi: ${command.name}`);
+      console.log(
+        `✅ Prefix yüklendi: ${command.name}`
+      );
     }
 
     else {
 
-      console.log(`❌ Hatalı komut dosyası: ${file}`);
+      console.log(
+        `❌ Hatalı komut dosyası: ${file}`
+      );
+    }
+
+    // =========================
+    // GUARD INIT
+    // =========================
+
+    if (command.init) {
+
+      command.init(client);
+
+      console.log(
+        `🛡️ Guard eventleri yüklendi: ${file}`
+      );
     }
 
   } catch (err) {
 
     console.log(`❌ ${file} yüklenemedi:`);
+
     console.error(err);
   }
 }
@@ -132,7 +156,7 @@ client.once('ready', () => {
 });
 
 // =========================
-// OTO ROL SİSTEMİ
+// OTO ROL
 // =========================
 
 client.on('guildMemberAdd', async member => {
@@ -168,7 +192,8 @@ client.on('messageCreate', async message => {
 
   if (message.author.bot) return;
 
-  const msg = message.content.trim();
+  const msg =
+    message.content.trim();
 
   const saVariantlari = [
     'sa',
@@ -181,7 +206,9 @@ client.on('messageCreate', async message => {
     'SAA'
   ];
 
-  if (saVariantlari.includes(msg)) {
+  if (
+    saVariantlari.includes(msg)
+  ) {
 
     await message.reply(
       'As Kardeşim! 👋'
@@ -199,12 +226,15 @@ client.on('messageCreate', async message => {
 
   const prefix = ".";
 
-  if (!message.content.startsWith(prefix)) return;
+  if (
+    !message.content.startsWith(prefix)
+  ) return;
 
-  const args = message.content
-    .slice(prefix.length)
-    .trim()
-    .split(/ +/);
+  const args =
+    message.content
+      .slice(prefix.length)
+      .trim()
+      .split(/ +/);
 
   const commandName =
     args.shift()?.toLowerCase();
@@ -242,7 +272,9 @@ client.on('interactionCreate', async interaction => {
   // SLASH KOMUT
   // =========================
 
-  if (interaction.isChatInputCommand()) {
+  if (
+    interaction.isChatInputCommand()
+  ) {
 
     const command =
       client.commands.get(
@@ -285,23 +317,35 @@ client.on('interactionCreate', async interaction => {
   // MODAL
   // =========================
 
-  if (interaction.isModalSubmit()) {
+  if (
+    interaction.isModalSubmit()
+  ) {
 
     try {
 
       // DM MODAL
 
-      if (interaction.customId === 'dm_modal') {
+      if (
+        interaction.customId ===
+        'dm_modal'
+      ) {
 
         const command =
-          client.commands.get('dm-gonder');
+          client.commands.get(
+            'dm-gonder'
+          );
 
-        if (command?.handleModal) {
-          return await command.handleModal(interaction);
+        if (
+          command?.handleModal
+        ) {
+
+          return await command.handleModal(
+            interaction
+          );
         }
       }
 
-      // TICKET PANEL MODAL
+      // TICKET MODAL
 
       if (
         interaction.customId ===
@@ -309,14 +353,21 @@ client.on('interactionCreate', async interaction => {
       ) {
 
         const command =
-          client.commands.get('ticket-kur');
+          client.commands.get(
+            'ticket-kur'
+          );
 
-        if (command?.handleModal) {
-          return await command.handleModal(interaction);
+        if (
+          command?.handleModal
+        ) {
+
+          return await command.handleModal(
+            interaction
+          );
         }
       }
 
-      // BAN İTİRAZ MODAL
+      // BAN İTİRAZ
 
       if (
         interaction.customId ===
@@ -324,16 +375,21 @@ client.on('interactionCreate', async interaction => {
       ) {
 
         const command =
-          client.commands.get('ticket-kur');
+          client.commands.get(
+            'ticket-kur'
+          );
 
         if (
           command?.handleBanItirazModal
         ) {
-          return await command.handleBanItirazModal(interaction);
+
+          return await command.handleBanItirazModal(
+            interaction
+          );
         }
       }
 
-      // TICKET EKLE MODAL
+      // TICKET EKLE
 
       if (
         interaction.customId ===
@@ -341,16 +397,21 @@ client.on('interactionCreate', async interaction => {
       ) {
 
         const command =
-          client.commands.get('ticket-kur');
+          client.commands.get(
+            'ticket-kur'
+          );
 
         if (
           command?.handleEkleModal
         ) {
-          return await command.handleEkleModal(interaction);
+
+          return await command.handleEkleModal(
+            interaction
+          );
         }
       }
 
-      // DUYURU MODAL
+      // DUYURU
 
       if (
         interaction.customId ===
@@ -358,10 +419,17 @@ client.on('interactionCreate', async interaction => {
       ) {
 
         const command =
-          client.commands.get('duyuru');
+          client.commands.get(
+            'duyuru'
+          );
 
-        if (command?.handleModal) {
-          return await command.handleModal(interaction);
+        if (
+          command?.handleModal
+        ) {
+
+          return await command.handleModal(
+            interaction
+          );
         }
       }
 
@@ -375,7 +443,9 @@ client.on('interactionCreate', async interaction => {
   // BUTTON
   // =========================
 
-  if (interaction.isButton()) {
+  if (
+    interaction.isButton()
+  ) {
 
     const ticket =
       client.commands.get(
@@ -397,7 +467,7 @@ client.on('interactionCreate', async interaction => {
         );
       }
 
-      // TICKET KAPAT
+      // KAPAT
 
       if (
         interaction.customId ===
@@ -421,7 +491,7 @@ client.on('interactionCreate', async interaction => {
         );
       }
 
-      // KULLANICI EKLE
+      // EKLE
 
       if (
         interaction.customId ===
