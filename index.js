@@ -45,6 +45,10 @@ for (const file of commandFiles) {
   );
 }
 
+app.get('/status', (req, res) => {
+  res.status(200).send('OK');
+});
+
 // BOT HAZIR
 
 client.once('ready', () => {
@@ -368,17 +372,6 @@ client.on('interactionCreate', async interaction => {
       }
     }
   }
-});
-
-const express = require("express");
-const app = express();
-
-app.get("/", (req, res) => {
-  res.send("Bot aktif!");
-});
-
-app.listen(process.env.PORT || 3000, () => {
-  console.log("Web server aktif");
 });
 
 client.login(
