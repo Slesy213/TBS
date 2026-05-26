@@ -4,85 +4,234 @@ const {
     AuditLogEvent
 } = require("discord.js");
 
-let guardDurum = false;
+global.guardDurum = false;
+global.guvenliListe = [];
 
 module.exports = {
 
     data: new SlashCommandBuilder()
         .setName("guard")
-        .setDescription("Guard sistemini açar/kapatır")
+        .setDescription("Guard sistemini yönetir")
+
         .addStringOption(option =>
             option
-                .setName("durum")
-                .setDescription("aç veya kapat")
+                .setName("işlem")
+                .setDescription("Yapılacak işlem")
                 .setRequired(true)
                 .addChoices(
-                    { name: "Aç", value: "aç" },
-                    { name: "Kapat", value: "kapat" }
+                    { name: "Aç", value: "ac" },
+                    { name: "Kapat", value: "kapat" },
+                    { name: "Güvenli Liste Ekle", value: "guvenli-ekle" },
+                    { name: "Güvenli Liste Çıkar", value: "guvenli-cikar" },
+                    { name: "Güvenli Liste", value: "liste" }
                 )
         )
+
+        .addUserOption(option =>
+            option
+                .setName("kullanici")
+                .setDescription("Kullanıcı")
+                .setRequired(false)
+        )
+
         .setDefaultMemberPermissions(
             PermissionFlagsBits.Administrator
         ),
 
-    async execute(interaction) {
+    async execute(interaction, client) {
 
-        const client = interaction.client;
+        const islem =
+            interaction.options.getString("işlem");
 
-        const secim =
-            interaction.options.getString("durum");
+        const kullanici =
+            interaction.options.getUser("kullanici");
 
+        // =========================
         // GUARD AÇ
+        // =========================
 
-        if (secim === "aç") {
+        if (islem === "ac") {
 
-            if (guardDurum) {
+            if (global.guardDurum) {
+
                 return interaction.reply({
                     content: "⚠️ Guard zaten aktif.",
                     ephemeral: true
                 });
             }
 
-            guardDurum = true;
+            global.guardDurum = true;
 
             await interaction.reply({
                 content: "🛡️ Guard sistemi aktif edildi."
             });
 
-            // KANAL SİLME
+            return;
+        }
 
-            client.on("channelDelete", async (channel) => {
+        // =========================
+        // GUARD KAPAT
+        // =========================
 
-                if (!guardDurum) return;
+        if (islem === "kapat") {
 
-                const logs =
-                    await channel.guild.fetchAuditLogs({
-                        type: AuditLogEvent.ChannelDelete,
-                        limit: 1
-                    });
+            global.guardDurum = false;
 
-                const entry = logs.entries.first();
+            return interaction.reply({
+                content: "❌ Guard sistemi kapatıldı."
+            });
+        }
 
-                if (!entry) return;
+        // =========================
+        // GÜVENLİ EKLE
+        // =========================
 
-                const executor = entry.executor;
+        if (islem === "guvenli-ekle") {
 
-                if (
-                    executor.id ===
-                    channel.guild.ownerId
-                ) return;
+            if (!kullanici) {
 
-                const member =
-                    await channel.guild.members
-                        .fetch(executor.id)
-                        .catch(() => null);
+                return interaction.reply({
+                    content: "❌ Kullanıcı belirt.",
+                    ephemeral: true
+                });
+            }
 
-                if (!member) return;
+            if (
+                global.guvenliListe.includes(
+                    kullanici.id
+                )
+            ) {
+
+                return interaction.reply({
+                    content:
+                        "⚠️ Kullanıcı zaten güvenli listede.",
+                    ephemeral: true
+                });
+            }
+
+            global.guvenliListe.push(
+                kullanici.id
+            );
+
+            return interaction.reply({
+                content:
+                    `✅ ${kullanici.tag} güvenli listeye eklendi.`
+            });
+        }
+
+        // =========================
+        // GÜVENLİ ÇIKAR
+        // =========================
+
+        if (islem === "guvenli-cikar") {
+
+            if (!kullanici) {
+
+                return interaction.reply({
+                    content: "❌ Kullanıcı belirt.",
+                    ephemeral: true
+                });
+            }
+
+            global.guvenliListe =
+                global.guvenliListe.filter(
+                    x => x !== kullanici.id
+                );
+
+            return interaction.reply({
+                content:
+                    `✅ ${kullanici.tag} güvenli listeden çıkarıldı.`
+            });
+        }
+
+        // =========================
+        // LİSTE
+        // =========================
+
+        if (islem === "liste") {
+
+            if (
+                global.guvenliListe.length <= 0
+            ) {
+
+                return interaction.reply({
+                    content:
+                        "📄 Güvenli liste boş."
+                });
+            }
+
+            const liste =
+                global.guvenliListe
+                    .map(id => `<@${id}>`)
+                    .join("\n");
+
+            return interaction.reply({
+                content:
+                    `🛡️ Güvenli Liste:\n\n${liste}`
+            });
+        }
+    }
+};
+
+// =========================
+// GUARD EVENTS
+// =========================
+
+module.exports.events = (client) => {
+
+    // =========================
+    // KANAL SİLME
+    // =========================
+
+    client.on(
+        "channelDelete",
+        async (channel) => {
+
+            if (!global.guardDurum) return;
+
+            const logs =
+                await channel.guild.fetchAuditLogs({
+                    type: AuditLogEvent.ChannelDelete,
+                    limit: 1
+                });
+
+            const entry =
+                logs.entries.first();
+
+            if (!entry) return;
+
+            const executor =
+                entry.executor;
+
+            // OWNER KORUMA
+
+            if (
+                executor.id ===
+                channel.guild.ownerId
+            ) return;
+
+            // GÜVENLİ LİSTE
+
+            if (
+                global.guvenliListe.includes(
+                    executor.id
+                )
+            ) return;
+
+            const member =
+                await channel.guild.members
+                    .fetch(executor.id)
+                    .catch(() => null);
+
+            if (!member) return;
+
+            try {
 
                 await member.roles.set([]);
 
                 await member.ban({
-                    reason: "Guard | Kanal Silme"
+                    reason:
+                        "Guard | Kanal Silme"
                 });
 
                 channel.guild.systemChannel?.send({
@@ -90,42 +239,59 @@ module.exports = {
                         `🚨 ${executor.tag} kanal sildiği için banlandı.`
                 });
 
-            });
+            } catch {}
+        }
+    );
 
-            // ROL SİLME
+    // =========================
+    // ROL SİLME
+    // =========================
 
-            client.on("roleDelete", async (role) => {
+    client.on(
+        "roleDelete",
+        async (role) => {
 
-                if (!guardDurum) return;
+            if (!global.guardDurum) return;
 
-                const logs =
-                    await role.guild.fetchAuditLogs({
-                        type: AuditLogEvent.RoleDelete,
-                        limit: 1
-                    });
+            const logs =
+                await role.guild.fetchAuditLogs({
+                    type: AuditLogEvent.RoleDelete,
+                    limit: 1
+                });
 
-                const entry = logs.entries.first();
+            const entry =
+                logs.entries.first();
 
-                if (!entry) return;
+            if (!entry) return;
 
-                const executor = entry.executor;
+            const executor =
+                entry.executor;
 
-                if (
-                    executor.id ===
-                    role.guild.ownerId
-                ) return;
+            if (
+                executor.id ===
+                role.guild.ownerId
+            ) return;
 
-                const member =
-                    await role.guild.members
-                        .fetch(executor.id)
-                        .catch(() => null);
+            if (
+                global.guvenliListe.includes(
+                    executor.id
+                )
+            ) return;
 
-                if (!member) return;
+            const member =
+                await role.guild.members
+                    .fetch(executor.id)
+                    .catch(() => null);
+
+            if (!member) return;
+
+            try {
 
                 await member.roles.set([]);
 
                 await member.ban({
-                    reason: "Guard | Rol Silme"
+                    reason:
+                        "Guard | Rol Silme"
                 });
 
                 role.guild.systemChannel?.send({
@@ -133,34 +299,52 @@ module.exports = {
                         `🚨 ${executor.tag} rol sildiği için banlandı.`
                 });
 
-            });
+            } catch {}
+        }
+    );
 
-            // BOT EKLEME
+    // =========================
+    // BOT EKLEME
+    // =========================
 
-            client.on("guildMemberAdd", async (member) => {
+    client.on(
+        "guildMemberAdd",
+        async (member) => {
 
-                if (!guardDurum) return;
+            if (!global.guardDurum) return;
 
-                if (!member.user.bot) return;
+            if (!member.user.bot) return;
 
-                const logs =
-                    await member.guild.fetchAuditLogs({
-                        type: AuditLogEvent.BotAdd,
-                        limit: 1
-                    });
+            const logs =
+                await member.guild.fetchAuditLogs({
+                    type: AuditLogEvent.BotAdd,
+                    limit: 1
+                });
 
-                const entry = logs.entries.first();
+            const entry =
+                logs.entries.first();
 
-                if (!entry) return;
+            if (!entry) return;
 
-                const executor = entry.executor;
+            const executor =
+                entry.executor;
 
-                if (
-                    executor.id ===
-                    member.guild.ownerId
-                ) return;
+            if (
+                executor.id ===
+                member.guild.ownerId
+            ) return;
 
-                await member.kick("Guard Sistemi");
+            if (
+                global.guvenliListe.includes(
+                    executor.id
+                )
+            ) return;
+
+            try {
+
+                await member.kick(
+                    "Guard Sistemi"
+                );
 
                 const yetkili =
                     await member.guild.members
@@ -172,7 +356,8 @@ module.exports = {
                 await yetkili.roles.set([]);
 
                 await yetkili.ban({
-                    reason: "Guard | İzinsiz Bot"
+                    reason:
+                        "Guard | İzinsiz Bot"
                 });
 
                 member.guild.systemChannel?.send({
@@ -180,18 +365,7 @@ module.exports = {
                         `🚨 ${executor.tag} izinsiz bot eklediği için banlandı.`
                 });
 
-            });
+            } catch {}
         }
-
-        // GUARD KAPAT
-
-        else if (secim === "kapat") {
-
-            guardDurum = false;
-
-            await interaction.reply({
-                content: "❌ Guard sistemi kapatıldı."
-            });
-        }
-    }
+    );
 };
