@@ -1,5 +1,8 @@
 require('dotenv').config();
 
+const express = require('express');
+const app = express();
+
 const {
   Client,
   GatewayIntentBits,
@@ -10,22 +13,43 @@ const {
 const fs = require('fs');
 const path = require('path');
 
+// =========================
+// EXPRESS WEB SERVER
+// =========================
+
+app.get('/status', (req, res) => {
+  res.status(200).send('OK');
+});
+
+app.get('/', (req, res) => {
+  res.send('Bot aktif ✅');
+});
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`🌐 Web server aktif: ${PORT}`);
+});
+
+// =========================
+// DISCORD CLIENT
+// =========================
+
 const client = new Client({
-
   intents: [
-
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.MessageContent,
-
   ],
 });
 
 client.commands = new Collection();
 
+// =========================
 // KOMUTLAR
+// =========================
 
 const commandsPath =
   path.join(__dirname, 'commands');
@@ -45,11 +69,9 @@ for (const file of commandFiles) {
   );
 }
 
-app.get('/status', (req, res) => {
-  res.status(200).send('OK');
-});
-
+// =========================
 // BOT HAZIR
+// =========================
 
 client.once('ready', () => {
 
@@ -72,7 +94,9 @@ client.once('ready', () => {
   });
 });
 
+// =========================
 // SA AS
+// =========================
 
 client.on('messageCreate', async message => {
 
@@ -99,7 +123,9 @@ client.on('messageCreate', async message => {
   }
 });
 
+// =========================
 // INTERACTION
+// =========================
 
 client.on('interactionCreate', async interaction => {
 
@@ -373,6 +399,10 @@ client.on('interactionCreate', async interaction => {
     }
   }
 });
+
+// =========================
+// LOGIN
+// =========================
 
 client.login(
   process.env.DISCORD_TOKEN
