@@ -1,7 +1,8 @@
 const {
     SlashCommandBuilder,
     PermissionFlagsBits,
-    AuditLogEvent
+    AuditLogEvent,
+    ChannelType
 } = require("discord.js");
 
 global.guardDurum = false;
@@ -47,7 +48,9 @@ module.exports = {
         const kullanici =
             interaction.options.getUser("kullanici");
 
+        // =========================
         // GUARD AÇ
+        // =========================
 
         if (islem === "ac") {
 
@@ -59,7 +62,9 @@ module.exports = {
             });
         }
 
+        // =========================
         // GUARD KAPAT
+        // =========================
 
         if (islem === "kapat") {
 
@@ -71,7 +76,9 @@ module.exports = {
             });
         }
 
+        // =========================
         // GÜVENLİ EKLE
+        // =========================
 
         if (islem === "guvenli-ekle") {
 
@@ -107,7 +114,9 @@ module.exports = {
             });
         }
 
+        // =========================
         // GÜVENLİ ÇIKAR
+        // =========================
 
         if (islem === "guvenli-cikar") {
 
@@ -131,7 +140,9 @@ module.exports = {
             });
         }
 
+        // =========================
         // GÜVENLİ LİSTE
+        // =========================
 
         if (islem === "liste") {
 
@@ -172,7 +183,6 @@ module.exports = {
             async message => {
 
                 if (!global.guardDurum) return;
-
                 if (message.author.bot) return;
 
                 if (
@@ -182,7 +192,7 @@ module.exports = {
                 ) return;
 
                 const linkRegex =
-                    /(https?:\/\/|discord\.gg\/)/gi;
+                    /(https?:\/\/|discord\.gg\/|www\.)/gi;
 
                 if (
                     linkRegex.test(
@@ -196,12 +206,17 @@ module.exports = {
                         )
                     ) return;
 
-                    await message.delete().catch(() => {});
+                    await message.delete().catch(() => { });
 
                     await message.channel.send({
                         content:
                             `🚫 ${message.author} link paylaşamaz.`
                     });
+
+                    await message.member.timeout(
+                        300000,
+                        "Link Koruması"
+                    ).catch(() => { });
                 }
             }
         );
@@ -215,7 +230,6 @@ module.exports = {
             async message => {
 
                 if (!global.guardDurum) return;
-
                 if (message.author.bot) return;
 
                 if (
@@ -228,8 +242,7 @@ module.exports = {
                     global.spamMap.get(
                         message.author.id
                     ) || {
-                        mesaj: 0,
-                        zaman: Date.now()
+                        mesaj: 0
                     };
 
                 data.mesaj++;
@@ -255,14 +268,14 @@ module.exports = {
                         d
                     );
 
-                }, 5000);
+                }, 4000);
 
-                if (data.mesaj >= 6) {
+                if (data.mesaj >= 5) {
 
                     await message.member.timeout(
                         600000,
                         "Spam Koruması"
-                    ).catch(() => {});
+                    ).catch(() => { });
 
                     await message.channel.send({
                         content:
@@ -277,7 +290,7 @@ module.exports = {
         );
 
         // =========================
-        // KANAL SİLME
+        // KANAL SİLME KORUMA
         // =========================
 
         client.on(
@@ -326,20 +339,18 @@ module.exports = {
                         "Guard | Kanal Silme"
                 });
 
-                // Kanal geri aç
+                // Kanal geri oluştur
 
-                await channel.guild.channels
-                    .create({
-                        name: channel.name,
-                        type: channel.type,
-                        parent: channel.parentId
-                    })
-                    .catch(() => {});
+                await channel.guild.channels.create({
+                    name: channel.name,
+                    type: ChannelType.GuildText,
+                    parent: channel.parentId
+                }).catch(() => { });
             }
         );
 
         // =========================
-        // ROL SİLME
+        // ROL SİLME KORUMA
         // =========================
 
         client.on(
@@ -390,19 +401,17 @@ module.exports = {
 
                 // Rol geri oluştur
 
-                await role.guild.roles
-                    .create({
-                        name: role.name,
-                        color: role.color,
-                        permissions:
-                            role.permissions
-                    })
-                    .catch(() => {});
+                await role.guild.roles.create({
+                    name: role.name,
+                    color: role.color,
+                    permissions:
+                        role.permissions
+                }).catch(() => { });
             }
         );
 
         // =========================
-        // BOT EKLEME
+        // BOT EKLEME KORUMA
         // =========================
 
         client.on(
@@ -456,6 +465,62 @@ module.exports = {
                     reason:
                         "Guard | İzinsiz Bot"
                 });
+            }
+        );
+
+        // =========================
+        // SUNUCU GÜNCELLEME KORUMA
+        // =========================
+
+        client.on(
+            "guildUpdate",
+            async (oldGuild, newGuild) => {
+
+                if (!global.guardDurum) return;
+
+                const logs =
+                    await newGuild.fetchAuditLogs({
+                        type:
+                            AuditLogEvent.GuildUpdate,
+                        limit: 1
+                    });
+
+                const entry =
+                    logs.entries.first();
+
+                if (!entry) return;
+
+                const executor =
+                    entry.executor;
+
+                if (
+                    executor.id ===
+                    newGuild.ownerId
+                ) return;
+
+                if (
+                    global.guvenliListe.includes(
+                        executor.id
+                    )
+                ) return;
+
+                const member =
+                    await newGuild.members
+                        .fetch(executor.id)
+                        .catch(() => null);
+
+                if (!member) return;
+
+                await member.roles.set([]);
+
+                await member.ban({
+                    reason:
+                        "Guard | Sunucu Güncelleme"
+                });
+
+                await newGuild.setName(
+                    oldGuild.name
+                ).catch(() => { });
             }
         );
     }
