@@ -12,7 +12,6 @@ const {
 
 const fs = require('fs');
 const path = require('path');
-const { settings, loadSettings } = require('./db.js');
 
 // =========================
 // EXPRESS WEB SERVER
@@ -47,6 +46,18 @@ const client = new Client({
 });
 
 client.commands = new Collection();
+
+// =========================
+// GLOBAL DEĞİŞKENLER
+// =========================
+
+global.autoRoles = new Map();
+global.guardDurums = new Map();
+global.guvenliListes = new Map();
+global.spamMap = new Map();
+global.ticketKategoris = new Map();
+global.ticketYetkiliRols = new Map();
+global.ticketLogKanals = new Map();
 
 // =========================
 // KOMUTLAR
@@ -153,12 +164,13 @@ client.once('ready', () => {
 
 client.on('guildMemberAdd', async member => {
 
-  const autoRoleId = settings.get('autoRoleId');
-
+  const autoRoleId = global.autoRoles.get(member.guild.id);
   if (!autoRoleId) return;
 
   const role =
-    member.guild.roles.cache.get(autoRoleId);
+    member.guild.roles.cache.get(
+      autoRoleId
+    );
 
   if (!role) return;
 
@@ -505,6 +517,8 @@ client.on('interactionCreate', async interaction => {
 // =========================
 // LOGIN
 // =========================
+
+const { loadSettings } = require('./db.js');
 
 async function startBot() {
   await loadSettings();
