@@ -10,7 +10,13 @@ const {
   TextInputBuilder,
   TextInputStyle,
 } = require('discord.js');
-const { settings, updateSettings } = require('../db.js');
+const { updateSettings } = require('../db.js');
+
+// ===================== GLOBAL AYARLAR =====================
+
+global.ticketKategoris = global.ticketKategoris || new Map();
+global.ticketYetkiliRols = global.ticketYetkiliRols || new Map();
+global.ticketLogKanals = global.ticketLogKanals || new Map();
 
 // =========================================================
 
@@ -89,11 +95,13 @@ module.exports = {
     const logKanal =
       interaction.options.getChannel('log_kanal');
 
-    settings.set('ticketKategori', kategori.id);
-    settings.set('ticketYetkiliRol', yetkiliRol.id);
-    settings.set('ticketLogKanal', logKanal.id);
+    const guildId = interaction.guild.id;
 
-    await updateSettings({
+    global.ticketKategoris.set(guildId, kategori.id);
+    global.ticketYetkiliRols.set(guildId, yetkiliRol.id);
+    global.ticketLogKanals.set(guildId, logKanal.id);
+
+    await updateSettings(guildId, {
       ticket_kategori: kategori.id,
       ticket_yetkili_rol: yetkiliRol.id,
       ticket_log_kanal: logKanal.id
@@ -233,10 +241,11 @@ module.exports = {
 
     const guild = interaction.guild;
     const user  = interaction.user;
+    const guildId = guild.id;
 
-    const ticketKategori = settings.get('ticketKategori');
-    const ticketYetkiliRol = settings.get('ticketYetkiliRol');
-    const ticketLogKanal = settings.get('ticketLogKanal');
+    const ticketKategori = global.ticketKategoris.get(guildId);
+    const ticketYetkiliRol = global.ticketYetkiliRols.get(guildId);
+    const ticketLogKanal = global.ticketLogKanals.get(guildId);
 
     if (!ticketKategori || !ticketYetkiliRol) {
       return interaction.reply({
@@ -337,10 +346,12 @@ module.exports = {
       ],
     });
 
-    const logKanal =
-      guild.channels.cache.get(ticketLogKanal);
+    const logKanalObj =
+      guild.channels.cache.get(
+        ticketLogKanal
+      );
 
-    if (logKanal) {
+    if (logKanalObj) {
 
       const logEmbed = new EmbedBuilder()
         .setColor(0x57f287)
@@ -357,7 +368,7 @@ module.exports = {
         )
         .setTimestamp();
 
-      logKanal.send({
+      logKanalObj.send({
         embeds: [logEmbed]
       });
     }
@@ -370,11 +381,13 @@ module.exports = {
   },
 
   async handleSahiplen(interaction) {
-
-    const ticketYetkiliRol = settings.get('ticketYetkiliRol');
+    const guildId = interaction.guild.id;
+    const ticketYetkiliRol = global.ticketYetkiliRols.get(guildId);
 
     if (
-      !interaction.member.roles.cache.has(ticketYetkiliRol)
+      !interaction.member.roles.cache.has(
+        ticketYetkiliRol
+      )
     ) {
       return interaction.reply({
         content: '❌ Bunun için yetkin yok.',
@@ -454,12 +467,15 @@ module.exports = {
   async handleKapat(interaction) {
 
     const kanal = interaction.channel;
-    const ticketLogKanal = settings.get('ticketLogKanal');
+    const guildId = interaction.guild.id;
+    const ticketLogKanal = global.ticketLogKanals.get(guildId);
 
-    const logKanal =
-      interaction.guild.channels.cache.get(ticketLogKanal);
+    const logKanalObj =
+      interaction.guild.channels.cache.get(
+        ticketLogKanal
+      );
 
-    if (logKanal) {
+    if (logKanalObj) {
 
       const logEmbed = new EmbedBuilder()
         .setColor(0xed4245)
@@ -476,7 +492,7 @@ module.exports = {
         )
         .setTimestamp();
 
-      logKanal.send({
+      logKanalObj.send({
         embeds: [logEmbed]
       });
     }
