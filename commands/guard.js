@@ -4,11 +4,10 @@ const {
     AuditLogEvent,
     ChannelType
 } = require("discord.js");
-const { updateSetting } = require("../db.js");
+const { settings, updateSetting } = require("../db.js");
 
-global.guardDurum = false;
-global.guvenliListe = [];
-global.spamMap = new Map();
+// Runtime cache — ayar değil, modül seviyesinde tutulur
+const spamMap = new Map();
 
 module.exports = {
 
@@ -55,7 +54,7 @@ module.exports = {
 
         if (islem === "ac") {
 
-            global.guardDurum = true;
+            settings.set("guardDurum", true);
             await updateSetting("guard_durum", true);
 
             return interaction.reply({
@@ -70,7 +69,7 @@ module.exports = {
 
         if (islem === "kapat") {
 
-            global.guardDurum = false;
+            settings.set("guardDurum", false);
             await updateSetting("guard_durum", false);
 
             return interaction.reply({
@@ -94,11 +93,9 @@ module.exports = {
                 });
             }
 
-            if (
-                global.guvenliListe.includes(
-                    kullanici.id
-                )
-            ) {
+            const liste = settings.get("guvenliListe");
+
+            if (liste.includes(kullanici.id)) {
 
                 return interaction.reply({
                     content:
@@ -107,10 +104,9 @@ module.exports = {
                 });
             }
 
-            global.guvenliListe.push(
-                kullanici.id
-            );
-            await updateSetting("guvenli_liste", global.guvenliListe);
+            liste.push(kullanici.id);
+            settings.set("guvenliListe", liste);
+            await updateSetting("guvenli_liste", liste);
 
             return interaction.reply({
                 content:
@@ -133,11 +129,11 @@ module.exports = {
                 });
             }
 
-            global.guvenliListe =
-                global.guvenliListe.filter(
-                    x => x !== kullanici.id
-                );
-            await updateSetting("guvenli_liste", global.guvenliListe);
+            const yeniListe = settings.get("guvenliListe")
+                .filter(x => x !== kullanici.id);
+
+            settings.set("guvenliListe", yeniListe);
+            await updateSetting("guvenli_liste", yeniListe);
 
             return interaction.reply({
                 content:
@@ -151,9 +147,9 @@ module.exports = {
 
         if (islem === "liste") {
 
-            if (
-                global.guvenliListe.length <= 0
-            ) {
+            const liste = settings.get("guvenliListe");
+
+            if (liste.length <= 0) {
 
                 return interaction.reply({
                     content:
@@ -161,14 +157,13 @@ module.exports = {
                 });
             }
 
-            const liste =
-                global.guvenliListe
-                    .map(id => `<@${id}>`)
-                    .join("\n");
+            const listeStr = liste
+                .map(id => `<@${id}>`)
+                .join("\n");
 
             return interaction.reply({
                 content:
-                    `🛡️ Güvenli Liste:\n\n${liste}`
+                    `🛡️ Güvenli Liste:\n\n${listeStr}`
             });
         }
     },
@@ -187,11 +182,11 @@ module.exports = {
             "messageCreate",
             async message => {
 
-                if (!global.guardDurum) return;
+                if (!settings.get("guardDurum")) return;
                 if (message.author.bot) return;
 
                 if (
-                    global.guvenliListe.includes(
+                    settings.get("guvenliListe").includes(
                         message.author.id
                     )
                 ) return;
@@ -234,17 +229,17 @@ module.exports = {
             "messageCreate",
             async message => {
 
-                if (!global.guardDurum) return;
+                if (!settings.get("guardDurum")) return;
                 if (message.author.bot) return;
 
                 if (
-                    global.guvenliListe.includes(
+                    settings.get("guvenliListe").includes(
                         message.author.id
                     )
                 ) return;
 
                 const data =
-                    global.spamMap.get(
+                    spamMap.get(
                         message.author.id
                     ) || {
                         mesaj: 0
@@ -252,7 +247,7 @@ module.exports = {
 
                 data.mesaj++;
 
-                global.spamMap.set(
+                spamMap.set(
                     message.author.id,
                     data
                 );
@@ -260,7 +255,7 @@ module.exports = {
                 setTimeout(() => {
 
                     const d =
-                        global.spamMap.get(
+                        spamMap.get(
                             message.author.id
                         );
 
@@ -268,7 +263,7 @@ module.exports = {
 
                     d.mesaj--;
 
-                    global.spamMap.set(
+                    spamMap.set(
                         message.author.id,
                         d
                     );
@@ -287,7 +282,7 @@ module.exports = {
                             `🚫 ${message.author} spam yaptığı için susturuldu.`
                     });
 
-                    global.spamMap.delete(
+                    spamMap.delete(
                         message.author.id
                     );
                 }
@@ -302,7 +297,7 @@ module.exports = {
             "channelDelete",
             async channel => {
 
-                if (!global.guardDurum) return;
+                if (!settings.get("guardDurum")) return;
 
                 const logs =
                     await channel.guild.fetchAuditLogs({
@@ -325,7 +320,7 @@ module.exports = {
                 ) return;
 
                 if (
-                    global.guvenliListe.includes(
+                    settings.get("guvenliListe").includes(
                         executor.id
                     )
                 ) return;
@@ -362,7 +357,7 @@ module.exports = {
             "roleDelete",
             async role => {
 
-                if (!global.guardDurum) return;
+                if (!settings.get("guardDurum")) return;
 
                 const logs =
                     await role.guild.fetchAuditLogs({
@@ -385,7 +380,7 @@ module.exports = {
                 ) return;
 
                 if (
-                    global.guvenliListe.includes(
+                    settings.get("guvenliListe").includes(
                         executor.id
                     )
                 ) return;
@@ -423,7 +418,7 @@ module.exports = {
             "guildMemberAdd",
             async member => {
 
-                if (!global.guardDurum) return;
+                if (!settings.get("guardDurum")) return;
 
                 if (!member.user.bot) return;
 
@@ -448,7 +443,7 @@ module.exports = {
                 ) return;
 
                 if (
-                    global.guvenliListe.includes(
+                    settings.get("guvenliListe").includes(
                         executor.id
                     )
                 ) return;
@@ -481,7 +476,7 @@ module.exports = {
             "guildUpdate",
             async (oldGuild, newGuild) => {
 
-                if (!global.guardDurum) return;
+                if (!settings.get("guardDurum")) return;
 
                 const logs =
                     await newGuild.fetchAuditLogs({
@@ -504,7 +499,7 @@ module.exports = {
                 ) return;
 
                 if (
-                    global.guvenliListe.includes(
+                    settings.get("guvenliListe").includes(
                         executor.id
                     )
                 ) return;
