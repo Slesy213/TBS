@@ -10,13 +10,7 @@ const {
   TextInputBuilder,
   TextInputStyle,
 } = require('discord.js');
-const { updateSettings } = require('../db.js');
-
-// ===================== GLOBAL AYARLAR =====================
-
-global.ticketKategori = null;
-global.ticketYetkiliRol = null;
-global.ticketLogKanal = null;
+const { settings, updateSettings } = require('../db.js');
 
 // =========================================================
 
@@ -95,9 +89,9 @@ module.exports = {
     const logKanal =
       interaction.options.getChannel('log_kanal');
 
-    global.ticketKategori = kategori.id;
-    global.ticketYetkiliRol = yetkiliRol.id;
-    global.ticketLogKanal = logKanal.id;
+    settings.set('ticketKategori', kategori.id);
+    settings.set('ticketYetkiliRol', yetkiliRol.id);
+    settings.set('ticketLogKanal', logKanal.id);
 
     await updateSettings({
       ticket_kategori: kategori.id,
@@ -240,7 +234,11 @@ module.exports = {
     const guild = interaction.guild;
     const user  = interaction.user;
 
-    if (!global.ticketKategori || !global.ticketYetkiliRol) {
+    const ticketKategori = settings.get('ticketKategori');
+    const ticketYetkiliRol = settings.get('ticketYetkiliRol');
+    const ticketLogKanal = settings.get('ticketLogKanal');
+
+    if (!ticketKategori || !ticketYetkiliRol) {
       return interaction.reply({
         content: '❌ Ticket sistemi henüz kurulmamış veya veritabanında ayarlar eksik! Lütfen önce `/ticket-kur` komutunu çalıştırarak paneli tekrar kurun.',
         ephemeral: true
@@ -248,7 +246,7 @@ module.exports = {
     }
 
     const aktifTicket = guild.channels.cache.find(c =>
-      c.parentId === global.ticketKategori &&
+      c.parentId === ticketKategori &&
       c.permissionOverwrites.cache.has(user.id)
     );
 
@@ -276,9 +274,9 @@ module.exports = {
       }
     ];
 
-    if (global.ticketYetkiliRol) {
+    if (ticketYetkiliRol) {
       permissionOverwrites.push({
-        id: global.ticketYetkiliRol,
+        id: ticketYetkiliRol,
         allow: [
           'ViewChannel',
           'SendMessages',
@@ -295,7 +293,7 @@ module.exports = {
 
       type: ChannelType.GuildText,
 
-      parent: global.ticketKategori,
+      parent: ticketKategori,
 
       permissionOverwrites: permissionOverwrites,
     });
@@ -326,7 +324,7 @@ module.exports = {
     await kanal.send({
 
       content:
-        `<@${user.id}> <@&${global.ticketYetkiliRol}>`,
+        `<@${user.id}> <@&${ticketYetkiliRol}>`,
 
       embeds: [ticketEmbed],
 
@@ -340,9 +338,7 @@ module.exports = {
     });
 
     const logKanal =
-      guild.channels.cache.get(
-        global.ticketLogKanal
-      );
+      guild.channels.cache.get(ticketLogKanal);
 
     if (logKanal) {
 
@@ -375,10 +371,10 @@ module.exports = {
 
   async handleSahiplen(interaction) {
 
+    const ticketYetkiliRol = settings.get('ticketYetkiliRol');
+
     if (
-      !interaction.member.roles.cache.has(
-        global.ticketYetkiliRol
-      )
+      !interaction.member.roles.cache.has(ticketYetkiliRol)
     ) {
       return interaction.reply({
         content: '❌ Bunun için yetkin yok.',
@@ -458,11 +454,10 @@ module.exports = {
   async handleKapat(interaction) {
 
     const kanal = interaction.channel;
+    const ticketLogKanal = settings.get('ticketLogKanal');
 
     const logKanal =
-      interaction.guild.channels.cache.get(
-        global.ticketLogKanal
-      );
+      interaction.guild.channels.cache.get(ticketLogKanal);
 
     if (logKanal) {
 
