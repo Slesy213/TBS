@@ -2,7 +2,7 @@ const {
   SlashCommandBuilder,
   PermissionFlagsBits
 } = require('discord.js');
-const { settings, updateSetting } = require('../db.js');
+const { updateSetting } = require('../db.js');
 
 module.exports = {
 
@@ -23,9 +23,10 @@ module.exports = {
 
     const role =
       interaction.options.getRole('rol');
+    const guildId = interaction.guild.id;
 
-    settings.set('autoRoleId', role.id);
-    await updateSetting('auto_role_id', role.id);
+    global.autoRoles.set(guildId, role.id);
+    await updateSetting(guildId, 'auto_role_id', role.id);
 
     await interaction.reply({
       content:
