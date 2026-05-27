@@ -9,78 +9,35 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// =========================
-// MERKEZİ AYAR YÖNETİCİSİ
-// =========================
-
-const settings = {
-  autoRoleId: null,
-  guardDurum: false,
-  guvenliListe: [],
-  ticketKategori: null,
-  ticketYetkiliRol: null,
-  ticketLogKanal: null,
-};
-
-// DB sütun adı ↔ settings key eşlemesi
-const DB_KEY_MAP = {
-  auto_role_id: 'autoRoleId',
-  guard_durum: 'guardDurum',
-  guvenli_liste: 'guvenliListe',
-  ticket_kategori: 'ticketKategori',
-  ticket_yetkili_rol: 'ticketYetkiliRol',
-  ticket_log_kanal: 'ticketLogKanal',
-};
-
-const SETTINGS_KEY_MAP = Object.fromEntries(
-  Object.entries(DB_KEY_MAP).map(([db, local]) => [local, db])
-);
-
 /**
- * Ayar değerini oku
- * @param {string} key - settings anahtarı (camelCase)
- */
-function get(key) {
-  return settings[key];
-}
-
-/**
- * Ayar değerini sadece local cache'de güncelle (DB'ye yazmaz)
- * @param {string} key - settings anahtarı (camelCase)
- * @param {*} value
- */
-function set(key, value) {
-  if (key in settings) {
-    settings[key] = value;
-  }
-}
-
-/**
- * Supabase'den ayarları yükle
+ * Supabase üzerindeki tüm sunucu ayarlarını global Map nesnelerine yükler.
  */
 async function loadSettings() {
   try {
     const { data, error } = await supabase
       .from('settings')
-      .select('*')
-      .eq('id', 1)
-      .maybeSingle();
+      .select('*');
 
     if (error) {
       console.error('❌ Supabase ayarları yüklenirken hata oluştu:', error.message);
       return;
     }
 
-    if (data) {
-      settings.autoRoleId = data.auto_role_id;
-      settings.guardDurum = data.guard_durum;
-      settings.guvenliListe = Array.isArray(data.guvenli_liste) ? data.guvenli_liste : [];
-      settings.ticketKategori = data.ticket_kategori;
-      settings.ticketYetkiliRol = data.ticket_yetkili_rol;
-      settings.ticketLogKanal = data.ticket_log_kanal;
-      console.log('🛡️ Ayarlar Supabase üzerinden başarıyla yüklendi.');
+    if (data && data.length > 0) {
+      for (const row of data) {
+        const guildId = row.guild_id;
+        if (guildId) {
+          global.autoRoles.set(guildId, row.auto_role_id);
+          global.guardDurums.set(guildId, row.guard_durum);
+          global.guvenliListes.set(guildId, Array.isArray(row.guvenli_liste) ? row.guvenli_liste : []);
+          global.ticketKategoris.set(guildId, row.ticket_kategori);
+          global.ticketYetkiliRols.set(guildId, row.ticket_yetkili_rol);
+          global.ticketLogKanals.set(guildId, row.ticket_log_kanal);
+        }
+      }
+      console.log(`🛡️ Ayarlar Supabase üzerinden ${data.length} sunucu için başarıyla yüklendi.`);
     } else {
-      console.log('ℹ️ Supabase üzerinde settings tablosunda kayıt bulunamadı. Lütfen SQL editöründen varsayılan satırı eklediğinizden emin olun.');
+      console.log('ℹ️ Supabase üzerinde settings tablosunda kayıtlı sunucu bulunamadı.');
     }
   } catch (err) {
     console.error('❌ Supabase bağlantı hatası:', err);
@@ -88,62 +45,44 @@ async function loadSettings() {
 }
 
 /**
- * Tek bir ayarı hem local cache'de hem Supabase'de güncelle
- * @param {string} column - DB sütun adı (snake_case)
- * @param {*} value
+ * Belirli bir sunucunun tek bir ayarını günceller veya ekler (upsert).
  */
-async function updateSetting(column, value) {
-  // Local cache'i güncelle
-  const localKey = DB_KEY_MAP[column];
-  if (localKey) {
-    settings[localKey] = value;
-  }
-
+async function updateSetting(guildId, column, value) {
+  if (!guildId) return;
   try {
     const { error } = await supabase
       .from('settings')
-      .update({ [column]: value })
-      .eq('id', 1);
+      .upsert({ guild_id: guildId, [column]: value }, { onConflict: 'guild_id' });
 
     if (error) {
-      console.error(`❌ Supabase güncellenirken hata oluştu (${column}):`, error.message);
+      console.error(`❌ Supabase güncellenirken hata oluştu (Guild: ${guildId}, ${column}):`, error.message);
     }
   } catch (err) {
-    console.error(`❌ Supabase güncelleme hatası (${column}):`, err);
+    console.error(`❌ Supabase güncelleme hatası (Guild: ${guildId}, ${column}):`, err);
   }
 }
 
 /**
- * Birden fazla ayarı hem local cache'de hem Supabase'de güncelle
- * @param {Object} settingsObj - { db_column: value, ... }
+ * Belirli bir sunucunun birden fazla ayarını toplu günceller veya ekler (upsert).
  */
-async function updateSettings(settingsObj) {
-  // Local cache'i güncelle
-  for (const [column, value] of Object.entries(settingsObj)) {
-    const localKey = DB_KEY_MAP[column];
-    if (localKey) {
-      settings[localKey] = value;
-    }
-  }
-
+async function updateSettings(guildId, settingsObj) {
+  if (!guildId) return;
   try {
     const { error } = await supabase
       .from('settings')
-      .update(settingsObj)
-      .eq('id', 1);
+      .upsert({ guild_id: guildId, ...settingsObj }, { onConflict: 'guild_id' });
 
     if (error) {
-      console.error(`❌ Supabase toplu güncellenirken hata oluştu:`, error.message);
+      console.error(`❌ Supabase toplu güncellenirken hata oluştu (Guild: ${guildId}):`, error.message);
     }
   } catch (err) {
-    console.error(`❌ Supabase toplu güncelleme hatası:`, err);
+    console.error(`❌ Supabase toplu güncelleme hatası (Guild: ${guildId}):`, err);
   }
 }
 
 module.exports = {
   supabase,
-  settings: { get, set },
   loadSettings,
   updateSetting,
-  updateSettings,
+  updateSettings
 };
