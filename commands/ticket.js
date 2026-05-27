@@ -10,6 +10,7 @@ const {
   TextInputBuilder,
   TextInputStyle,
 } = require('discord.js');
+const { updateSettings } = require('../db.js');
 
 // ===================== GLOBAL AYARLAR =====================
 
@@ -97,6 +98,12 @@ module.exports = {
     global.ticketKategori = kategori.id;
     global.ticketYetkiliRol = yetkiliRol.id;
     global.ticketLogKanal = logKanal.id;
+
+    await updateSettings({
+      ticket_kategori: kategori.id,
+      ticket_yetkili_rol: yetkiliRol.id,
+      ticket_log_kanal: logKanal.id
+    });
 
     const modal = new ModalBuilder()
       .setCustomId('ticket_modal')
@@ -233,6 +240,13 @@ module.exports = {
     const guild = interaction.guild;
     const user  = interaction.user;
 
+    if (!global.ticketKategori || !global.ticketYetkiliRol) {
+      return interaction.reply({
+        content: '❌ Ticket sistemi henüz kurulmamış veya veritabanında ayarlar eksik! Lütfen önce `/ticket-kur` komutunu çalıştırarak paneli tekrar kurun.',
+        ephemeral: true
+      });
+    }
+
     const aktifTicket = guild.channels.cache.find(c =>
       c.parentId === global.ticketKategori &&
       c.permissionOverwrites.cache.has(user.id)
@@ -247,6 +261,33 @@ module.exports = {
       });
     }
 
+    const permissionOverwrites = [
+      {
+        id: guild.roles.everyone,
+        deny: ['ViewChannel']
+      },
+      {
+        id: user.id,
+        allow: [
+          'ViewChannel',
+          'SendMessages',
+          'ReadMessageHistory'
+        ]
+      }
+    ];
+
+    if (global.ticketYetkiliRol) {
+      permissionOverwrites.push({
+        id: global.ticketYetkiliRol,
+        allow: [
+          'ViewChannel',
+          'SendMessages',
+          'ReadMessageHistory',
+          'ManageMessages'
+        ]
+      });
+    }
+
     const kanal = await guild.channels.create({
 
       name:
@@ -256,32 +297,7 @@ module.exports = {
 
       parent: global.ticketKategori,
 
-      permissionOverwrites: [
-
-        {
-          id: guild.roles.everyone,
-          deny: ['ViewChannel']
-        },
-
-        {
-          id: user.id,
-          allow: [
-            'ViewChannel',
-            'SendMessages',
-            'ReadMessageHistory'
-          ]
-        },
-
-        {
-          id: global.ticketYetkiliRol,
-          allow: [
-            'ViewChannel',
-            'SendMessages',
-            'ReadMessageHistory',
-            'ManageMessages'
-          ]
-        },
-      ],
+      permissionOverwrites: permissionOverwrites,
     });
 
     const ticketEmbed = new EmbedBuilder()
