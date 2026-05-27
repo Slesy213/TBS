@@ -4,6 +4,7 @@ const {
     AuditLogEvent,
     ChannelType
 } = require("discord.js");
+const { updateSetting } = require("../db.js");
 
 global.guardDurum = false;
 global.guvenliListe = [];
@@ -55,6 +56,7 @@ module.exports = {
         if (islem === "ac") {
 
             global.guardDurum = true;
+            await updateSetting("guard_durum", true);
 
             return interaction.reply({
                 content:
@@ -69,6 +71,7 @@ module.exports = {
         if (islem === "kapat") {
 
             global.guardDurum = false;
+            await updateSetting("guard_durum", false);
 
             return interaction.reply({
                 content:
@@ -107,6 +110,7 @@ module.exports = {
             global.guvenliListe.push(
                 kullanici.id
             );
+            await updateSetting("guvenli_liste", global.guvenliListe);
 
             return interaction.reply({
                 content:
@@ -133,6 +137,7 @@ module.exports = {
                 global.guvenliListe.filter(
                     x => x !== kullanici.id
                 );
+            await updateSetting("guvenli_liste", global.guvenliListe);
 
             return interaction.reply({
                 content:
