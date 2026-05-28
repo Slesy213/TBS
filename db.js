@@ -33,6 +33,7 @@ async function loadSettings() {
           global.ticketKategoris.set(guildId, row.ticket_kategori);
           global.ticketYetkiliRols.set(guildId, row.ticket_yetkili_rol);
           global.ticketLogKanals.set(guildId, row.ticket_log_kanal);
+          global.guardSettings.set(guildId, row.guard_settings || {});
         }
       }
       console.log(`🛡️ Ayarlar Supabase üzerinden ${data.length} sunucu için başarıyla yüklendi.`);
