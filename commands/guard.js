@@ -257,9 +257,7 @@ const defaultSettings = {
     everyoneHereEngel: false,
     mediaSpamEngel: false,
     selfBotEngel: false,
-    duplicateEngel: false,
-    lineLimitEngel: false,
-    lengthLimitEngel: false,
+
 
     // Category 3: Anti-Raid & Verification
     accountAgeGuard: false,
@@ -354,7 +352,7 @@ const booleanKeys = [
     "kufurActionMute", "kufurActionKick", "kufurActionBan", "kufurActionStaffLog",
     "argoEngel", "capsEngel",
     "emojiSpamEngel", "mentionSpamEngel", "everyoneHereEngel", "mediaSpamEngel",
-    "selfBotEngel", "duplicateEngel", "lineLimitEngel", "lengthLimitEngel",
+    "selfBotEngel",
     "accountAgeGuard", "defaultAvatarGuard", "raidGuard", "usernameRegexGuard",
     "buttonVerification", "autoQuarantine"
 ];
@@ -810,19 +808,14 @@ ${divider}
 **« İÇERİK ENGELLERİ »**
 • **Argo Sözcük Engeli (Basit Motor)** :: ${statusEmoji("argoEngel")}
 
-**« BİÇİM & SPAM FİLTRELERİ »**
+**« BİÇİM FİLTRELERİ »**
 • **Büyük Harf (Caps Lock)**   :: ${statusEmoji("capsEngel")} \`[>%70 Oran]\`
-• **Tekrarlanan Mesaj Engeli** :: ${statusEmoji("duplicateEngel")}
-• **Satır Sınırı Engeli**      :: ${statusEmoji("lineLimitEngel")}
-• **Karakter Sınırı Engeli**   :: ${statusEmoji("lengthLimitEngel")}
 
-**« DETAYLI SPAM KORUMALARI »**
-• **Emoji Spami Engeli**       :: ${statusEmoji("emojiSpamEngel")} \`[>5 Emoji]\`
-• **Etiket Spami Engeli**      :: ${statusEmoji("mentionSpamEngel")} \`[>4 Etiket]\`
+**« İÇERİK KORUMALARI »**
 • **Mass Tag (@everyone)**     :: ${statusEmoji("everyoneHereEngel")}
 • **Medya Spami Engeli**       :: ${statusEmoji("mediaSpamEngel")}
 ${divider}
-*İstediğiniz sohbet filtresini açıp kapatmak veya düzenlemek için aşağıdaki seçim menüsünü kullanın.*`);
+*Emoji, etiket, tekrar, satır ve karakter sınırları artık **Spam Engel** modülünde yönetilmektedir. İstediğiniz sohbet filtresini açıp kapatmak için aşağıdaki menüyü kullanın.*`);
             }
 
             if (activePage === "links") {
@@ -1270,15 +1263,12 @@ ${divider}
                     .setCustomId("toggle_chat")
                     .setPlaceholder("💬 Filtreleri Seçin / Düzenleyin (Çoklu Seçim)")
                     .setMinValues(0)
-                    .setMaxValues(7)
+                    .setMaxValues(4)
                     .addOptions([
                         { label: "Argo Filtresi (Basit Motor)", value: "argoEngel", description: "Argo kelimeleri engeller.", default: getSetting(guildId, "argoEngel") },
                         { label: "Caps Lock Filtresi", value: "capsEngel", description: "Aşırı büyük harf kullanımını engeller.", default: getSetting(guildId, "capsEngel") },
-                        { label: "Emoji Spam Filtresi", value: "emojiSpamEngel", description: "Çok fazla emoji kullanımını engeller.", default: getSetting(guildId, "emojiSpamEngel") },
-                        { label: "Etiket Spam Filtresi", value: "mentionSpamEngel", description: "Çok fazla etiket kullanımını engeller.", default: getSetting(guildId, "mentionSpamEngel") },
                         { label: "Toplu Etiket Engeli", value: "everyoneHereEngel", description: "Yetkisiz @everyone ve @here engeller.", default: getSetting(guildId, "everyoneHereEngel") },
-                        { label: "Medya Spam Filtresi", value: "mediaSpamEngel", description: "Arka arkaya görsel paylaşımını engeller.", default: getSetting(guildId, "mediaSpamEngel") },
-                        { label: "Tekrarlanan Mesaj Engeli", value: "duplicateEngel", description: "Aynı mesajların gönderimini engeller.", default: getSetting(guildId, "duplicateEngel") }
+                        { label: "Medya Spam Filtresi", value: "mediaSpamEngel", description: "Arka arkaya görsel paylaşımını engeller.", default: getSetting(guildId, "mediaSpamEngel") }
                     ]);
                 rows.push(new ActionRowBuilder().addComponents(selectChat));
             } else if (activePage === "links") {
@@ -1698,8 +1688,8 @@ ${divider}
             } else if (i.customId === "toggle_chat") {
                 const settings = global.guardSettings.get(guildId) || {};
                 const keys = [
-                    "argoEngel", "capsEngel", "emojiSpamEngel", "mentionSpamEngel",
-                    "everyoneHereEngel", "mediaSpamEngel", "duplicateEngel"
+                    "argoEngel", "capsEngel",
+                    "everyoneHereEngel", "mediaSpamEngel"
                 ];
                 keys.forEach(k => settings[k] = i.values.includes(k));
                 global.guardSettings.set(guildId, settings);
