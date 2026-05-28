@@ -1984,8 +1984,7 @@ ${divider}
                 const keys = [
                     "accountAgeBlockAll", "accountAgeActionKick", "accountAgeActionBan", "accountAgeActionQuarantine", 
                     "accountAgeActionTimeout", "accountAgeLogStaff", "accountAgeDMNotify", "accountAgeBypassInvites", 
-                    "accountAgeTrackAltAccounts", "accountAgeAutoStrict", "defaultAvatarGuard", "raidGuard", "usernameRegexGuard",
-                    "buttonVerification", "autoQuarantine"
+                    "accountAgeTrackAltAccounts", "accountAgeAutoStrict"
                 ];
                 keys.forEach(k => settings[k] = i.values.includes(k));
                 global.guardSettings.set(guildId, settings);
