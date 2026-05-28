@@ -877,48 +877,6 @@ module.exports = (client) => {
             }
         }
 
-        // Caps Lock Engeli (>70% uppercase)
-        if (isFeatureEnabled(guildId, "capsEngel") && message.content.length > 5) {
-            const upperCount = message.content.replace(/[^A-ZĞÜŞİÖÇ]/g, "").length;
-            if ((upperCount / message.content.length) > 0.7) {
-                increaseThreat(guildId, 3, "Aşırı Büyük Harf (Caps Lock)", message.guild);
-                await message.delete().catch(() => {});
-                await message.channel.send({ content: `🚫 ${message.author}, **Aşırı Büyük Harf (Caps Lock)** nedeniyle iletiniz engellendi.` }).then(msg => {
-                    setTimeout(() => msg.delete().catch(() => {}), 5000);
-                });
-                await message.member.timeout(30000, `Guard | Caps Lock`).catch(() => {});
-                return;
-            }
-        }
-
-        // Etiket Spami
-        if (isFeatureEnabled(guildId, "mentionSpamEngel")) {
-            const mentions = message.mentions.users.size + message.mentions.roles.size;
-            if (mentions > 4) {
-                increaseThreat(guildId, 10, "Etiket Spami", message.guild);
-                await message.delete().catch(() => {});
-                await message.channel.send({ content: `🚫 ${message.author}, **Etiket Spami** nedeniyle iletiniz engellendi.` }).then(msg => {
-                    setTimeout(() => msg.delete().catch(() => {}), 5000);
-                });
-                await message.member.timeout(30000, `Guard | Etiket Spami`).catch(() => {});
-                return;
-            }
-        }
-
-        // Emoji Spami
-        if (isFeatureEnabled(guildId, "emojiSpamEngel")) {
-            const emojiRegex = /<a?:.+?:\d+>|[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g;
-            const emojis = message.content.match(emojiRegex);
-            if (emojis && emojis.length > 5) {
-                increaseThreat(guildId, 4, "Emoji Spami", message.guild);
-                await message.delete().catch(() => {});
-                await message.channel.send({ content: `🚫 ${message.author}, **Emoji Spami** nedeniyle iletiniz engellendi.` }).then(msg => {
-                    setTimeout(() => msg.delete().catch(() => {}), 5000);
-                });
-                await message.member.timeout(30000, `Guard | Emoji Spami`).catch(() => {});
-                return;
-            }
-        }
 
         // Everyone / Here Engeli
         if (isFeatureEnabled(guildId, "everyoneHereEngel") && (message.content.includes("@everyone") || message.content.includes("@here"))) {
