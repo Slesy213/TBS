@@ -2,13 +2,163 @@ const {
     SlashCommandBuilder,
     PermissionFlagsBits,
     AuditLogEvent,
-    ChannelType
+    ChannelType,
+    EmbedBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    ActionRowBuilder,
+    StringSelectMenuBuilder,
+    ChannelSelectMenuBuilder,
+    RoleSelectMenuBuilder
 } = require("discord.js");
 const { updateSetting } = require("../db.js");
 
+// Declarations
 global.guardDurums = global.guardDurums || new Map();
 global.guvenliListes = global.guvenliListes || new Map();
 global.spamMap = global.spamMap || new Map();
+global.guardSettings = global.guardSettings || new Map();
+
+// Rate limit trackers
+global.banTracker = global.banTracker || new Map();
+global.kickTracker = global.kickTracker || new Map();
+global.channelDeleteTracker = global.channelDeleteTracker || new Map();
+global.roleDeleteTracker = global.roleDeleteTracker || new Map();
+global.roleGiveTracker = global.roleGiveTracker || new Map();
+
+const defaultSettings = {
+    // Category 1: Server Integrity
+    antiChannelCreate: false,
+    antiChannelDelete: false,
+    antiChannelUpdate: false,
+    antiRoleCreate: false,
+    antiRoleDelete: false,
+    antiRoleUpdate: false,
+    antiWebhookCreate: false,
+    antiWebhookDelete: false,
+    antiWebhookUpdate: false,
+    antiEmojiCreate: false,
+    antiEmojiDelete: false,
+    antiEmojiUpdate: false,
+    antiStickerCreate: false,
+    antiStickerDelete: false,
+    antiStickerUpdate: false,
+    antiGuildUpdate: false,
+    antiBotAdd: false,
+    antiIntegrationCreate: false,
+    antiPrune: false,
+
+    // Category 2: Chat & Content Security
+    linkEngel: false,
+    inviteEngel: false,
+    kufurEngel: false,
+    argoEngel: false,
+    capsEngel: false,
+    emojiSpamEngel: false,
+    mentionSpamEngel: false,
+    everyoneHereEngel: false,
+    mediaSpamEngel: false,
+    selfBotEngel: false,
+    duplicateEngel: false,
+    lineLimitEngel: false,
+    lengthLimitEngel: false,
+
+    // Category 3: Anti-Raid & Verification
+    accountAgeGuard: false,
+    accountAgeLimit: 3, // days
+    defaultAvatarGuard: false,
+    raidGuard: false,
+    raidLimit: 5, // joins
+    raidTime: 10, // seconds
+    usernameRegexGuard: false,
+    autoQuarantine: false,
+    buttonVerification: false,
+    verifyRoleId: null,
+    quarantineRoleId: null,
+
+    // Category 4: Admin Limits
+    banLimit: 3,
+    kickLimit: 3,
+    channelDeleteLimit: 2,
+    roleDeleteLimit: 2,
+    roleGiveLimit: 3,
+    limitTime: 5, // minutes
+
+    // Category 5: Logs
+    logChannelId: null,
+};
+
+function getSetting(guildId, key) {
+    const settings = global.guardSettings.get(guildId) || {};
+    return settings[key] !== undefined ? settings[key] : defaultSettings[key];
+}
+
+async function setSetting(guildId, key, value) {
+    const settings = global.guardSettings.get(guildId) || {};
+    settings[key] = value;
+    global.guardSettings.set(guildId, settings);
+    await updateSetting(guildId, "guard_settings", settings);
+}
+
+async function sendGuardLog(guild, executor, target, action, punishment, guildId) {
+    const logChannelId = getSetting(guildId, "logChannelId");
+    if (!logChannelId) return;
+
+    const logChannel = guild.channels.cache.get(logChannelId);
+    if (!logChannel) return;
+
+    const embed = new EmbedBuilder()
+        .setColor(0xED4245)
+        .setTitle("🛡️ Slesy Guard | Güvenlik İhlali!")
+        .addFields(
+            { name: "👤 Yetkili", value: `${executor} (\`${executor.id}\`)`, inline: true },
+            { name: "📂 Eylem", value: action, inline: true },
+            { name: "⚡ İşlem", value: punishment, inline: true }
+        )
+        .setTimestamp();
+
+    if (target) {
+        embed.addFields({ name: "🎯 Hedef", value: `${target}`, inline: true });
+    }
+
+    await logChannel.send({ embeds: [embed] }).catch(() => {});
+}
+
+async function punishAdmin(guild, user, reason, guildId) {
+    await sendGuardLog(guild, user, null, reason, "Yetkileri Alındı & Yasaklandı", guildId);
+
+    const member = await guild.members.fetch(user.id).catch(() => null);
+    if (!member) return;
+
+    // Strip roles
+    await member.roles.set([]).catch(() => {});
+
+    // Ban
+    await member.ban({ reason: `Guard | ${reason}` }).catch(() => {});
+}
+
+function checkRateLimit(guildId, adminId, limitKey, limitMax, limitMinutes) {
+    let trackerMap = null;
+    if (limitKey === "banLimit") trackerMap = global.banTracker;
+    else if (limitKey === "kickLimit") trackerMap = global.kickTracker;
+    else if (limitKey === "channelDeleteLimit") trackerMap = global.channelDeleteTracker;
+    else if (limitKey === "roleDeleteLimit") trackerMap = global.roleDeleteTracker;
+    else if (limitKey === "roleGiveLimit") trackerMap = global.roleGiveTracker;
+
+    if (!trackerMap) return false;
+
+    let guildMap = trackerMap.get(guildId) || new Map();
+    let timestamps = guildMap.get(adminId) || [];
+    const now = Date.now();
+
+    timestamps = timestamps.filter(t => now - t < limitMinutes * 60 * 1000);
+    timestamps.push(now);
+
+    guildMap.set(adminId, timestamps);
+    trackerMap.set(guildId, guildMap);
+
+    return timestamps.length > limitMax;
+}
 
 module.exports = {
 
@@ -19,8 +169,8 @@ module.exports = {
         .addStringOption(option =>
             option
                 .setName("işlem")
-                .setDescription("İşlem seç")
-                .setRequired(true)
+                .setDescription("İşlem seç (Panel için boş bırakın)")
+                .setRequired(false)
                 .addChoices(
                     { name: "Aç", value: "ac" },
                     { name: "Kapat", value: "kapat" },
@@ -33,7 +183,7 @@ module.exports = {
         .addUserOption(option =>
             option
                 .setName("kullanici")
-                .setDescription("Kullanıcı")
+                .setDescription("Güvenli eklenecek/çıkarılacak kullanıcı")
                 .setRequired(false)
         )
 
@@ -42,518 +192,722 @@ module.exports = {
         ),
 
     async execute(interaction) {
-
-        const islem =
-            interaction.options.getString("işlem");
-
-        const kullanici =
-            interaction.options.getUser("kullanici");
-
+        const islem = interaction.options.getString("işlem");
+        const kullanici = interaction.options.getUser("kullanici");
         const guildId = interaction.guild.id;
 
-        // =========================
-        // GUARD AÇ
-        // =========================
-
+        // Legacy text-based actions support
         if (islem === "ac") {
-
             global.guardDurums.set(guildId, true);
             await updateSetting(guildId, "guard_durum", true);
-
-            return interaction.reply({
-                content:
-                    "🛡️ Guard sistemi aktif edildi."
-            });
+            return interaction.reply({ content: "🛡️ Guard sistemi aktif edildi." });
         }
-
-        // =========================
-        // GUARD KAPAT
-        // =========================
 
         if (islem === "kapat") {
-
             global.guardDurums.set(guildId, false);
             await updateSetting(guildId, "guard_durum", false);
-
-            return interaction.reply({
-                content:
-                    "❌ Guard sistemi kapatıldı."
-            });
+            return interaction.reply({ content: "❌ Guard sistemi kapatıldı." });
         }
-
-        // =========================
-        // GÜVENLİ EKLE
-        // =========================
 
         if (islem === "guvenli-ekle") {
-
-            if (!kullanici) {
-
-                return interaction.reply({
-                    content:
-                        "❌ Kullanıcı belirt.",
-                    ephemeral: true
-                });
-            }
-
-            let guvenliListe = global.guvenliListes.get(guildId) || [];
-
-            if (
-                guvenliListe.includes(
-                    kullanici.id
-                )
-            ) {
-
-                return interaction.reply({
-                    content:
-                        "⚠️ Kullanıcı zaten güvenli listede.",
-                    ephemeral: true
-                });
-            }
-
-            guvenliListe.push(
-                kullanici.id
-            );
-            global.guvenliListes.set(guildId, guvenliListe);
-            await updateSetting(guildId, "guvenli_liste", guvenliListe);
-
-            return interaction.reply({
-                content:
-                    `✅ ${kullanici.tag} güvenli listeye eklendi.`
-            });
+            if (!kullanici) return interaction.reply({ content: "❌ Kullanıcı belirt.", ephemeral: true });
+            let list = global.guvenliListes.get(guildId) || [];
+            if (list.includes(kullanici.id)) return interaction.reply({ content: "⚠️ Zaten güvenli listede.", ephemeral: true });
+            list.push(kullanici.id);
+            global.guvenliListes.set(guildId, list);
+            await updateSetting(guildId, "guvenli_liste", list);
+            return interaction.reply({ content: `✅ ${kullanici.tag} güvenli listeye eklendi.` });
         }
-
-        // =========================
-        // GÜVENLİ ÇIKAR
-        // =========================
 
         if (islem === "guvenli-cikar") {
-
-            if (!kullanici) {
-
-                return interaction.reply({
-                    content:
-                        "❌ Kullanıcı belirt.",
-                    ephemeral: true
-                });
-            }
-
-            let guvenliListe = global.guvenliListes.get(guildId) || [];
-            guvenliListe =
-                guvenliListe.filter(
-                    x => x !== kullanici.id
-                );
-            global.guvenliListes.set(guildId, guvenliListe);
-            await updateSetting(guildId, "guvenli_liste", guvenliListe);
-
-            return interaction.reply({
-                content:
-                    `✅ ${kullanici.tag} güvenli listeden çıkarıldı.`
-            });
+            if (!kullanici) return interaction.reply({ content: "❌ Kullanıcı belirt.", ephemeral: true });
+            let list = global.guvenliListes.get(guildId) || [];
+            list = list.filter(id => id !== kullanici.id);
+            global.guvenliListes.set(guildId, list);
+            await updateSetting(guildId, "guvenli_liste", list);
+            return interaction.reply({ content: `✅ ${kullanici.tag} güvenli listeden çıkarıldı.` });
         }
-
-        // =========================
-        // GÜVENLİ LİSTE
-        // =========================
 
         if (islem === "liste") {
+            const list = global.guvenliListes.get(guildId) || [];
+            if (list.length <= 0) return interaction.reply({ content: "📄 Güvenli liste boş." });
+            const listStr = list.map(id => `<@${id}>`).join("\n");
+            return interaction.reply({ content: `🛡️ Güvenli Liste:\n\n${listStr}` });
+        }
 
-            const guvenliListe = global.guvenliListes.get(guildId) || [];
+        // ============================================
+        // INTERACTIVE CONTROL PANEL
+        // ============================================
+        let activePage = "main";
 
-            if (
-                guvenliListe.length <= 0
-            ) {
+        const generateEmbed = () => {
+            const statusEmoji = (key) => getSetting(guildId, key) ? "🟢" : "🔴";
+            const mainStatus = global.guardDurums.get(guildId) ? "🟢 AKTİF" : "🔴 DEVRE DIŞI";
 
-                return interaction.reply({
-                    content:
-                        "📄 Güvenli liste boş."
-                });
+            if (activePage === "main") {
+                return new EmbedBuilder()
+                    .setColor(0x5865F2)
+                    .setTitle("🛡️ Slesy Guard | Güvenlik Paneli")
+                    .setDescription(`Ana koruma durumu: **${mainStatus}**\n\nAyarlamak istediğiniz güvenlik kategorisini aşağıdaki butonlardan seçin.`)
+                    .setTimestamp();
             }
 
-            const liste =
-                guvenliListe
-                    .map(id => `<@${id}>`)
-                    .join("\n");
+            if (activePage === "server") {
+                return new EmbedBuilder()
+                    .setColor(0x57F287)
+                    .setTitle("🖥️ Sunucu Bütünlüğü Koruması")
+                    .setDescription("Audit-Log tabanlı koruma özellikleri:")
+                    .addFields(
+                        { name: "Kanal Korumaları", value: `${statusEmoji("antiChannelCreate")} Oluşturma\n${statusEmoji("antiChannelDelete")} Silme\n${statusEmoji("antiChannelUpdate")} Güncelleme`, inline: true },
+                        { name: "Rol Korumaları", value: `${statusEmoji("antiRoleCreate")} Oluşturma\n${statusEmoji("antiRoleDelete")} Silme\n${statusEmoji("antiRoleUpdate")} Güncelleme`, inline: true },
+                        { name: "Webhook & Bot", value: `${statusEmoji("antiWebhookCreate")} Webhook Koruma\n${statusEmoji("antiBotAdd")} Anti-Bot Ekleme\n${statusEmoji("antiGuildUpdate")} Sunucu Düzenleme`, inline: true },
+                        { name: "Emoji & Sticker", value: `${statusEmoji("antiEmojiCreate")} Emoji Koruma\n${statusEmoji("antiStickerCreate")} Çıkartma Koruma\n${statusEmoji("antiPrune")} Budama Koruması`, inline: true }
+                    );
+            }
 
-            return interaction.reply({
-                content:
-                    `🛡️ Güvenli Liste:\n\n${liste}`
-            });
-        }
+            if (activePage === "chat") {
+                return new EmbedBuilder()
+                    .setColor(0xFEE75C)
+                    .setTitle("💬 Sohbet Güvenliği Koruması")
+                    .setDescription("Sohbet/Mesaj tabanlı koruma özellikleri:")
+                    .addFields(
+                        { name: "İçerik Engelleri", value: `${statusEmoji("linkEngel")} Link Engel\n${statusEmoji("inviteEngel")} Davet Engel\n${statusEmoji("kufurEngel")} Küfür Engel\n${statusEmoji("argoEngel")} Argo Engel`, inline: true },
+                        { name: "Biçim Engelleri", value: `${statusEmoji("capsEngel")} Caps Lock Engel\n${statusEmoji("duplicateEngel")} Tekrar Engeli\n${statusEmoji("lineLimitEngel")} Satır Sınırı\n${statusEmoji("lengthLimitEngel")} Karakter Sınırı`, inline: true },
+                        { name: "Spam Engelleri", value: `${statusEmoji("emojiSpamEngel")} Emoji Spami\n${statusEmoji("mentionSpamEngel")} Etiket Spami\n${statusEmoji("everyoneHereEngel")} Herkesi Etiketleme\n${statusEmoji("mediaSpamEngel")} Medya Spami`, inline: true }
+                    );
+            }
+
+            if (activePage === "raid") {
+                return new EmbedBuilder()
+                    .setColor(0xEB459E)
+                    .setTitle("👥 Anti-Raid & Doğrulama")
+                    .setDescription("Giriş güvenliği ve doğrulama ayarları:")
+                    .addFields(
+                        { name: "Korumalar", value: `${statusEmoji("accountAgeGuard")} Hesap Yaşı Koruması (${getSetting(guildId, "accountAgeLimit")} gün)\n${statusEmoji("defaultAvatarGuard")} Varsayılan Avatar Koruması\n${statusEmoji("raidGuard")} Hızlı Giriş (Raid) Koruması\n${statusEmoji("usernameRegexGuard")} Reklamlı/Küfürlü İsim Koruması`, inline: false },
+                        { name: "Doğrulama", value: `${statusEmoji("buttonVerification")} Butonlu Doğrulama\n${statusEmoji("autoQuarantine")} Otomatik Karantina`, inline: false }
+                    );
+            }
+
+            if (activePage === "limits") {
+                return new EmbedBuilder()
+                    .setColor(0xED4245)
+                    .setTitle("⚙️ Yönetici Hız Limitleri")
+                    .setDescription(`Yöneticilerin belirli bir süre (${getSetting(guildId, "limitTime")} dk) içerisinde yapabileceği maksimum işlem limitleri:`)
+                    .addFields(
+                        { name: "Limit Ayarları", value: `🔨 **Ban Limiti**: ${getSetting(guildId, "banLimit")} adet\n👞 **Kick Limiti**: ${getSetting(guildId, "kickLimit")} adet\n🗑️ **Kanal Silme**: ${getSetting(guildId, "channelDeleteLimit")} adet\n📁 **Rol Silme**: ${getSetting(guildId, "roleDeleteLimit")} adet\n👑 **Rol Verme**: ${getSetting(guildId, "roleGiveLimit")} adet`, inline: false }
+                    );
+            }
+
+            if (activePage === "logs") {
+                const logCh = getSetting(guildId, "logChannelId") ? `<#${getSetting(guildId, "logChannelId")}>` : "🔴 Ayarlanmamış";
+                const verifyRol = getSetting(guildId, "verifyRoleId") ? `<@&${getSetting(guildId, "verifyRoleId")}>` : "🔴 Ayarlanmamış";
+                const quarantineRol = getSetting(guildId, "quarantineRoleId") ? `<@&${getSetting(guildId, "quarantineRoleId")}>` : "🔴 Ayarlanmamış";
+
+                return new EmbedBuilder()
+                    .setColor(0x99AAB5)
+                    .setTitle("📄 Log & Rol Ayarları")
+                    .setDescription("Guard sistemi için kullanılacak kanallar ve roller:")
+                    .addFields(
+                        { name: "Sistem Ayarları", value: `🔊 **Log Kanalı**: ${logCh}\n✅ **Doğrulanmış Üye Rolü**: ${verifyRol}\n☣️ **Karantina/Cezalı Rolü**: ${quarantineRol}`, inline: false }
+                    );
+            }
+        };
+
+        const generateComponents = () => {
+            const rowButtons = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId("page_server").setLabel("🖥️ Sunucu").setStyle(activePage === "server" ? ButtonStyle.Success : ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId("page_chat").setLabel("💬 Sohbet").setStyle(activePage === "chat" ? ButtonStyle.Success : ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId("page_raid").setLabel("👥 Giriş").setStyle(activePage === "raid" ? ButtonStyle.Success : ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId("page_limits").setLabel("⚙️ Limitler").setStyle(activePage === "limits" ? ButtonStyle.Success : ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId("page_logs").setLabel("📄 Roller/Log").setStyle(activePage === "logs" ? ButtonStyle.Success : ButtonStyle.Primary)
+            );
+
+            const rowToggles = new ActionRowBuilder();
+            if (activePage === "server") {
+                rowToggles.addComponents(
+                    new StringSelectMenuBuilder()
+                        .setCustomId("toggle_server")
+                        .setPlaceholder("Değiştirmek istediğiniz özelliği seçin")
+                        .addOptions([
+                            { label: "Anti Channel Create", value: "antiChannelCreate" },
+                            { label: "Anti Channel Delete", value: "antiChannelDelete" },
+                            { label: "Anti Channel Update", value: "antiChannelUpdate" },
+                            { label: "Anti Role Create", value: "antiRoleCreate" },
+                            { label: "Anti Role Delete", value: "antiRoleDelete" },
+                            { label: "Anti Role Update", value: "antiRoleUpdate" },
+                            { label: "Anti Webhook Protection", value: "antiWebhookCreate" },
+                            { label: "Anti Bot Add", value: "antiBotAdd" },
+                            { label: "Anti Guild Update", value: "antiGuildUpdate" }
+                        ])
+                );
+            } else if (activePage === "chat") {
+                rowToggles.addComponents(
+                    new StringSelectMenuBuilder()
+                        .setCustomId("toggle_chat")
+                        .setPlaceholder("Değiştirmek istediğiniz özelliği seçin")
+                        .addOptions([
+                            { label: "Link Engeli", value: "linkEngel" },
+                            { label: "Davet Engeli", value: "inviteEngel" },
+                            { label: "Küfür Engeli", value: "kufurEngel" },
+                            { label: "Argo Engeli", value: "argoEngel" },
+                            { label: "Caps Lock Engeli", value: "capsEngel" },
+                            { label: "Emoji Spam Engeli", value: "emojiSpamEngel" },
+                            { label: "Etiket Spam Engeli", value: "mentionSpamEngel" },
+                            { label: "Everyone/Here Engeli", value: "everyoneHereEngel" },
+                            { label: "Tekrarlanan Mesaj Engeli", value: "duplicateEngel" }
+                        ])
+                );
+            } else if (activePage === "raid") {
+                rowToggles.addComponents(
+                    new StringSelectMenuBuilder()
+                        .setCustomId("toggle_raid")
+                        .setPlaceholder("Değiştirmek istediğiniz özelliği seçin")
+                        .addOptions([
+                            { label: "Hesap Yaşı Koruması", value: "accountAgeGuard" },
+                            { label: "Avatar Koruması", value: "defaultAvatarGuard" },
+                            { label: "Raid Koruması", value: "raidGuard" },
+                            { label: "Kötü İsim Koruması", value: "usernameRegexGuard" },
+                            { label: "Butonlu Doğrulama", value: "buttonVerification" },
+                            { label: "Otomatik Karantina", value: "autoQuarantine" }
+                        ])
+                );
+            } else if (activePage === "limits") {
+                rowToggles.addComponents(
+                    new StringSelectMenuBuilder()
+                        .setCustomId("adjust_limits")
+                        .setPlaceholder("Değiştirmek istediğiniz limiti seçin")
+                        .addOptions([
+                            { label: "Ban Limiti", value: "banLimit" },
+                            { label: "Kick Limiti", value: "kickLimit" },
+                            { label: "Kanal Silme Limiti", value: "channelDeleteLimit" },
+                            { label: "Rol Silme Limiti", value: "roleDeleteLimit" },
+                            { label: "Rol Verme Limiti", value: "roleGiveLimit" }
+                        ])
+                );
+            } else if (activePage === "logs") {
+                rowToggles.addComponents(
+                    new StringSelectMenuBuilder()
+                        .setCustomId("select_log_action")
+                        .setPlaceholder("Rol/Log Konfigürasyonu Seçin")
+                        .addOptions([
+                            { label: "Log Kanalını Güncelle", value: "ch_log" },
+                            { label: "Doğrulanmış Rolünü Güncelle", value: "role_verify" },
+                            { label: "Karantina Rolünü Güncelle", value: "role_quarantine" }
+                        ])
+                );
+            }
+
+            const rows = [rowButtons];
+            if (activePage !== "main") rows.push(rowToggles);
+            return rows;
+        };
+
+        const response = await interaction.reply({
+            embeds: [generateEmbed()],
+            components: generateComponents(),
+            ephemeral: true
+        });
+
+        const collector = response.createMessageComponentCollector({
+            filter: (i) => i.user.id === interaction.user.id,
+            time: 600000
+        });
+
+        collector.on("collect", async (i) => {
+            await i.deferUpdate();
+
+            if (i.customId.startsWith("page_")) {
+                activePage = i.customId.replace("page_", "");
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId.startsWith("toggle_")) {
+                const key = i.values[0];
+                const current = getSetting(guildId, key);
+                await setSetting(guildId, key, !current);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "adjust_limits") {
+                const key = i.values[0];
+                const current = getSetting(guildId, key);
+                // Cycle limit values (1 to 5, then back to 1) for simple selection demo
+                let nextValue = current + 1;
+                if (nextValue > 5) nextValue = 1;
+                await setSetting(guildId, key, nextValue);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "select_log_action") {
+                const action = i.values[0];
+
+                let selectRow;
+                if (action === "ch_log") {
+                    selectRow = new ActionRowBuilder().addComponents(
+                        new ChannelSelectMenuBuilder()
+                            .setCustomId("set_channel_log")
+                            .setPlaceholder("Log kanalını seçin")
+                    );
+                } else if (action === "role_verify") {
+                    selectRow = new ActionRowBuilder().addComponents(
+                        new RoleSelectMenuBuilder()
+                            .setCustomId("set_role_verify")
+                            .setPlaceholder("Doğrulama rolünü seçin")
+                    );
+                } else if (action === "role_quarantine") {
+                    selectRow = new ActionRowBuilder().addComponents(
+                        new RoleSelectMenuBuilder()
+                            .setCustomId("set_role_quarantine")
+                            .setPlaceholder("Karantina rolünü seçin")
+                    );
+                }
+
+                await interaction.editReply({
+                    components: [generateComponents()[0], selectRow]
+                });
+            } else if (i.customId === "set_channel_log") {
+                const chId = i.values[0];
+                await setSetting(guildId, "logChannelId", chId);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "set_role_verify") {
+                const rId = i.values[0];
+                await setSetting(guildId, "verifyRoleId", rId);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "set_role_quarantine") {
+                const rId = i.values[0];
+                await setSetting(guildId, "quarantineRoleId", rId);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            }
+        });
     },
 
-    // =========================
-    // EVENTLER
-    // =========================
-
+    // ============================================
+    // AUDIT LOG EVENTS & CHAT FILTERS
+    // ============================================
     init(client) {
 
-        // =========================
-        // LINK ENGEL
-        // =========================
+        // 1. Channel Create Protection
+        client.on("channelCreate", async channel => {
+            if (!channel.guild) return;
+            const guildId = channel.guild.id;
+            if (!global.guardDurums.get(guildId)) return;
+            if (!getSetting(guildId, "antiChannelCreate")) return;
 
-        client.on(
-            "messageCreate",
-            async message => {
-                if (!message.guild) return;
-                const guildId = message.guild.id;
+            const logs = await channel.guild.fetchAuditLogs({ type: AuditLogEvent.ChannelCreate, limit: 1 }).catch(() => null);
+            if (!logs) return;
+            const entry = logs.entries.first();
+            if (!entry) return;
+            const executor = entry.executor;
+            if (executor.id === channel.guild.ownerId || executor.id === client.user.id) return;
 
-                if (!global.guardDurums.get(guildId)) return;
-                if (message.author.bot) return;
+            const guvenliListe = global.guvenliListes.get(guildId) || [];
+            if (guvenliListe.includes(executor.id)) return;
 
-                const guvenliListe = global.guvenliListes.get(guildId) || [];
-                if (
-                    guvenliListe.includes(
-                        message.author.id
-                    )
-                ) return;
+            await channel.delete("Guard | İzinsiz Kanal Oluşturma").catch(() => {});
+            await punishAdmin(channel.guild, executor, "İzinsiz Kanal Oluşturma", guildId);
+        });
 
-                const linkRegex =
-                    /(https?:\/\/|discord\.gg\/|www\.)/gi;
+        // 2. Channel Delete Protection
+        client.on("channelDelete", async channel => {
+            if (!channel.guild) return;
+            const guildId = channel.guild.id;
+            if (!global.guardDurums.get(guildId)) return;
+            if (!getSetting(guildId, "antiChannelDelete")) return;
 
-                if (
-                    linkRegex.test(
-                        message.content
-                    )
-                ) {
+            const logs = await channel.guild.fetchAuditLogs({ type: AuditLogEvent.ChannelDelete, limit: 1 }).catch(() => null);
+            if (!logs) return;
+            const entry = logs.entries.first();
+            if (!entry) return;
+            const executor = entry.executor;
+            if (executor.id === channel.guild.ownerId || executor.id === client.user.id) return;
 
-                    if (
-                        message.member.permissions.has(
-                            PermissionFlagsBits.Administrator
-                        )
-                    ) return;
+            const guvenliListe = global.guvenliListes.get(guildId) || [];
+            if (guvenliListe.includes(executor.id)) return;
 
-                    await message.delete().catch(() => { });
+            await punishAdmin(channel.guild, executor, "İzinsiz Kanal Silme", guildId);
 
-                    await message.channel.send({
-                        content:
-                            `🚫 ${message.author} link paylaşamaz.`
-                    });
+            await channel.guild.channels.create({
+                name: channel.name,
+                type: channel.type,
+                parent: channel.parentId,
+                topic: channel.topic,
+                nsfw: channel.nsfw,
+                rateLimitPerUser: channel.rateLimitPerUser,
+                permissionOverwrites: channel.permissionOverwrites.cache.map(o => ({
+                    id: o.id,
+                    allow: o.allow.toArray(),
+                    deny: o.deny.toArray()
+                }))
+            }).catch(() => {});
+        });
 
-                    await message.member.timeout(
-                        300000,
-                        "Link Koruması"
-                    ).catch(() => { });
+        // 3. Channel Update Protection
+        client.on("channelUpdate", async (oldChannel, newChannel) => {
+            if (!newChannel.guild) return;
+            const guildId = newChannel.guild.id;
+            if (!global.guardDurums.get(guildId)) return;
+            if (!getSetting(guildId, "antiChannelUpdate")) return;
+
+            const logs = await newChannel.guild.fetchAuditLogs({ type: AuditLogEvent.ChannelUpdate, limit: 1 }).catch(() => null);
+            if (!logs) return;
+            const entry = logs.entries.first();
+            if (!entry) return;
+            const executor = entry.executor;
+            if (executor.id === newChannel.guild.ownerId || executor.id === client.user.id) return;
+
+            const guvenliListe = global.guvenliListes.get(guildId) || [];
+            if (guvenliListe.includes(executor.id)) return;
+
+            await punishAdmin(newChannel.guild, executor, "İzinsiz Kanal Güncelleme", guildId);
+
+            await newChannel.edit({
+                name: oldChannel.name,
+                topic: oldChannel.topic,
+                nsfw: oldChannel.nsfw,
+                parent: oldChannel.parentId,
+                rateLimitPerUser: oldChannel.rateLimitPerUser,
+                permissionOverwrites: oldChannel.permissionOverwrites.cache.map(o => ({
+                    id: o.id,
+                    allow: o.allow.toArray(),
+                    deny: o.deny.toArray()
+                }))
+            }).catch(() => {});
+        });
+
+        // 4. Role Create Protection
+        client.on("roleCreate", async role => {
+            if (!role.guild) return;
+            const guildId = role.guild.id;
+            if (!global.guardDurums.get(guildId)) return;
+            if (!getSetting(guildId, "antiRoleCreate")) return;
+
+            const logs = await role.guild.fetchAuditLogs({ type: AuditLogEvent.RoleCreate, limit: 1 }).catch(() => null);
+            if (!logs) return;
+            const entry = logs.entries.first();
+            if (!entry) return;
+            const executor = entry.executor;
+            if (executor.id === role.guild.ownerId || executor.id === client.user.id) return;
+
+            const guvenliListe = global.guvenliListes.get(guildId) || [];
+            if (guvenliListe.includes(executor.id)) return;
+
+            await role.delete("Guard | İzinsiz Rol Oluşturma").catch(() => {});
+            await punishAdmin(role.guild, executor, "İzinsiz Rol Oluşturma", guildId);
+        });
+
+        // 5. Role Delete Protection
+        client.on("roleDelete", async role => {
+            if (!role.guild) return;
+            const guildId = role.guild.id;
+            if (!global.guardDurums.get(guildId)) return;
+            if (!getSetting(guildId, "antiRoleDelete")) return;
+
+            const logs = await role.guild.fetchAuditLogs({ type: AuditLogEvent.RoleDelete, limit: 1 }).catch(() => null);
+            if (!logs) return;
+            const entry = logs.entries.first();
+            if (!entry) return;
+            const executor = entry.executor;
+            if (executor.id === role.guild.ownerId || executor.id === client.user.id) return;
+
+            const guvenliListe = global.guvenliListes.get(guildId) || [];
+            if (guvenliListe.includes(executor.id)) return;
+
+            await punishAdmin(role.guild, executor, "İzinsiz Rol Silme", guildId);
+
+            await role.guild.roles.create({
+                name: role.name,
+                color: role.color,
+                hoist: role.hoist,
+                mentionable: role.mentionable,
+                permissions: role.permissions,
+                position: role.position
+            }).catch(() => {});
+        });
+
+        // 6. Role Update Protection
+        client.on("roleUpdate", async (oldRole, newRole) => {
+            if (!newRole.guild) return;
+            const guildId = newRole.guild.id;
+            if (!global.guardDurums.get(guildId)) return;
+            if (!getSetting(guildId, "antiRoleUpdate")) return;
+
+            const logs = await newRole.guild.fetchAuditLogs({ type: AuditLogEvent.RoleUpdate, limit: 1 }).catch(() => null);
+            if (!logs) return;
+            const entry = logs.entries.first();
+            if (!entry) return;
+            const executor = entry.executor;
+            if (executor.id === newRole.guild.ownerId || executor.id === client.user.id) return;
+
+            const guvenliListe = global.guvenliListes.get(guildId) || [];
+            if (guvenliListe.includes(executor.id)) return;
+
+            if (oldRole.permissions.bitfield !== newRole.permissions.bitfield || oldRole.name !== newRole.name) {
+                await punishAdmin(newRole.guild, executor, "İzinsiz Rol Güncelleme", guildId);
+                await newRole.edit({
+                    name: oldRole.name,
+                    color: oldRole.color,
+                    hoist: oldRole.hoist,
+                    mentionable: oldRole.mentionable,
+                    permissions: oldRole.permissions
+                }).catch(() => {});
+            }
+        });
+
+        // 7. Webhook & Integration Protections
+        client.on("webhookUpdate", async channel => {
+            if (!channel.guild) return;
+            const guildId = channel.guild.id;
+            if (!global.guardDurums.get(guildId)) return;
+
+            const logs = await channel.guild.fetchAuditLogs({ limit: 1 }).catch(() => null);
+            if (!logs) return;
+            const entry = logs.entries.first();
+            if (!entry) return;
+
+            let actionType = "";
+            if (entry.action === AuditLogEvent.WebhookCreate && getSetting(guildId, "antiWebhookCreate")) actionType = "Webhook Oluşturma";
+            else if (entry.action === AuditLogEvent.WebhookDelete && getSetting(guildId, "antiWebhookDelete")) actionType = "Webhook Silme";
+            else if (entry.action === AuditLogEvent.WebhookUpdate && getSetting(guildId, "antiWebhookUpdate")) actionType = "Webhook Güncelleme";
+
+            if (!actionType) return;
+
+            const executor = entry.executor;
+            if (executor.id === channel.guild.ownerId || executor.id === client.user.id) return;
+
+            const guvenliListe = global.guvenliListes.get(guildId) || [];
+            if (guvenliListe.includes(executor.id)) return;
+
+            await punishAdmin(channel.guild, executor, `İzinsiz ${actionType}`, guildId);
+
+            if (entry.action === AuditLogEvent.WebhookCreate) {
+                const webhooks = await channel.fetchWebhooks().catch(() => null);
+                if (webhooks) {
+                    const target = webhooks.first();
+                    if (target) await target.delete().catch(() => {});
                 }
             }
-        );
+        });
 
-        // =========================
-        // SPAM KORUMA
-        // =========================
+        // 8. Bot Ekleme, Karantina & Giriş Korumaları
+        client.on("guildMemberAdd", async member => {
+            if (!member.guild) return;
+            const guildId = member.guild.id;
+            if (!global.guardDurums.get(guildId)) return;
 
-        client.on(
-            "messageCreate",
-            async message => {
-                if (!message.guild) return;
-                const guildId = message.guild.id;
-
-                if (!global.guardDurums.get(guildId)) return;
-                if (message.author.bot) return;
-
-                const guvenliListe = global.guvenliListes.get(guildId) || [];
-                if (
-                    guvenliListe.includes(
-                        message.author.id
-                    )
-                ) return;
-
-                const data =
-                    global.spamMap.get(
-                        message.author.id
-                    ) || {
-                        mesaj: 0
-                    };
-
-                data.mesaj++;
-
-                global.spamMap.set(
-                    message.author.id,
-                    data
-                );
-
-                setTimeout(() => {
-
-                    const d =
-                        global.spamMap.get(
-                            message.author.id
-                        );
-
-                    if (!d) return;
-
-                    d.mesaj--;
-
-                    global.spamMap.set(
-                        message.author.id,
-                        d
-                    );
-
-                }, 4000);
-
-                if (data.mesaj >= 5) {
-
-                    await message.member.timeout(
-                        600000,
-                        "Spam Koruması"
-                    ).catch(() => { });
-
-                    await message.channel.send({
-                        content:
-                            `🚫 ${message.author} spam yaptığı için susturuldu.`
-                    });
-
-                    global.spamMap.delete(
-                        message.author.id
-                    );
+            // Anti-Bot Ekleme
+            if (member.user.bot && getSetting(guildId, "antiBotAdd")) {
+                const logs = await member.guild.fetchAuditLogs({ type: AuditLogEvent.BotAdd, limit: 1 }).catch(() => null);
+                if (logs) {
+                    const entry = logs.entries.first();
+                    if (entry) {
+                        const executor = entry.executor;
+                        if (executor.id !== member.guild.ownerId && executor.id !== client.user.id) {
+                            const guvenliListe = global.guvenliListes.get(guildId) || [];
+                            if (!guvenliListe.includes(executor.id)) {
+                                await member.kick("Guard | İzinsiz Bot").catch(() => {});
+                                await punishAdmin(member.guild, executor, "İzinsiz Bot Ekleme", guildId);
+                            }
+                        }
+                    }
                 }
             }
-        );
 
-        // =========================
-        // KANAL SİLME KORUMA
-        // =========================
+            // Normal Üye Girişleri
+            if (!member.user.bot) {
+                // Hesap Yaşı
+                if (getSetting(guildId, "accountAgeGuard")) {
+                    const ageLimitDays = getSetting(guildId, "accountAgeLimit");
+                    const createdDate = member.user.createdAt;
+                    const diffDays = Math.ceil((Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
+                    if (diffDays < ageLimitDays) {
+                        await sendGuardLog(member.guild, member.user, null, `Yeni Hesap Koruması (${diffDays} günlük hesap)`, "Sunucudan Atıldı", guildId);
+                        await member.kick("Guard | Yeni Hesap Koruması").catch(() => {});
+                        return;
+                    }
+                }
 
-        client.on(
-            "channelDelete",
-            async channel => {
-                if (!channel.guild) return;
-                const guildId = channel.guild.id;
+                // Varsayılan Avatar
+                if (getSetting(guildId, "defaultAvatarGuard") && !member.user.avatar) {
+                    await sendGuardLog(member.guild, member.user, null, "Varsayılan Avatar Koruması", "Sunucudan Atıldı", guildId);
+                    await member.kick("Guard | Varsayılan Avatar Koruması").catch(() => {});
+                    return;
+                }
 
-                if (!global.guardDurums.get(guildId)) return;
+                // Kötü İsim Koruması
+                if (getSetting(guildId, "usernameRegexGuard")) {
+                    const badNameRegex = /(https?:\/\/|discord\.gg\/|www\.)/gi;
+                    if (badNameRegex.test(member.user.username) || badNameRegex.test(member.user.displayName)) {
+                        await sendGuardLog(member.guild, member.user, null, "Profil İsim Koruması (Reklam/Link)", "Sunucudan Atıldı", guildId);
+                        await member.kick("Guard | Kötü Profil Adı").catch(() => {});
+                        return;
+                    }
+                }
 
-                const logs =
-                    await channel.guild.fetchAuditLogs({
-                        type:
-                            AuditLogEvent.ChannelDelete,
-                        limit: 1
-                    });
-
-                const entry =
-                    logs.entries.first();
-
-                if (!entry) return;
-
-                const executor =
-                    entry.executor;
-
-                if (
-                    executor.id ===
-                    channel.guild.ownerId
-                ) return;
-
-                const guvenliListe = global.guvenliListes.get(guildId) || [];
-                if (
-                    guvenliListe.includes(
-                        executor.id
-                    )
-                ) return;
-
-                const member =
-                    await channel.guild.members
-                        .fetch(executor.id)
-                        .catch(() => null);
-
-                if (!member) return;
-
-                await member.roles.set([]);
-
-                await member.ban({
-                    reason:
-                        "Guard | Kanal Silme"
-                });
-
-                // Kanal geri oluştur
-
-                await channel.guild.channels.create({
-                    name: channel.name,
-                    type: ChannelType.GuildText,
-                    parent: channel.parentId
-                }).catch(() => { });
+                // Karantina veya Doğrulama Rolü Verme
+                if (getSetting(guildId, "buttonVerification") || getSetting(guildId, "autoQuarantine")) {
+                    const quarantineRolId = getSetting(guildId, "quarantineRoleId");
+                    if (quarantineRolId) {
+                        await member.roles.add(quarantineRolId).catch(() => {});
+                        if (getSetting(guildId, "autoQuarantine")) {
+                            await sendGuardLog(member.guild, member.user, null, "Otomatik Karantina", "Karantina Rolü Verildi", guildId);
+                        }
+                    }
+                }
             }
-        );
+        });
 
-        // =========================
-        // ROL SİLME KORUMA
-        // =========================
+        // 9. Sunucu Güncelleme Koruması
+        client.on("guildUpdate", async (oldGuild, newGuild) => {
+            if (!newGuild) return;
+            const guildId = newGuild.id;
+            if (!global.guardDurums.get(guildId)) return;
+            if (!getSetting(guildId, "antiGuildUpdate")) return;
 
-        client.on(
-            "roleDelete",
-            async role => {
-                if (!role.guild) return;
-                const guildId = role.guild.id;
+            const logs = await newGuild.fetchAuditLogs({ type: AuditLogEvent.GuildUpdate, limit: 1 }).catch(() => null);
+            if (!logs) return;
+            const entry = logs.entries.first();
+            if (!entry) return;
+            const executor = entry.executor;
+            if (executor.id === newGuild.ownerId || executor.id === client.user.id) return;
 
-                if (!global.guardDurums.get(guildId)) return;
+            const guvenliListe = global.guvenliListes.get(guildId) || [];
+            if (guvenliListe.includes(executor.id)) return;
 
-                const logs =
-                    await role.guild.fetchAuditLogs({
-                        type:
-                            AuditLogEvent.RoleDelete,
-                        limit: 1
-                    });
+            await punishAdmin(newGuild, executor, "İzinsiz Sunucu Ayarları Güncelleme", guildId);
 
-                const entry =
-                    logs.entries.first();
+            await newGuild.edit({
+                name: oldGuild.name,
+                icon: oldGuild.iconURL(),
+                banner: oldGuild.bannerURL(),
+                splash: oldGuild.splashURL()
+            }).catch(() => {});
+        });
 
-                if (!entry) return;
+        // 10. Audit Log Üye Yasaklama Limitleri
+        client.on("guildBanAdd", async ban => {
+            const guildId = ban.guild.id;
+            if (!global.guardDurums.get(guildId)) return;
 
-                const executor =
-                    entry.executor;
+            const limitMax = getSetting(guildId, "banLimit");
+            const limitMinutes = getSetting(guildId, "limitTime") || 5;
 
-                if (
-                    executor.id ===
-                    role.guild.ownerId
-                ) return;
+            const logs = await ban.guild.fetchAuditLogs({ type: AuditLogEvent.MemberBanAdd, limit: 1 }).catch(() => null);
+            if (!logs) return;
+            const entry = logs.entries.first();
+            if (!entry) return;
+            const executor = entry.executor;
+            if (executor.id === ban.guild.ownerId || executor.id === client.user.id) return;
 
-                const guvenliListe = global.guvenliListes.get(guildId) || [];
-                if (
-                    guvenliListe.includes(
-                        executor.id
-                    )
-                ) return;
+            const guvenliListe = global.guvenliListes.get(guildId) || [];
+            if (guvenliListe.includes(executor.id)) return;
 
-                const member =
-                    await role.guild.members
-                        .fetch(executor.id)
-                        .catch(() => null);
-
-                if (!member) return;
-
-                await member.roles.set([]);
-
-                await member.ban({
-                    reason:
-                        "Guard | Rol Silme"
-                });
-
-                // Rol geri oluştur
-
-                await role.guild.roles.create({
-                    name: role.name,
-                    color: role.color,
-                    permissions:
-                        role.permissions
-                }).catch(() => { });
+            const exceeded = checkRateLimit(guildId, executor.id, "banLimit", limitMax, limitMinutes);
+            if (exceeded) {
+                await punishAdmin(ban.guild, executor, `Yönetici Ban Limitini Aşma (Limit: ${limitMax})`, guildId);
+                await ban.guild.members.unban(ban.user.id, "Guard | Limit Aşımı Koruması").catch(() => {});
             }
-        );
+        });
 
-        // =========================
-        // BOT EKLEME KORUMA
-        // =========================
+        // 11. Sohbet Filtreleri ve İletiler
+        client.on("messageCreate", async message => {
+            if (!message.guild) return;
+            const guildId = message.guild.id;
+            if (!global.guardDurums.get(guildId)) return;
+            if (message.author.bot) return;
 
-        client.on(
-            "guildMemberAdd",
-            async member => {
-                if (!member.guild) return;
-                const guildId = member.guild.id;
+            const guvenliListe = global.guvenliListes.get(guildId) || [];
+            if (guvenliListe.includes(message.author.id)) return;
 
-                if (!global.guardDurums.get(guildId)) return;
+            // Link & Davet Engel
+            const linkRegex = /(https?:\/\/|www\.)/gi;
+            const inviteRegex = /(discord\.gg\/|discord\.com\/invite\/)/gi;
 
-                if (!member.user.bot) return;
+            let shouldDelete = false;
+            let reason = "";
 
-                const logs =
-                    await member.guild.fetchAuditLogs({
-                        type:
-                            AuditLogEvent.BotAdd,
-                        limit: 1
-                    });
-
-                const entry =
-                    logs.entries.first();
-
-                if (!entry) return;
-
-                const executor =
-                    entry.executor;
-
-                if (
-                    executor.id ===
-                    member.guild.ownerId
-                ) return;
-
-                const guvenliListe = global.guvenliListes.get(guildId) || [];
-                if (
-                    guvenliListe.includes(
-                        executor.id
-                    )
-                ) return;
-
-                await member.kick(
-                    "Guard Sistemi"
-                );
-
-                const yetkili =
-                    await member.guild.members
-                        .fetch(executor.id)
-                        .catch(() => null);
-
-                if (!yetkili) return;
-
-                await yetkili.roles.set([]);
-
-                await yetkili.ban({
-                    reason:
-                        "Guard | İzinsiz Bot"
-                });
+            if (getSetting(guildId, "inviteEngel") && inviteRegex.test(message.content)) {
+                shouldDelete = true;
+                reason = "Davet Linki Paylaşımı";
+            } else if (getSetting(guildId, "linkEngel") && linkRegex.test(message.content)) {
+                shouldDelete = true;
+                reason = "Link Paylaşımı";
             }
-        );
 
-        // =========================
-        // SUNUCU GÜNCELLEME KORUMA
-        // =========================
+            // Küfür & Argo Filtreleri
+            const kufurler = ["kufur1", "amk", "oç", "piç", "siktir", "sik"]; // add words as needed
+            const argolar = ["lan", "gerizekalı", "aptal", "salak"];
 
-        client.on(
-            "guildUpdate",
-            async (oldGuild, newGuild) => {
-                if (!newGuild) return;
-                const guildId = newGuild.id;
-
-                if (!global.guardDurums.get(guildId)) return;
-
-                const logs =
-                    await newGuild.fetchAuditLogs({
-                        type:
-                            AuditLogEvent.GuildUpdate,
-                        limit: 1
-                    });
-
-                const entry =
-                    logs.entries.first();
-
-                if (!entry) return;
-
-                const executor =
-                    entry.executor;
-
-                if (
-                    executor.id ===
-                    newGuild.ownerId
-                ) return;
-
-                const guvenliListe = global.guvenliListes.get(guildId) || [];
-                if (
-                    guvenliListe.includes(
-                        executor.id
-                    )
-                ) return;
-
-                const member =
-                    await newGuild.members
-                        .fetch(executor.id)
-                        .catch(() => null);
-
-                if (!member) return;
-
-                await member.roles.set([]);
-
-                await member.ban({
-                    reason:
-                        "Guard | Sunucu Güncelleme"
-                });
-
-                await newGuild.setName(
-                    oldGuild.name
-                ).catch(() => { });
+            if (!shouldDelete && getSetting(guildId, "kufurEngel")) {
+                const words = message.content.toLowerCase().split(/\s+/);
+                if (words.some(w => kufurler.includes(w))) {
+                    shouldDelete = true;
+                    reason = "Küfürlü İleti";
+                }
             }
-        );
+
+            if (!shouldDelete && getSetting(guildId, "argoEngel")) {
+                const words = message.content.toLowerCase().split(/\s+/);
+                if (words.some(w => argolar.includes(w))) {
+                    shouldDelete = true;
+                    reason = "Argo İleti";
+                }
+            }
+
+            // Caps Lock Engeli (>70% uppercase)
+            if (!shouldDelete && getSetting(guildId, "capsEngel") && message.content.length > 5) {
+                const upperCount = message.content.replace(/[^A-ZĞÜŞİÖÇ]/g, "").length;
+                if ((upperCount / message.content.length) > 0.7) {
+                    shouldDelete = true;
+                    reason = "Aşırı Büyük Harf (Caps Lock)";
+                }
+            }
+
+            // Etiket Spami
+            if (!shouldDelete && getSetting(guildId, "mentionSpamEngel")) {
+                const mentions = message.mentions.users.size + message.mentions.roles.size;
+                if (mentions > 4) {
+                    shouldDelete = true;
+                    reason = "Etiket Spami";
+                }
+            }
+
+            // Emoji Spami
+            if (!shouldDelete && getSetting(guildId, "emojiSpamEngel")) {
+                const emojiRegex = /<a?:.+?:\d+>|[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g;
+                const emojis = message.content.match(emojiRegex);
+                if (emojis && emojis.length > 5) {
+                    shouldDelete = true;
+                    reason = "Emoji Spami";
+                }
+            }
+
+            // Everyone / Here Engeli
+            if (!shouldDelete && getSetting(guildId, "everyoneHereEngel") && (message.content.includes("@everyone") || message.content.includes("@here"))) {
+                if (!message.member.permissions.has(PermissionFlagsBits.MentionEveryone)) {
+                    shouldDelete = true;
+                    reason = "Yetkisiz Everyone/Here Etiketi";
+                }
+            }
+
+            if (shouldDelete) {
+                await message.delete().catch(() => {});
+                await message.channel.send({ content: `🚫 ${message.author}, **${reason}** nedeniyle iletiniz engellendi.` }).then(msg => {
+                    setTimeout(() => msg.delete().catch(() => {}), 5000);
+                });
+                await message.member.timeout(30000, `Guard | ${reason}`).catch(() => {});
+            }
+        });
     }
 };
