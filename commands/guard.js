@@ -747,7 +747,7 @@ ${divider}
                     .setCustomId("toggle_channels")
                     .setPlaceholder("🖥️ Kanal Korumalarını Seçin (Çoklu Seçim)")
                     .setMinValues(0)
-                    .setMaxValues(13)
+                    .setMaxValues(12)
                     .addOptions([
                         { label: "Kanal Oluşturma Koruması", value: "antiChannelCreate", description: "Kanal açılınca siler & engeller.", default: getSetting(guildId, "antiChannelCreate") },
                         { label: "Kanal Silme Koruması", value: "antiChannelDelete", description: "Silinen kanalı kurtarır & engeller.", default: getSetting(guildId, "antiChannelDelete") },
@@ -1189,7 +1189,7 @@ ${divider}
                             new ButtonBuilder().setCustomId("wl_perms_toggle_channel").setLabel(`Kanal: ${userPerms.channel ? "🟢 Evet" : "🔴 Hayır"}`).setStyle(ButtonStyle.Secondary),
                             new ButtonBuilder().setCustomId("wl_perms_toggle_role").setLabel(`Rol: ${userPerms.role ? "🟢 Evet" : "🔴 Hayır"}`).setStyle(ButtonStyle.Secondary),
                             new ButtonBuilder().setCustomId("wl_perms_toggle_chat").setLabel(`Sohbet: ${userPerms.chat ? "🟢 Evet" : "🔴 Hayır"}`).setStyle(ButtonStyle.Secondary),
-                            new ButtonBuilder().setCustomId("wl_perms_toggle_limit").setLabel(`Limit: ${userPerms.limitBypass ? "🟢 Evet" : "🔴 Hayır"}`).setStyle(ButtonStyle.Secondary),
+                            new ButtonBuilder().setCustomId("wl_perms_toggle_limitBypass").setLabel(`Limit: ${userPerms.limitBypass ? "🟢 Evet" : "🔴 Hayır"}`).setStyle(ButtonStyle.Secondary),
                             new ButtonBuilder().setCustomId("wl_perms_back").setLabel("↩️ Geri").setStyle(ButtonStyle.Primary)
                         );
 
@@ -1227,7 +1227,7 @@ ${divider}
                         new ButtonBuilder().setCustomId("wl_perms_toggle_channel").setLabel(`Kanal: ${userPerms.channel ? "🟢 Evet" : "🔴 Hayır"}`).setStyle(ButtonStyle.Secondary),
                         new ButtonBuilder().setCustomId("wl_perms_toggle_role").setLabel(`Rol: ${userPerms.role ? "🟢 Evet" : "🔴 Hayır"}`).setStyle(ButtonStyle.Secondary),
                         new ButtonBuilder().setCustomId("wl_perms_toggle_chat").setLabel(`Sohbet: ${userPerms.chat ? "🟢 Evet" : "🔴 Hayır"}`).setStyle(ButtonStyle.Secondary),
-                        new ButtonBuilder().setCustomId("wl_perms_toggle_limit").setLabel(`Limit: ${userPerms.limitBypass ? "🟢 Evet" : "🔴 Hayır"}`).setStyle(ButtonStyle.Secondary),
+                        new ButtonBuilder().setCustomId("wl_perms_toggle_limitBypass").setLabel(`Limit: ${userPerms.limitBypass ? "🟢 Evet" : "🔴 Hayır"}`).setStyle(ButtonStyle.Secondary),
                         new ButtonBuilder().setCustomId("wl_perms_back").setLabel("↩️ Geri").setStyle(ButtonStyle.Primary)
                     );
 
