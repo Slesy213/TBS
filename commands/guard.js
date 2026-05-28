@@ -2225,7 +2225,11 @@ ${divider}
                 keys.forEach(k => settings[k] = i.values.includes(k));
                 global.guardSettings.set(guildId, settings);
                 await updateSetting(guildId, "guard_settings", settings);
-
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "toggle_default_avatar") {
                 const settings = global.guardSettings.get(guildId) || {};
                 const keys = [
                     "defaultAvatarGuard", "defaultAvatarActionKick", "defaultAvatarActionBan", "defaultAvatarActionQuarantine",
