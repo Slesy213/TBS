@@ -721,7 +721,7 @@ ${divider}
                     .setDescription(`
 ${divider}
 **« İÇERİK ENGELLERİ »**
-• **Argo Sözcük Engeli**       :: ${statusEmoji("argoEngel")}
+• **Argo Sözcük Engeli (Basit Motor)**       :: ${statusEmoji("argoEngel")}
 
 **« BİÇİM & SPAM FİLTRELERİ »**
 • **Büyük Harf (Caps Lock)**   :: ${statusEmoji("capsEngel")} \`[>%70 Oran]\`
@@ -804,7 +804,7 @@ ${divider}
 • **Dini Değerlere Küfür**    :: ${statusEmoji("kufurBlockReligious")}
 • **Irkçı Hakaret Engeli**    :: ${statusEmoji("kufurBlockRacist")}
 • **Siyasi Taciz Engeli**     :: ${statusEmoji("kufurBlockPolitical")}
-• **Argo Sözcük Engeli**       :: ${statusEmoji("kufurBlockArgo")}
+• **Argo Sözcük Engeli (Gelişmiş Motor)**       :: ${statusEmoji("kufurBlockArgo")}
 • **Kısaltmalar Koruması**    :: ${statusEmoji("kufurBlockAbbreviations")}
 • **Cinsiyetçi Taciz Engeli** :: ${statusEmoji("kufurBlockHomophobic")}
 • **Hakaret Spami Engeli**    :: ${statusEmoji("kufurBlockSpamInsults")}
