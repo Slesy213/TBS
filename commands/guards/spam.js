@@ -162,7 +162,7 @@ module.exports = (client) => {
         }
 
         // ─── Whitelist check ───
-        if (isWhitelisted(guildId, message.author.id)) return;
+        if (isWhitelisted(message.guild, message.author.id)) return;
 
         // ─── Feature 20: spamBypassChannels ───
         if (isFeatureEnabled(guildId, "spamBypassChannels")) {
@@ -392,7 +392,7 @@ module.exports = (client) => {
             }
         }
 
-        if (isWhitelisted(guildId, message.author.id)) return;
+        if (isWhitelisted(message.guild, message.author.id)) return;
 
         const tracker = getTracker(guildId, message.author.id);
         cleanOldMessages(tracker);
