@@ -619,108 +619,119 @@ ${divider}
         };
 
         const generateComponents = () => {
-            const rowButtons = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId("page_server").setLabel("🖥️ Sunucu").setStyle(activePage === "server" ? ButtonStyle.Success : ButtonStyle.Primary),
-                new ButtonBuilder().setCustomId("page_chat").setLabel("💬 Sohbet").setStyle(activePage === "chat" ? ButtonStyle.Success : ButtonStyle.Primary),
-                new ButtonBuilder().setCustomId("page_raid").setLabel("👥 Giriş").setStyle(activePage === "raid" ? ButtonStyle.Success : ButtonStyle.Primary),
-                new ButtonBuilder().setCustomId("page_limits").setLabel("⚙️ Limitler").setStyle(activePage === "limits" ? ButtonStyle.Success : ButtonStyle.Primary),
-                new ButtonBuilder().setCustomId("page_logs").setLabel("📄 Roller/Log/WL").setStyle(activePage === "logs" ? ButtonStyle.Success : ButtonStyle.Primary)
+            // Navigation dropdown (Row 1) - Shown on all pages
+            const rowNav = new ActionRowBuilder().addComponents(
+                new StringSelectMenuBuilder()
+                    .setCustomId("select_page")
+                    .setPlaceholder("📂 Gitmek istediğiniz kategoriyi seçin")
+                    .addOptions([
+                        { label: "🛡️ Ana Sayfa / Genel Durum", value: "page_main", description: "Genel sunucu ve otonom koruma durumu.", default: activePage === "main" },
+                        { label: "🖥️ Sunucu Bütünlüğü Korumaları", value: "page_server", description: "Kanal, rol ve webhook korumaları.", default: activePage === "server" },
+                        { label: "💬 Sohbet & İçerik Korumaları", value: "page_chat", description: "Küfür, link ve spam engelleri.", default: activePage === "chat" },
+                        { label: "👥 Giriş Güvenliği & Raid", value: "page_raid", description: "Hesap yaşı, anti-raid ve karantina.", default: activePage === "raid" },
+                        { label: "⚙️ Yönetici Hız Limitleri", value: "page_limits", description: "Yöneticilerin eylem eşik sınırları.", default: activePage === "limits" },
+                        { label: "📄 Sistem Ayarları & Whitelist", value: "page_logs", description: "Log kanalı, roller ve whitelist.", default: activePage === "logs" }
+                    ])
             );
 
-            const rowMainActions = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId("action_autonom").setLabel("🤖 Otonom Mod").setStyle(getSetting(guildId, "autonomousMode") ? ButtonStyle.Success : ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId("action_open_all").setLabel("🟢 Hepsini Aç").setStyle(ButtonStyle.Success),
-                new ButtonBuilder().setCustomId("action_close_all").setLabel("🔴 Hepsini Kapat").setStyle(ButtonStyle.Danger)
-            );
+            const rows = [rowNav];
 
-            const rowToggles = new ActionRowBuilder();
-            if (activePage === "server") {
-                rowToggles.addComponents(
-                    new StringSelectMenuBuilder()
-                        .setCustomId("toggle_server")
-                        .setPlaceholder("Açmak/Kapatmak istediğiniz özelliği seçin")
-                        .addOptions([
-                            { label: "Anti Channel Create", value: "antiChannelCreate" },
-                            { label: "Anti Channel Delete", value: "antiChannelDelete" },
-                            { label: "Anti Channel Update", value: "antiChannelUpdate" },
-                            { label: "Anti Role Create", value: "antiRoleCreate" },
-                            { label: "Anti Role Delete", value: "antiRoleDelete" },
-                            { label: "Anti Role Update", value: "antiRoleUpdate" },
-                            { label: "Anti Webhook Protection", value: "antiWebhookCreate" },
-                            { label: "Anti Bot Add", value: "antiBotAdd" },
-                            { label: "Anti Guild Update", value: "antiGuildUpdate" }
-                        ])
-                );
-            } else if (activePage === "chat") {
-                rowToggles.addComponents(
-                    new StringSelectMenuBuilder()
-                        .setCustomId("toggle_chat")
-                        .setPlaceholder("Açmak/Kapatmak istediğiniz özelliği seçin")
-                        .addOptions([
-                            { label: "Link Engeli", value: "linkEngel" },
-                            { label: "Davet Engeli", value: "inviteEngel" },
-                            { label: "Küfür Engeli", value: "kufurEngel" },
-                            { label: "Argo Engeli", value: "argoEngel" },
-                            { label: "Caps Lock Engeli", value: "capsEngel" },
-                            { label: "Emoji Spam Engeli", value: "emojiSpamEngel" },
-                            { label: "Etiket Spam Engeli", value: "mentionSpamEngel" },
-                            { label: "Everyone/Here Engeli", value: "everyoneHereEngel" },
-                            { label: "Tekrarlanan Mesaj Engeli", value: "duplicateEngel" }
-                        ])
-                );
-            } else if (activePage === "raid") {
-                rowToggles.addComponents(
-                    new StringSelectMenuBuilder()
-                        .setCustomId("toggle_raid")
-                        .setPlaceholder("Konfigüre etmek istediğiniz özelliği seçin")
-                        .addOptions([
-                            { label: "Hesap Yaşı Koruması (Aç/Kapat)", value: "accountAgeGuard" },
-                            { label: "Avatar Koruması (Aç/Kapat)", value: "defaultAvatarGuard" },
-                            { label: "Raid Koruması (Aç/Kapat)", value: "raidGuard" },
-                            { label: "Kötü İsim Koruması (Aç/Kapat)", value: "usernameRegexGuard" },
-                            { label: "Butonlu Doğrulama (Aç/Kapat)", value: "buttonVerification" },
-                            { label: "Otomatik Karantina (Aç/Kapat)", value: "autoQuarantine" },
-                            { label: "✍️ Hesap Yaşı Sınırını Belirle (Gün)", value: "custom_age" },
-                            { label: "✍️ Raid Giriş Sınırını Belirle (Kişi)", value: "custom_raid" },
-                            { label: "✍️ Raid Zaman Dilimini Belirle (Saniye)", value: "custom_raid_time" }
-                        ])
-                );
-            } else if (activePage === "limits") {
-                rowToggles.addComponents(
-                    new StringSelectMenuBuilder()
-                        .setCustomId("adjust_limits")
-                        .setPlaceholder("Düzenlemek istediğiniz limiti seçin")
-                        .addOptions([
-                            { label: "✍️ Ban Limiti Değiştir", value: "banLimit" },
-                            { label: "✍️ Kick Limiti Değiştir", value: "kickLimit" },
-                            { label: "✍️ Kanal Silme Limiti Değiştir", value: "channelDeleteLimit" },
-                            { label: "✍️ Rol Silme Limiti Değiştir", value: "roleDeleteLimit" },
-                            { label: "✍️ Rol Verme Limiti Değiştir", value: "roleGiveLimit" },
-                            { label: "✍️ Zaman Dilimini Değiştir (Dakika)", value: "limitTime" }
-                        ])
-                );
-            } else if (activePage === "logs") {
-                rowToggles.addComponents(
-                    new StringSelectMenuBuilder()
-                        .setCustomId("select_log_action")
-                        .setPlaceholder("Rol/Log/Whitelist Konfigürasyonu Seçin")
-                        .addOptions([
-                            { label: "Log Kanalını Güncelle", value: "ch_log" },
-                            { label: "Doğrulanmış Rolünü Güncelle", value: "role_verify" },
-                            { label: "Karantina Rolünü Güncelle", value: "role_quarantine" },
-                            { label: "🟢 Whitelist (Tam Yetkili) Üye Ekle", value: "wl_add" },
-                            { label: "🔴 Whitelist (Tam Yetkili) Üye Çıkar", value: "wl_remove" },
-                            { label: "⚙️ Özel Yetki Tanımla (Granular)", value: "wl_perms" }
-                        ])
-                );
-            }
-
-            const rows = [rowButtons];
             if (activePage === "main") {
+                const rowMainActions = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId("action_autonom").setLabel("🤖 Otonom Mod").setStyle(getSetting(guildId, "autonomousMode") ? ButtonStyle.Success : ButtonStyle.Secondary),
+                    new ButtonBuilder().setCustomId("action_open_all").setLabel("🟢 Hepsini Aç").setStyle(ButtonStyle.Success),
+                    new ButtonBuilder().setCustomId("action_close_all").setLabel("🔴 Hepsini Kapat").setStyle(ButtonStyle.Danger)
+                );
                 rows.push(rowMainActions);
-            } else {
-                rows.push(rowToggles);
+            } else if (activePage === "server") {
+                const selectServer = new StringSelectMenuBuilder()
+                    .setCustomId("toggle_server")
+                    .setPlaceholder("🖥️ Korumaları Seçin / Düzenleyin (Çoklu Seçim)")
+                    .setMinValues(0)
+                    .setMaxValues(9)
+                    .addOptions([
+                        { label: "Kanal Oluşturma Koruması", value: "antiChannelCreate", description: "Kanal açılınca siler & engeller.", default: getSetting(guildId, "antiChannelCreate") },
+                        { label: "Kanal Silme Koruması", value: "antiChannelDelete", description: "Silinen kanalı kurtarır & engeller.", default: getSetting(guildId, "antiChannelDelete") },
+                        { label: "Kanal Güncelleme Koruması", value: "antiChannelUpdate", description: "Kanal değişimini geri alır & engeller.", default: getSetting(guildId, "antiChannelUpdate") },
+                        { label: "Rol Oluşturma Koruması", value: "antiRoleCreate", description: "Rol açılınca siler & engeller.", default: getSetting(guildId, "antiRoleCreate") },
+                        { label: "Rol Silme Koruması", value: "antiRoleDelete", description: "Silinen rolü ve üyelerini kurtarır.", default: getSetting(guildId, "antiRoleDelete") },
+                        { label: "Rol Güncelleme Koruması", value: "antiRoleUpdate", description: "Rol yetki değişimini geri alır.", default: getSetting(guildId, "antiRoleUpdate") },
+                        { label: "Webhook Koruması", value: "antiWebhookCreate", description: "Webhook açılınca siler & engeller.", default: getSetting(guildId, "antiWebhookCreate") },
+                        { label: "Anti-Bot Ekleme", value: "antiBotAdd", description: "İzinsiz botları atar & ekleyeni engeller.", default: getSetting(guildId, "antiBotAdd") },
+                        { label: "Sunucu Ayarları Koruması", value: "antiGuildUpdate", description: "Sunucu ayarlarını geri yükler.", default: getSetting(guildId, "antiGuildUpdate") }
+                    ]);
+                rows.push(new ActionRowBuilder().addComponents(selectServer));
+            } else if (activePage === "chat") {
+                const selectChat = new StringSelectMenuBuilder()
+                    .setCustomId("toggle_chat")
+                    .setPlaceholder("💬 Filtreleri Seçin / Düzenleyin (Çoklu Seçim)")
+                    .setMinValues(0)
+                    .setMaxValues(10)
+                    .addOptions([
+                        { label: "Tüm Linkleri Engelle", value: "linkEngel", description: "Tüm web adreslerini engeller.", default: getSetting(guildId, "linkEngel") },
+                        { label: "Davet Linklerini Engelle", value: "inviteEngel", description: "Discord davet linklerini engeller.", default: getSetting(guildId, "inviteEngel") },
+                        { label: "Küfür Filtresi", value: "kufurEngel", description: "Küfürlü kelimeleri engeller.", default: getSetting(guildId, "kufurEngel") },
+                        { label: "Argo Filtresi", value: "argoEngel", description: "Argo kelimeleri engeller.", default: getSetting(guildId, "argoEngel") },
+                        { label: "Caps Lock Filtresi", value: "capsEngel", description: "Aşırı büyük harf kullanımını engeller.", default: getSetting(guildId, "capsEngel") },
+                        { label: "Emoji Spam Filtresi", value: "emojiSpamEngel", description: "Çok fazla emoji kullanımını engeller.", default: getSetting(guildId, "emojiSpamEngel") },
+                        { label: "Etiket Spam Filtresi", value: "mentionSpamEngel", description: "Çok fazla etiket kullanımını engeller.", default: getSetting(guildId, "mentionSpamEngel") },
+                        { label: "Toplu Etiket Engeli", value: "everyoneHereEngel", description: "Yetkisiz @everyone ve @here engeller.", default: getSetting(guildId, "everyoneHereEngel") },
+                        { label: "Medya Spam Filtresi", value: "mediaSpamEngel", description: "Arka arkaya görsel paylaşımını engeller.", default: getSetting(guildId, "mediaSpamEngel") },
+                        { label: "Tekrarlanan Mesaj Engeli", value: "duplicateEngel", description: "Aynı mesajların gönderimini engeller.", default: getSetting(guildId, "duplicateEngel") }
+                    ]);
+                rows.push(new ActionRowBuilder().addComponents(selectChat));
+            } else if (activePage === "raid") {
+                const selectRaidBools = new StringSelectMenuBuilder()
+                    .setCustomId("toggle_raid_bools")
+                    .setPlaceholder("👥 Giriş Güvenliklerini Seçin (Çoklu Seçim)")
+                    .setMinValues(0)
+                    .setMaxValues(6)
+                    .addOptions([
+                        { label: "Yeni Hesap Koruması", value: "accountAgeGuard", description: "Yeni açılmış hesapları sunucudan atar.", default: getSetting(guildId, "accountAgeGuard") },
+                        { label: "Varsayılan Avatar Koruması", value: "defaultAvatarGuard", description: "Profil resmi olmayan hesapları atar.", default: getSetting(guildId, "defaultAvatarGuard") },
+                        { label: "Anti-Raid Koruması", value: "raidGuard", description: "Saldırı anında girişleri engeller.", default: getSetting(guildId, "raidGuard") },
+                        { label: "Reklamlı İsim Koruması", value: "usernameRegexGuard", description: "İsminde link olan hesapları atar.", default: getSetting(guildId, "usernameRegexGuard") },
+                        { label: "Butonlu Doğrulama Sistemi", value: "buttonVerification", description: "Yeni üyeleri butonla doğrulatır.", default: getSetting(guildId, "buttonVerification") },
+                        { label: "Otomatik Karantina", value: "autoQuarantine", description: "Yeni üyeleri direkt karantinaya alır.", default: getSetting(guildId, "autoQuarantine") }
+                    ]);
+                const selectRaidLimits = new StringSelectMenuBuilder()
+                    .setCustomId("adjust_raid_numbers")
+                    .setPlaceholder("✍️ Sayısal limitleri ayarlayın")
+                    .addOptions([
+                        { label: "Hesap Yaş Sınırını Belirle (Gün)", value: "custom_age" },
+                        { label: "Raid Giriş Sınırını Belirle (Kişi)", value: "custom_raid" },
+                        { label: "Raid Zaman Dilimini Belirle (Saniye)", value: "custom_raid_time" }
+                    ]);
+                rows.push(new ActionRowBuilder().addComponents(selectRaidBools));
+                rows.push(new ActionRowBuilder().addComponents(selectRaidLimits));
+            } else if (activePage === "limits") {
+                const selectLimits = new StringSelectMenuBuilder()
+                    .setCustomId("adjust_limits")
+                    .setPlaceholder("⚙️ Eşik sınırlarını ve süreleri düzenleyin")
+                    .addOptions([
+                        { label: "Ban Limiti Değiştir", value: "banLimit" },
+                        { label: "Kick Limiti Değiştir", value: "kickLimit" },
+                        { label: "Kanal Silme Limiti Değiştir", value: "channelDeleteLimit" },
+                        { label: "Rol Silme Limiti Değiştir", value: "roleDeleteLimit" },
+                        { label: "Rol Verme Limiti Değiştir", value: "roleGiveLimit" },
+                        { label: "Zaman Dilimini Değiştir (Dakika)", value: "limitTime" }
+                    ]);
+                rows.push(new ActionRowBuilder().addComponents(selectLimits));
+            } else if (activePage === "logs") {
+                const selectLogs = new StringSelectMenuBuilder()
+                    .setCustomId("select_log_action")
+                    .setPlaceholder("📄 Rol/Log/Whitelist Ayarları")
+                    .addOptions([
+                        { label: "Log Kanalını Güncelle", value: "ch_log" },
+                        { label: "Doğrulanmış Rolünü Güncelle", value: "role_verify" },
+                        { label: "Karantina Rolünü Güncelle", value: "role_quarantine" },
+                        { label: "Whitelist Üye Ekle (Bypass)", value: "wl_add" },
+                        { label: "Whitelist Üye Çıkar", value: "wl_remove" },
+                        { label: "Özel Yetkilendirmeleri Düzenle", value: "wl_perms" }
+                    ]);
+                rows.push(new ActionRowBuilder().addComponents(selectLogs));
             }
+
             return rows;
         };
 
@@ -750,7 +761,7 @@ ${divider}
                 return await showLimitModal(i, key, labels[key]);
             }
 
-            if (i.customId === "toggle_raid") {
+            if (i.customId === "adjust_raid_numbers") {
                 const val = i.values[0];
                 if (val === "custom_age") {
                     return await showLimitModal(i, "accountAgeLimit", "Hesap Yaş Sınırı (Gün)");
@@ -768,8 +779,8 @@ ${divider}
                 await i.deferUpdate();
             }
 
-            if (i.customId.startsWith("page_")) {
-                activePage = i.customId.replace("page_", "");
+            if (i.customId === "select_page") {
+                activePage = i.values[0].replace("page_", "");
                 await interaction.editReply({
                     embeds: [generateEmbed()],
                     components: generateComponents()
@@ -799,10 +810,43 @@ ${divider}
                     embeds: [generateEmbed()],
                     components: generateComponents()
                 });
-            } else if (i.customId.startsWith("toggle_")) {
-                const key = i.values[0];
-                const current = getSetting(guildId, key);
-                await setSetting(guildId, key, !current);
+            } else if (i.customId === "toggle_server") {
+                const settings = global.guardSettings.get(guildId) || {};
+                const keys = [
+                    "antiChannelCreate", "antiChannelDelete", "antiChannelUpdate",
+                    "antiRoleCreate", "antiRoleDelete", "antiRoleUpdate",
+                    "antiWebhookCreate", "antiBotAdd", "antiGuildUpdate"
+                ];
+                keys.forEach(k => settings[k] = i.values.includes(k));
+                global.guardSettings.set(guildId, settings);
+                await updateSetting(guildId, "guard_settings", settings);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "toggle_chat") {
+                const settings = global.guardSettings.get(guildId) || {};
+                const keys = [
+                    "linkEngel", "inviteEngel", "kufurEngel", "argoEngel", "capsEngel",
+                    "emojiSpamEngel", "mentionSpamEngel", "everyoneHereEngel", "mediaSpamEngel",
+                    "duplicateEngel"
+                ];
+                keys.forEach(k => settings[k] = i.values.includes(k));
+                global.guardSettings.set(guildId, settings);
+                await updateSetting(guildId, "guard_settings", settings);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "toggle_raid_bools") {
+                const settings = global.guardSettings.get(guildId) || {};
+                const keys = [
+                    "accountAgeGuard", "defaultAvatarGuard", "raidGuard", "usernameRegexGuard",
+                    "buttonVerification", "autoQuarantine"
+                ];
+                keys.forEach(k => settings[k] = i.values.includes(k));
+                global.guardSettings.set(guildId, settings);
+                await updateSetting(guildId, "guard_settings", settings);
                 await interaction.editReply({
                     embeds: [generateEmbed()],
                     components: generateComponents()
