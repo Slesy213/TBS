@@ -194,7 +194,8 @@ module.exports = (client) => {
                 contentCount[c] = (contentCount[c] || 0) + 1;
             }
             for (const [text, count] of Object.entries(contentCount)) {
-                if (count >= 3) {
+                const duplicateLimit = getSetting(guildId, "spamDuplicateLimitVal") || 3;
+                if (count >= duplicateLimit) {
                     violated = true;
                     violationReason = "Tekrarlanan Mesaj";
                     violationDetails = `Aynı mesaj ${count} kez tekrarlandı (30sn içinde): "${text.substring(0, 50)}..."`;
@@ -205,7 +206,7 @@ module.exports = (client) => {
 
         // ─── Feature 3: spamMaxMessages ───
         if (!violated && isFeatureEnabled(guildId, "spamMaxMessages")) {
-            const maxMessages = 7; // 30 saniyede max 7 mesaj
+            const maxMessages = getSetting(guildId, "spamMaxMessagesVal") || 7; // 30 saniyede max 7 mesaj
             if (tracker.messages.length > maxMessages) {
                 violated = true;
                 violationReason = "Hızlı Mesaj Gönderimi";
@@ -219,10 +220,11 @@ module.exports = (client) => {
             if (msgs.length >= 2) {
                 const lastTwo = msgs.slice(-2);
                 const timeDiff = lastTwo[1].time - lastTwo[0].time;
-                if (timeDiff < 500) { // 500ms'den kısa aralıkla mesaj
+                const minTime = getSetting(guildId, "spamMinTimeVal") || 500;
+                if (timeDiff < minTime) { // 500ms'den kısa aralıkla mesaj
                     violated = true;
                     violationReason = "Çok Hızlı Mesaj";
-                    violationDetails = `Mesajlar arası süre: ${timeDiff}ms (Minimum: 500ms)`;
+                    violationDetails = `Mesajlar arası süre: ${timeDiff}ms (Minimum: ${minTime}ms)`;
                 }
             }
         }
@@ -234,10 +236,11 @@ module.exports = (client) => {
                 if (letters.length > 5) {
                     const upperLetters = letters.replace(/[^A-ZİĞÜŞÖÇ]/g, "");
                     const capsPercent = (upperLetters.length / letters.length) * 100;
-                    if (capsPercent > 70) {
+                    const capsLimit = getSetting(guildId, "spamCapsPercentageVal") || 70;
+                    if (capsPercent > capsLimit) {
                         violated = true;
                         violationReason = "Aşırı Büyük Harf";
-                        violationDetails = `Büyük harf oranı: %${capsPercent.toFixed(0)} (Limit: %70)`;
+                        violationDetails = `Büyük harf oranı: %${capsPercent.toFixed(0)} (Limit: %${capsLimit})`;
                     }
                 }
             }
@@ -250,39 +253,43 @@ module.exports = (client) => {
             const customCount = (content.match(customEmojiRegex) || []).length;
             const unicodeCount = (content.match(unicodeEmojiRegex) || []).length;
             const totalEmojis = customCount + unicodeCount;
-            if (totalEmojis > 10) {
+            const maxEmojis = getSetting(guildId, "spamMaxEmojisVal") || 10;
+            if (totalEmojis > maxEmojis) {
                 violated = true;
                 violationReason = "Aşırı Emoji Kullanımı";
-                violationDetails = `Toplam emoji: ${totalEmojis} (Limit: 10)`;
+                violationDetails = `Toplam emoji: ${totalEmojis} (Limit: ${maxEmojis})`;
             }
         }
 
         // ─── Feature 7: spamMaxMentions ───
         if (!violated && isFeatureEnabled(guildId, "spamMaxMentions")) {
             const userMentions = (content.match(/<@!?\d+>/g) || []).length;
-            if (userMentions > 5) {
+            const maxMentions = getSetting(guildId, "spamMaxMentionsVal") || 5;
+            if (userMentions > maxMentions) {
                 violated = true;
                 violationReason = "Aşırı Etiketleme";
-                violationDetails = `Kullanıcı etiketi: ${userMentions} (Limit: 5)`;
+                violationDetails = `Kullanıcı etiketi: ${userMentions} (Limit: ${maxMentions})`;
             }
         }
 
         // ─── Feature 8: spamMaxLines ───
         if (!violated && isFeatureEnabled(guildId, "spamMaxLines")) {
             const lineCount = content.split("\n").length;
-            if (lineCount > 15) {
+            const maxLines = getSetting(guildId, "spamMaxLinesVal") || 15;
+            if (lineCount > maxLines) {
                 violated = true;
                 violationReason = "Çok Fazla Satır";
-                violationDetails = `Satır sayısı: ${lineCount} (Limit: 15)`;
+                violationDetails = `Satır sayısı: ${lineCount} (Limit: ${maxLines})`;
             }
         }
 
         // ─── Feature 9: spamMaxLength ───
         if (!violated && isFeatureEnabled(guildId, "spamMaxLength")) {
-            if (content.length > 1500) {
+            const maxLength = getSetting(guildId, "spamMaxLengthVal") || 1500;
+            if (content.length > maxLength) {
                 violated = true;
                 violationReason = "Çok Uzun Mesaj";
-                violationDetails = `Mesaj uzunluğu: ${content.length} karakter (Limit: 1500)`;
+                violationDetails = `Mesaj uzunluğu: ${content.length} karakter (Limit: ${maxLength})`;
             }
         }
 
@@ -306,10 +313,11 @@ module.exports = (client) => {
         if (!violated && isFeatureEnabled(guildId, "spamLinkCount")) {
             const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
             const linkMatches = content.match(urlRegex) || [];
-            if (linkMatches.length > 3) {
+            const maxLinks = getSetting(guildId, "spamLinkCountVal") || 3;
+            if (linkMatches.length > maxLinks) {
                 violated = true;
                 violationReason = "Çok Fazla Link";
-                violationDetails = `Mesajda ${linkMatches.length} link tespit edildi (Limit: 3)`;
+                violationDetails = `Mesajda ${linkMatches.length} link tespit edildi (Limit: ${maxLinks})`;
             }
         }
 
@@ -406,8 +414,9 @@ increaseThreat(guildId, 5, "Hızlı Reaksiyon Spamı", reaction.message.guild);
                     uniqueChannels.add(msg.channelId);
                 }
             }
-            if (uniqueChannels.size >= 3) {
-                await executeActions(message, "Çapraz Kanal Spam", `Aynı mesaj ${uniqueChannels.size} farklı kanalda gönderildi`);
+            const crossLimit = getSetting(guildId, "spamCrossChannelLimitVal") || 3;
+            if (uniqueChannels.size >= crossLimit) {
+                await executeActions(message, "Çapraz Kanal Spam", `Aynı mesaj ${uniqueChannels.size} farklı kanalda gönderildi (Limit: ${crossLimit})`);
             }
         }
     });
