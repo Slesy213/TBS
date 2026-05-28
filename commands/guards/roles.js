@@ -16,19 +16,23 @@ module.exports = (client) => {
         if (!role.guild) return;
         const guildId = role.guild.id;
         if (!global.guardDurums.get(guildId)) return;
-        if (!isFeatureEnabled(guildId, "antiRoleCreate")) return;
+        
+        const isFreezeActive = global.integrityFreeze && global.integrityFreeze.get(guildId);
+        if (!isFeatureEnabled(guildId, "antiRoleCreate") && !isFreezeActive) return;
 
-        const deletePromise = role.delete("Guard | İzinsiz Rol Oluşturma").catch(() => {});
+        const reason = isFreezeActive ? "Anti-Raid Aktif (Rol İşlemleri Donduruldu)" : "İzinsiz Rol Oluşturma";
+        const deletePromise = role.delete(`Guard | ${reason}`).catch(() => {});
 
         (async () => {
             const entry = await getAuditLogEntry(role.guild, AuditLogEvent.RoleCreate);
             if (!entry) return;
             const executor = entry.executor;
-            if (isWhitelisted(role.guild, executor.id, "role")) return;
+            const isOwner = executor.id === role.guild.ownerId;
+            if (isWhitelisted(role.guild, executor.id, "role") && !(isFreezeActive && !isOwner)) return;
 
-            increaseThreat(guildId, 20, `Rol oluşturuldu: ${role.name}`, role.guild);
+            increaseThreat(guildId, 20, `${reason}: ${role.name}`, role.guild);
             await deletePromise;
-            await punishAdmin(role.guild, executor, "İzinsiz Rol Oluşturma", guildId);
+            await punishAdmin(role.guild, executor, reason, guildId);
         })();
     });
 
@@ -38,11 +42,13 @@ module.exports = (client) => {
         const guildId = role.guild.id;
         if (!global.guardDurums.get(guildId)) return;
 
+        const isFreezeActive = global.integrityFreeze && global.integrityFreeze.get(guildId);
         let shouldRestore = false;
         let reason = "İzinsiz Rol Silme";
 
-        if (isFeatureEnabled(guildId, "antiRoleDelete")) {
+        if (isFeatureEnabled(guildId, "antiRoleDelete") || isFreezeActive) {
             shouldRestore = true;
+            if (isFreezeActive) reason = "Anti-Raid Aktif (Rol İşlemleri Donduruldu)";
         }
 
         // Integration managed roles delete protection
@@ -60,7 +66,8 @@ module.exports = (client) => {
             const entry = await getAuditLogEntry(role.guild, AuditLogEvent.RoleDelete);
             if (!entry) return;
             const executor = entry.executor;
-            if (isWhitelisted(role.guild, executor.id, "role")) return;
+            const isOwner = executor.id === role.guild.ownerId;
+            if (isWhitelisted(role.guild, executor.id, "role") && !(isFreezeActive && !isOwner)) return;
 
             increaseThreat(guildId, 25, `${reason}: ${role.name}`, role.guild);
 
@@ -93,7 +100,9 @@ module.exports = (client) => {
             const entry = await getAuditLogEntry(newRole.guild, AuditLogEvent.RoleUpdate);
             if (!entry) return;
             const executor = entry.executor;
-            if (isWhitelisted(newRole.guild, executor.id, "role")) return;
+            const isFreezeActive = global.integrityFreeze && global.integrityFreeze.get(guildId);
+            const isOwner = executor.id === newRole.guild.ownerId;
+            if (isWhitelisted(newRole.guild, executor.id, "role") && !(isFreezeActive && !isOwner)) return;
 
             let shouldRevert = false;
             let reason = "İzinsiz Rol Güncelleme";
@@ -117,11 +126,12 @@ module.exports = (client) => {
             }
 
             // General Role Update Revert
-            if (isFeatureEnabled(guildId, "antiRoleUpdate")) {
+            if (isFeatureEnabled(guildId, "antiRoleUpdate") || isFreezeActive) {
                 const permChanged = oldRole.permissions.bitfield !== newRole.permissions.bitfield;
                 const nameChanged = oldRole.name !== newRole.name;
                 if (permChanged || nameChanged) {
                     shouldRevert = true;
+                    if (isFreezeActive) reason = "Anti-Raid Aktif (Rol İzinleri Donduruldu)";
                 }
             }
 
