@@ -1167,10 +1167,10 @@ ${divider}
 
             if (activePage === "main") {
                 const rowMainActions = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId("action_autonom").setLabel("🤖 Otonom Mod").setStyle(getSetting(guildId, "autonomousMode") ? ButtonStyle.Success : ButtonStyle.Secondary),
-                    new ButtonBuilder().setCustomId("action_open_all").setLabel("🟢 Hepsini Aç").setStyle(ButtonStyle.Success),
-                    new ButtonBuilder().setCustomId("action_close_all").setLabel("🔴 Hepsini Kapat").setStyle(ButtonStyle.Danger)
-                );
+    new ButtonBuilder().setCustomId("action_toggle_main").setLabel(global.guardDurums.get(guildId) ? "🛡️ Ana Sistemi Kapat" : "🛡️ Ana Sistemi Aç").setStyle(global.guardDurums.get(guildId) ? ButtonStyle.Danger : ButtonStyle.Success),
+    new ButtonBuilder().setCustomId("action_open_all").setLabel("🟢 Hepsini Aç").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId("action_close_all").setLabel("🔴 Hepsini Kapat").setStyle(ButtonStyle.Danger)
+);
                 rows.push(rowMainActions);
             } else if (activePage === "server") {
                 const selectChannels = new StringSelectMenuBuilder()
