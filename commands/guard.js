@@ -1598,14 +1598,15 @@ ${divider}
                     embeds: [generateEmbed()],
                     components: generateComponents()
                 });
-            } else if (i.customId === "action_autonom") {
-                const current = getSetting(guildId, "autonomousMode");
-                await setSetting(guildId, "autonomousMode", !current);
-                await interaction.editReply({
-                    embeds: [generateEmbed()],
-                    components: generateComponents()
-                });
-            } else if (i.customId === "action_open_all") {
+            } else if (i.customId === "action_toggle_main") {
+    const currentState = global.guardDurums.get(guildId) || false;
+    global.guardDurums.set(guildId, !currentState);
+    await updateSetting(guildId, "guard_durum", !currentState);
+    await interaction.editReply({
+        embeds: [generateEmbed()],
+        components: generateComponents()
+    });
+} else if (i.customId === "action_open_all") {
                 const settings = global.guardSettings.get(guildId) || {};
                 booleanKeys.forEach(k => settings[k] = true);
                 global.guardSettings.set(guildId, settings);
