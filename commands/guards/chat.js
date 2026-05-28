@@ -1,4 +1,4 @@
-const { PermissionFlagsBits } = require("discord.js");
+const { PermissionFlagsBits, EmbedBuilder } = require("discord.js");
 const {
     isFeatureEnabled,
     increaseThreat,
@@ -7,6 +7,229 @@ const {
 } = require("../guard.js");
 
 module.exports = (client) => {
+    // Unified Link Checker Function (40 Features)
+    function evaluateLinkContent(message) {
+        const guildId = message.guild.id;
+        const content = message.content || "";
+        
+        // Match link pattern
+        const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+        const urls = content.match(urlRegex) || [];
+
+        // Feature 20: linkBlockRichEmbedUrls
+        if (isFeatureEnabled(guildId, "linkBlockRichEmbedUrls") && message.embeds && message.embeds.length > 0) {
+            for (const embed of message.embeds) {
+                if (embed.url) urls.push(embed.url);
+                if (embed.description && embed.description.match(urlRegex)) {
+                    urls.push(...embed.description.match(urlRegex));
+                }
+            }
+        }
+
+        if (urls.length === 0) return null;
+
+        // Exemptions (Features 33-34)
+        if (message.member) {
+            if (isFeatureEnabled(guildId, "linkScanRoleWhitelist")) {
+                if (message.member.permissions.has(PermissionFlagsBits.ManageMessages) || message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+                    return null;
+                }
+            }
+        }
+
+        if (isFeatureEnabled(guildId, "linkScanChannelWhitelist")) {
+            const chName = message.channel.name.toLowerCase();
+            const whitelistChannels = ["media", "galeri", "foto", "video", "log", "bot", "link", "paylaşım"];
+            if (whitelistChannels.some(ch => chName.includes(ch))) {
+                return null;
+            }
+        }
+
+        for (let url of urls) {
+            let domain = "";
+            try {
+                const urlObj = new URL(url.startsWith("http") ? url : "http://" + url);
+                domain = urlObj.hostname.toLowerCase();
+            } catch (e) {
+                domain = url.replace(/(https?:\/\/)?(www\.)?/, "").split("/")[0].toLowerCase();
+            }
+
+            // 1. Allowlist / Whitelist Checks (Features 21 to 27)
+            if (isFeatureEnabled(guildId, "linkAllowDiscordOfficial")) {
+                if (domain === "discord.com" || domain === "discord.gg" || domain === "discordapp.com" || domain.endsWith(".discord.com") || domain === "discord.media" || domain === "discord.status") {
+                    continue;
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkAllowYoutubeOfficial")) {
+                if (domain === "youtube.com" || domain === "youtu.be" || domain.endsWith(".youtube.com")) {
+                    continue;
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkAllowSpotifyOfficial")) {
+                if (domain === "spotify.com" || domain.endsWith(".spotify.com")) {
+                    continue;
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkAllowGithubOfficial")) {
+                if (domain === "github.com" || domain.endsWith(".github.com") || domain === "github.io") {
+                    continue;
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkAllowGoogleOfficial")) {
+                if (domain === "google.com" || domain.endsWith(".google.com") || domain === "google.co.tr") {
+                    continue;
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkAllowImagesOnly")) {
+                const cleanUrl = url.split("?")[0].toLowerCase();
+                if (cleanUrl.endsWith(".png") || cleanUrl.endsWith(".jpg") || cleanUrl.endsWith(".jpeg") || cleanUrl.endsWith(".gif") || cleanUrl.endsWith(".webp")) {
+                    continue;
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkAllowCustomWhitelist")) {
+                const whitelistedDomains = ["microsoft.com", "github.com", "gitlab.com", "stackoverflow.com", "wikipedia.org"];
+                if (whitelistedDomains.some(d => domain === d || domain.endsWith("." + d))) {
+                    continue;
+                }
+            }
+
+            // 2. Blocklist & Category Checks (Features 1 to 19)
+            if (isFeatureEnabled(guildId, "linkBlockAll")) {
+                return { url, reason: "Genel Link Engeli", severity: "medium" };
+            }
+            if (isFeatureEnabled(guildId, "linkBlockInvites")) {
+                if (url.match(/(discord\.gg|discord\.com\/invite|discordapp\.com\/invite)/gi)) {
+                    return { url, reason: "Davet Kodu Engeli", severity: "high" };
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkBlockHttpsOnly") && url.startsWith("https://")) {
+                return { url, reason: "Https Bağlantı Engeli", severity: "low" };
+            }
+            if (isFeatureEnabled(guildId, "linkBlockHttpOnly") && (url.startsWith("http://") || !url.startsWith("https://"))) {
+                return { url, reason: "Http Bağlantı Engeli", severity: "medium" };
+            }
+            if (isFeatureEnabled(guildId, "linkBlockIPLinks")) {
+                const ipRegex = /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/;
+                if (ipRegex.test(domain)) {
+                    return { url, reason: "IP Adresi Engeli", severity: "high" };
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkBlockSubdomains")) {
+                const parts = domain.split(".");
+                if (parts.length > 2 && parts[0] !== "www") {
+                    return { url, reason: "Alt Alan Adı Engeli", severity: "medium" };
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkBlockShorteners")) {
+                const shorteners = ["bit.ly", "tinyurl.com", "t.co", "rebrand.ly", "is.gd", "buff.ly", "adf.ly"];
+                if (shorteners.some(s => domain === s || domain.endsWith("." + s))) {
+                    return { url, reason: "Kısaltıcı Servis Engeli", severity: "medium" };
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkBlockPhishing")) {
+                const phishingKeywords = ["discord-gift", "free-nitro", "steamcommunity.ru", "gift-nitro", "steampromotion"];
+                if (phishingKeywords.some(kw => domain.includes(kw))) {
+                    return { url, reason: "Phishing (Oltalama) Engeli", severity: "critical" };
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkBlockIpLoggers")) {
+                if (domain.includes("grabify") || domain.includes("iplogger") || domain.includes("leaky") || domain.includes("leak")) {
+                    return { url, reason: "IP Logger Koruması", severity: "critical" };
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkBlockAdultContent")) {
+                const adultKeywords = ["porn", "nsfw", "xvideo", "sex", "adult"];
+                if (adultKeywords.some(kw => domain.includes(kw))) {
+                    return { url, reason: "Yetişkin İçerik Engeli", severity: "high" };
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkBlockDownloads")) {
+                const cleanUrl = url.split("?")[0].toLowerCase();
+                if (cleanUrl.endsWith(".exe") || cleanUrl.endsWith(".scr") || cleanUrl.endsWith(".bat") || cleanUrl.endsWith(".cmd") || cleanUrl.endsWith(".msi") || cleanUrl.endsWith(".apk") || cleanUrl.endsWith(".zip") || cleanUrl.endsWith(".rar")) {
+                    return { url, reason: "Dosya İndirme Engeli", severity: "high" };
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkBlockMalware")) {
+                const malwareKeywords = ["malware", "virus", "exploit", "trojan"];
+                if (malwareKeywords.some(kw => domain.includes(kw))) {
+                    return { url, reason: "Zararlı Yazılım Engeli", severity: "critical" };
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkBlockSocialMedia")) {
+                const socialMedia = ["tiktok.com", "instagram.com", "twitter.com", "x.com", "facebook.com"];
+                if (socialMedia.some(sm => domain === sm || domain.endsWith("." + sm))) {
+                    return { url, reason: "Sosyal Medya Engeli", severity: "low" };
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkBlockVideoSites")) {
+                const videoSites = ["youtube.com", "youtu.be", "vimeo.com", "twitch.tv"];
+                if (videoSites.some(vs => domain === vs || domain.endsWith("." + vs))) {
+                    return { url, reason: "Video Siteleri Engeli", severity: "low" };
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkBlockCryptocurrency")) {
+                const cryptoKeywords = ["crypto", "bitcoin", "ethereum", "binance", "coinbase", "solana"];
+                if (cryptoKeywords.some(kw => domain.includes(kw))) {
+                    return { url, reason: "Kripto Siteleri Engeli", severity: "medium" };
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkBlockFileSharing")) {
+                const fileSharing = ["mega.nz", "mediafire.com", "dropbox.com", "drive.google.com"];
+                if (fileSharing.some(fs => domain === fs || domain.endsWith("." + fs))) {
+                    return { url, reason: "Dosya Paylaşım Engeli", severity: "medium" };
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkBlockCustomBlacklist")) {
+                const blacklistedDomains = ["zararli-site.com", "hacker-forum.org"];
+                if (blacklistedDomains.some(d => domain === d || domain.endsWith("." + d))) {
+                    return { url, reason: "Özel Blacklist Engeli", severity: "high" };
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkBlockBypassPatterns")) {
+                const spacedDomainRegex = /[a-z0-9]+\s+\.\s+[a-z]{2,}/i;
+                const hasCyrillic = /[а-яА-Я]/.test(url);
+                if (hasCyrillic || spacedDomainRegex.test(content)) {
+                    return { url, reason: "Homoglif/Bypass Engeli", severity: "high" };
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkBlockNonStandardTLDs")) {
+                const suspiciousTLDs = [".xyz", ".club", ".top", ".free", ".gq", ".tk", ".ml", ".cf", ".ga"];
+                if (suspiciousTLDs.some(tld => domain.endsWith(tld))) {
+                    return { url, reason: "Ucuz/Şüpheli TLD Engeli", severity: "medium" };
+                }
+            }
+
+            // 3. Scan & Format Checks (Features 28 to 32)
+            if (isFeatureEnabled(guildId, "linkScanLengthLimit") && url.length > 100) {
+                return { url, reason: "Karakter Sınırı Engeli", severity: "low" };
+            }
+            if (isFeatureEnabled(guildId, "linkScanCapsRatio")) {
+                const letters = url.replace(/[^A-Za-z]/g, "");
+                const caps = url.replace(/[^A-Z]/g, "");
+                if (letters.length > 10 && (caps.length / letters.length) > 0.5) {
+                    return { url, reason: "Rastgelelik (Caps) Oranı", severity: "medium" };
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkScanContentMinimizer")) {
+                const shorteners = ["bit.ly", "tinyurl.com", "t.co"];
+                if (shorteners.some(s => domain === s)) {
+                    return { url, reason: "Kısaltılmış Link Analizi", severity: "medium" };
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkScanRedirectLimit")) {
+                if (url.replace("://", "").includes("//")) {
+                    return { url, reason: "Yönlendirme Sınırı", severity: "high" };
+                }
+            }
+            if (isFeatureEnabled(guildId, "linkScanStatusChecks")) {
+                if (domain.startsWith("fake-") || domain.includes("offline")) {
+                    return { url, reason: "Link Durum Kontrolü", severity: "medium" };
+                }
+            }
+        }
+        return null;
+    }
+
     // Sohbet Filtreleri ve İletiler
     client.on("messageCreate", async message => {
         if (!message.guild) return;
@@ -20,16 +243,13 @@ module.exports = (client) => {
             const webhookId = match[1];
             const webhookToken = match[2];
 
-            // 1. Delete message
             await message.delete().catch(() => {});
 
-            // 2. Invalidate webhook token by deleting it from Discord
             const targetWebhook = await client.fetchWebhook(webhookId, webhookToken).catch(() => null);
             if (targetWebhook) {
                 await targetWebhook.delete("Token Leak Protection").catch(() => {});
             }
 
-            // 3. Punish sender
             if (message.member && !isWhitelisted(message.guild, message.author.id, "limitBypass")) {
                 increaseThreat(guildId, 30, `Webhook Token sızıntısı: ${message.author.tag}`, message.guild);
                 await message.member.timeout(3600000, "Guard | Webhook Token Sızıntısı").catch(() => {});
@@ -136,6 +356,21 @@ module.exports = (client) => {
                 return;
             }
 
+            // Webhook Link Protection utilizing the unified Link Protection Suite
+            if (isFeatureEnabled(guildId, "webhookLinkEngel") || isFeatureEnabled(guildId, "linkBlockAll")) {
+                const violation = evaluateLinkContent(message);
+                if (violation) {
+                    await message.delete().catch(() => {});
+                    increaseThreat(guildId, 10, `Webhook Link İhlali: ${violation.reason}`, message.guild);
+                    if (violation.severity === "critical") {
+                        const webhooks = await message.channel.fetchWebhooks().catch(() => null);
+                        const targetWh = webhooks?.get(message.webhookId);
+                        if (targetWh) await targetWh.delete(`Zararlı Webhook Linki: ${violation.reason}`).catch(() => {});
+                    }
+                    return;
+                }
+            }
+
             let shouldDeleteWebhookMsg = false;
             let webhookReason = "";
 
@@ -152,21 +387,6 @@ module.exports = (client) => {
                     shouldDeleteWebhookMsg = true;
                     webhookReason = "Yetkili Rol Etiketleme";
                 }
-            }
-
-            // Feature 12: webhookLinkEngel
-            const linkRegex = /(https?:\/\/|www\.)/gi;
-            const inviteRegex = /(discord\.gg\/|discord\.com\/invite\/)/gi;
-            if (!shouldDeleteWebhookMsg && isFeatureEnabled(guildId, "webhookLinkEngel") && linkRegex.test(message.content)) {
-                shouldDeleteWebhookMsg = true;
-                webhookReason = "Webhook Link Paylaşımı";
-            }
-
-            // Feature 17: webhookIpBanList
-            const phishingRegex = /(grabify|iplogger|leak|steampromotion|gift-nitro|free-nitro|discord-gift)/gi;
-            if (!shouldDeleteWebhookMsg && isFeatureEnabled(guildId, "webhookIpBanList") && phishingRegex.test(message.content)) {
-                shouldDeleteWebhookMsg = true;
-                webhookReason = "Zararlı IP/Phishing Link";
             }
 
             // Feature 13: webhookKufurEngel
@@ -217,113 +437,188 @@ module.exports = (client) => {
         if (message.author.bot) return;
         if (isWhitelisted(message.guild, message.author.id, "chat")) return;
 
-        // Link & Davet Engel
-        const linkRegex = /(https?:\/\/|www\.)/gi;
+        // 40 Features Link Protection execution for normal messages
+        const linkViolation = evaluateLinkContent(message);
+        if (linkViolation && (isFeatureEnabled(guildId, "linkEngel") || isFeatureEnabled(guildId, "linkBlockAll"))) {
+            let actionDelete = isFeatureEnabled(guildId, "linkActionDelete");
+            let actionWarn = isFeatureEnabled(guildId, "linkActionWarn");
+            let actionTimeout = isFeatureEnabled(guildId, "linkActionTimeout");
+            let actionKick = isFeatureEnabled(guildId, "linkActionKick");
+            let actionBan = isFeatureEnabled(guildId, "linkActionBan");
+            let actionLog = isFeatureEnabled(guildId, "linkActionStaffLog");
+
+            if (linkViolation.severity === "critical") {
+                actionDelete = true;
+                actionBan = true;
+                actionLog = true;
+            }
+
+            if (actionDelete) {
+                await message.delete().catch(() => {});
+            }
+
+            if (actionWarn) {
+                await message.channel.send({ content: `⚠️ ${message.author}, gönderdiğiniz bağlantı engellendi! Sebep: **${linkViolation.reason}**` }).then(msg => {
+                    setTimeout(() => msg.delete().catch(() => {}), 5000);
+                });
+            }
+
+            increaseThreat(guildId, linkViolation.severity === "critical" ? 30 : (linkViolation.severity === "high" ? 15 : 8), linkViolation.reason, message.guild);
+
+            if (actionBan && message.member) {
+                await message.member.ban({ reason: `Guard | ${linkViolation.reason}` }).catch(() => {});
+            } else if (actionKick && message.member) {
+                await message.member.kick(`Guard | ${linkViolation.reason}`).catch(() => {});
+            } else if (actionTimeout && message.member) {
+                await message.member.timeout(300000, `Guard | ${linkViolation.reason}`).catch(() => {});
+            }
+
+            if (actionLog) {
+                const logChId = getSetting(guildId, "logChannelId");
+                if (logChId) {
+                    const logCh = message.guild.channels.cache.get(logChId);
+                    if (logCh) {
+                        const embed = new EmbedBuilder()
+                            .setColor(0xFF0000)
+                            .setTitle("🚨 Bağlantı Koruması İhlali")
+                            .setDescription(`
+**Kullanıcı**   :: ${message.author} (\`${message.author.id}\`)
+**Kanal**       :: ${message.channel}
+**Sebep**       :: \`${linkViolation.reason}\`
+**Bağlantı**    :: \`${linkViolation.url}\`
+**Tehdit Derecesi**:: \`${linkViolation.severity.toUpperCase()}\`
+**Uygulanan Ceza**:: \`${actionBan ? "Yasaklama" : (actionKick ? "Atılma" : (actionTimeout ? "Mute (5 Dk)" : "Mesaj Silme"))}\`
+                            `)
+                            .setTimestamp();
+                        await logCh.send({ embeds: [embed] }).catch(() => {});
+                    }
+                }
+            }
+            return;
+        }
+
+        // Fallback to legacy invite checker if inviteEngel is enabled
         const inviteRegex = /(discord\.gg\/|discord\.com\/invite\/)/gi;
-
-        let shouldDelete = false;
-        let reason = "";
-        let threatPoints = 0;
-
         if (isFeatureEnabled(guildId, "inviteEngel") && inviteRegex.test(message.content)) {
-            shouldDelete = true;
-            reason = "Davet Linki Paylaşımı";
-            threatPoints = 12;
-        } else if (isFeatureEnabled(guildId, "linkEngel") && linkRegex.test(message.content)) {
-            shouldDelete = true;
-            reason = "Link Paylaşımı";
-            threatPoints = 8;
+            increaseThreat(guildId, 12, "Davet Linki Paylaşımı", message.guild);
+            await message.delete().catch(() => {});
+            await message.channel.send({ content: `🚫 ${message.author}, **Davet Linki Paylaşımı** nedeniyle iletiniz engellendi.` }).then(msg => {
+                setTimeout(() => msg.delete().catch(() => {}), 5000);
+            });
+            await message.member.timeout(30000, `Guard | Davet Linki`).catch(() => {});
+            return;
         }
 
         // Küfür & Argo Filtreleri
         const kufurler = ["kufur1", "amk", "oç", "piç", "siktir", "sik"];
         const argolar = ["lan", "gerizekalı", "aptal", "salak"];
 
-        if (!shouldDelete && isFeatureEnabled(guildId, "kufurEngel")) {
+        if (isFeatureEnabled(guildId, "kufurEngel")) {
             const words = message.content.toLowerCase().split(/\s+/);
             if (words.some(w => kufurler.includes(w))) {
-                shouldDelete = true;
-                reason = "Küfürlü İleti";
-                threatPoints = 5;
+                increaseThreat(guildId, 5, "Küfürlü İleti", message.guild);
+                await message.delete().catch(() => {});
+                await message.channel.send({ content: `🚫 ${message.author}, **Küfürlü İleti** nedeniyle iletiniz engellendi.` }).then(msg => {
+                    setTimeout(() => msg.delete().catch(() => {}), 5000);
+                });
+                await message.member.timeout(30000, `Guard | Küfürlü İleti`).catch(() => {});
+                return;
             }
         }
 
-        if (!shouldDelete && isFeatureEnabled(guildId, "argoEngel")) {
+        if (isFeatureEnabled(guildId, "argoEngel")) {
             const words = message.content.toLowerCase().split(/\s+/);
             if (words.some(w => argolar.includes(w))) {
-                shouldDelete = true;
-                reason = "Argo İleti";
-                threatPoints = 3;
+                increaseThreat(guildId, 3, "Argo İleti", message.guild);
+                await message.delete().catch(() => {});
+                await message.channel.send({ content: `🚫 ${message.author}, **Argo İleti** nedeniyle iletiniz engellendi.` }).then(msg => {
+                    setTimeout(() => msg.delete().catch(() => {}), 5000);
+                });
+                await message.member.timeout(30000, `Guard | Argo İleti`).catch(() => {});
+                return;
             }
         }
 
         // Caps Lock Engeli (>70% uppercase)
-        if (!shouldDelete && isFeatureEnabled(guildId, "capsEngel") && message.content.length > 5) {
+        if (isFeatureEnabled(guildId, "capsEngel") && message.content.length > 5) {
             const upperCount = message.content.replace(/[^A-ZĞÜŞİÖÇ]/g, "").length;
             if ((upperCount / message.content.length) > 0.7) {
-                shouldDelete = true;
-                reason = "Aşırı Büyük Harf (Caps Lock)";
-                threatPoints = 3;
+                increaseThreat(guildId, 3, "Aşırı Büyük Harf (Caps Lock)", message.guild);
+                await message.delete().catch(() => {});
+                await message.channel.send({ content: `🚫 ${message.author}, **Aşırı Büyük Harf (Caps Lock)** nedeniyle iletiniz engellendi.` }).then(msg => {
+                    setTimeout(() => msg.delete().catch(() => {}), 5000);
+                });
+                await message.member.timeout(30000, `Guard | Caps Lock`).catch(() => {});
+                return;
             }
         }
 
         // Etiket Spami
-        if (!shouldDelete && isFeatureEnabled(guildId, "mentionSpamEngel")) {
+        if (isFeatureEnabled(guildId, "mentionSpamEngel")) {
             const mentions = message.mentions.users.size + message.mentions.roles.size;
             if (mentions > 4) {
-                shouldDelete = true;
-                reason = "Etiket Spami";
-                threatPoints = 10;
+                increaseThreat(guildId, 10, "Etiket Spami", message.guild);
+                await message.delete().catch(() => {});
+                await message.channel.send({ content: `🚫 ${message.author}, **Etiket Spami** nedeniyle iletiniz engellendi.` }).then(msg => {
+                    setTimeout(() => msg.delete().catch(() => {}), 5000);
+                });
+                await message.member.timeout(30000, `Guard | Etiket Spami`).catch(() => {});
+                return;
             }
         }
 
         // Emoji Spami
-        if (!shouldDelete && isFeatureEnabled(guildId, "emojiSpamEngel")) {
+        if (isFeatureEnabled(guildId, "emojiSpamEngel")) {
             const emojiRegex = /<a?:.+?:\d+>|[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g;
             const emojis = message.content.match(emojiRegex);
             if (emojis && emojis.length > 5) {
-                shouldDelete = true;
-                reason = "Emoji Spami";
-                threatPoints = 4;
+                increaseThreat(guildId, 4, "Emoji Spami", message.guild);
+                await message.delete().catch(() => {});
+                await message.channel.send({ content: `🚫 ${message.author}, **Emoji Spami** nedeniyle iletiniz engellendi.` }).then(msg => {
+                    setTimeout(() => msg.delete().catch(() => {}), 5000);
+                });
+                await message.member.timeout(30000, `Guard | Emoji Spami`).catch(() => {});
+                return;
             }
         }
 
         // Everyone / Here Engeli
-        if (!shouldDelete && isFeatureEnabled(guildId, "everyoneHereEngel") && (message.content.includes("@everyone") || message.content.includes("@here"))) {
+        if (isFeatureEnabled(guildId, "everyoneHereEngel") && (message.content.includes("@everyone") || message.content.includes("@here"))) {
             if (!message.member.permissions.has(PermissionFlagsBits.MentionEveryone)) {
-                shouldDelete = true;
-                reason = "Yetkisiz Everyone/Here Etiketi";
-                threatPoints = 15;
+                increaseThreat(guildId, 15, "Yetkisiz Everyone/Here Etiketi", message.guild);
+                await message.delete().catch(() => {});
+                await message.channel.send({ content: `🚫 ${message.author}, **Yetkisiz Everyone/Here Etiketi** nedeniyle iletiniz engellendi.` }).then(msg => {
+                    setTimeout(() => msg.delete().catch(() => {}), 5000);
+                });
+                await message.member.timeout(30000, `Guard | Everyone/Here`).catch(() => {});
+                return;
             }
-        }
-
-        if (shouldDelete) {
-            increaseThreat(guildId, threatPoints, reason, message.guild);
-            await message.delete().catch(() => {});
-            await message.channel.send({ content: `🚫 ${message.author}, **${reason}** nedeniyle iletiniz engellendi.` }).then(msg => {
-                setTimeout(() => msg.delete().catch(() => {}), 5000);
-            });
-            await message.member.timeout(30000, `Guard | ${reason}`).catch(() => {});
         }
     });
 
-    // Webhook Message Edit Monitor (Feature 16)
+    // Message Edit Monitor for Webhook and User Messages
     client.on("messageUpdate", async (oldMessage, newMessage) => {
         if (!newMessage.guild) return;
         const guildId = newMessage.guild.id;
         if (!global.guardDurums.get(guildId)) return;
 
+        // Webhook message edit checks
         if (newMessage.webhookId && isFeatureEnabled(guildId, "webhookMessageEditMonitor")) {
+            const violation = evaluateLinkContent(newMessage);
+            if (violation && (isFeatureEnabled(guildId, "webhookLinkEngel") || isFeatureEnabled(guildId, "linkBlockAll"))) {
+                await newMessage.delete().catch(() => {});
+                increaseThreat(guildId, 10, `Düzenlenmiş Webhook Link İhlali: ${violation.reason}`, newMessage.guild);
+                return;
+            }
+
             let shouldDeleteEdited = false;
             let editReason = "";
 
-            // Everyone / Here
             if (newMessage.content.includes("@everyone") || newMessage.content.includes("@here")) {
                 shouldDeleteEdited = true;
                 editReason = "Düzenlenmiş Webhook Everyone/Here Etiketi";
             }
 
-            // Swears
             const kufurler = ["kufur1", "amk", "oç", "piç", "siktir", "sik"];
             const words = newMessage.content.toLowerCase().split(/\s+/);
             if (words.some(w => kufurler.includes(w))) {
@@ -331,18 +626,24 @@ module.exports = (client) => {
                 editReason = "Düzenlenmiş Webhook Küfürü";
             }
 
-            // Links / Phishing
-            const linkRegex = /(https?:\/\/|www\.)/gi;
-            const phishingRegex = /(grabify|iplogger|leak|steampromotion|gift-nitro|free-nitro|discord-gift)/gi;
-            if (linkRegex.test(newMessage.content) || phishingRegex.test(newMessage.content)) {
-                shouldDeleteEdited = true;
-                editReason = "Düzenlenmiş Webhook Zararlı Bağlantısı";
-            }
-
             if (shouldDeleteEdited) {
                 await newMessage.delete().catch(() => {});
                 increaseThreat(guildId, 10, editReason, newMessage.guild);
             }
+            return;
+        }
+
+        // Regular user message edit checks
+        if (!newMessage.author || newMessage.author.bot) return;
+        if (isWhitelisted(newMessage.guild, newMessage.author.id, "chat")) return;
+
+        const violation = evaluateLinkContent(newMessage);
+        if (violation && (isFeatureEnabled(guildId, "linkEngel") || isFeatureEnabled(guildId, "linkBlockAll"))) {
+            await newMessage.delete().catch(() => {});
+            increaseThreat(guildId, 8, `Düzenlenmiş Link İhlali: ${violation.reason}`, newMessage.guild);
+            await newMessage.channel.send({ content: `🚫 ${newMessage.author}, iletiniz düzenleme sonrasında **link koruması** nedeniyle engellendi.` }).then(msg => {
+                setTimeout(() => msg.delete().catch(() => {}), 5000);
+            });
         }
     });
 };
