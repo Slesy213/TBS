@@ -1,4 +1,4 @@
-const { AuditLogEvent, PermissionFlagsBits, EmbedBuilder } = require("discord.js");
+const { AuditLogEvent, PermissionFlagsBits, EmbedBuilder, ChannelType } = require("discord.js");
 const {
     isFeatureEnabled,
     getAuditLogEntry,
@@ -13,6 +13,70 @@ const {
 const joinTracker = new Map(); // guildId -> [giris_zamanlari]
 const altTracker = new Map();  // guildId -> [yeni_hesap_giris_zamanlari]
 const avatarTracker = new Map(); // guildId -> [avatarsiz_giris_zamanlari]
+const activeRaids = new Map(); // guildId -> timestamp of last raid trigger
+const raidJoinsCache = new Map(); // guildId -> [{ time: timestamp, userId: string, tag: string, inviteCode: string, interval: number }]
+const nameSimilarityHistory = new Map(); // guildId -> [usernames]
+const inviteUsesCache = new Map(); // guildId -> Map(code -> uses)
+const mathVerifications = new Map(); // userId -> { answer: number, guildId: string, timestamp: number }
+
+function levenshteinDistance(str1, str2) {
+    const track = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
+    for (let i = 0; i <= str1.length; i += 1) track[0][i] = i;
+    for (let j = 0; j <= str2.length; j += 1) track[j][0] = j;
+    for (let j = 1; j <= str2.length; j += 1) {
+        for (let i = 1; i <= str1.length; i += 1) {
+            const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
+            track[j][i] = Math.min(
+                track[j][i - 1] + 1, // deletion
+                track[j - 1][i] + 1, // insertion
+                track[j - 1][i - 1] + indicator // substitution
+            );
+        }
+    }
+    return track[str2.length][str1.length];
+}
+
+function areNamesSimilar(name1, name2) {
+    if (!name1 || !name2) return false;
+    const len = Math.max(name1.length, name2.length);
+    if (len === 0) return false;
+    const distance = levenshteinDistance(name1.toLowerCase(), name2.toLowerCase());
+    const similarity = (len - distance) / len;
+    if (similarity >= 0.85) return true;
+
+    // Check shared prefix/suffix of length >= 4
+    if (name1.length >= 4 && name2.length >= 4) {
+        const prefix1 = name1.substring(0, 4).toLowerCase();
+        const prefix2 = name2.substring(0, 4).toLowerCase();
+        if (prefix1 === prefix2) return true;
+
+        const suffix1 = name1.substring(name1.length - 4).toLowerCase();
+        const suffix2 = name2.substring(name2.length - 4).toLowerCase();
+        if (suffix1 === suffix2) return true;
+    }
+
+    return false;
+}
+
+async function trackInviteUsed(member) {
+    const guildId = member.guild.id;
+    const cache = inviteUsesCache.get(guildId) || new Map();
+    const currentInvites = await member.guild.invites.fetch().catch(() => null);
+    let usedCode = "bilinmeyen";
+    if (currentInvites) {
+        for (const [code, invite] of currentInvites.entries()) {
+            const cachedUses = cache.get(code) || 0;
+            if (invite.uses > cachedUses) {
+                usedCode = code;
+                break;
+            }
+        }
+        const newCache = new Map();
+        currentInvites.forEach(inv => newCache.set(inv.code, inv.uses));
+        inviteUsesCache.set(guildId, newCache);
+    }
+    return usedCode;
+}
 
 module.exports = (client) => {
     // Helper to punish bot adding administrator
@@ -35,6 +99,318 @@ module.exports = (client) => {
         } else {
             // Default legacy punishment (strips admin roles + bans)
             await punishAdmin(guild, executor, reason, guildId);
+        }
+    }
+
+    async function handleRaidTrigger(guild, raidCache, triggerReason) {
+        const guildId = guild.id;
+        const now = Date.now();
+
+        // 1. Extreme Threat Level (Feature 14)
+        if (isFeatureEnabled(guildId, "raidExtremeThreatLevel")) {
+            global.guildThreatLevels.set(guildId, 100);
+        } else {
+            increaseThreat(guildId, 40, "Anti-Raid Tetiklendi", guild);
+        }
+
+        // Initialize backup maps if they don't exist
+        global.channelBackupPermissions = global.channelBackupPermissions || new Map();
+        global.pausedInvitesCache = global.pausedInvitesCache || new Map();
+        global.pausedVanityCache = global.pausedVanityCache || new Map();
+
+        // Keep backup of roles/settings if auto backup is enabled (Feature 38 & 27/35)
+        const textBackup = [];
+        const voiceBackup = [];
+
+        // 2. Lock down channels (Feature 10 & 11)
+        const everyoneRole = guild.roles.everyone;
+        
+        if (isFeatureEnabled(guildId, "raidLockdownChannels")) {
+            const textChannels = guild.channels.cache.filter(c => c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement);
+            for (const [id, channel] of textChannels.entries()) {
+                const currentOverwrites = channel.permissionOverwrites.cache.get(everyoneRole.id);
+                // Save original overwrite
+                textBackup.push({
+                    channelId: id,
+                    allow: currentOverwrites ? currentOverwrites.allow.bitfield.toString() : "0",
+                    deny: currentOverwrites ? currentOverwrites.deny.bitfield.toString() : "0"
+                });
+                
+                // Set SendMessages to false
+                await channel.permissionOverwrites.edit(everyoneRole, {
+                    SendMessages: false
+                }, { reason: "Guard Anti-Raid | Kanal Kilitleme" }).catch(() => {});
+            }
+        }
+
+        if (isFeatureEnabled(guildId, "raidLockdownVoice")) {
+            const voiceChannels = guild.channels.cache.filter(c => c.type === ChannelType.GuildVoice || c.type === ChannelType.GuildStageVoice);
+            for (const [id, channel] of voiceChannels.entries()) {
+                const currentOverwrites = channel.permissionOverwrites.cache.get(everyoneRole.id);
+                // Save original overwrite
+                voiceBackup.push({
+                    channelId: id,
+                    allow: currentOverwrites ? currentOverwrites.allow.bitfield.toString() : "0",
+                    deny: currentOverwrites ? currentOverwrites.deny.bitfield.toString() : "0"
+                });
+
+                // Set Connect to false
+                await channel.permissionOverwrites.edit(everyoneRole, {
+                    Connect: false
+                }, { reason: "Guard Anti-Raid | Ses Kanalı Kilitleme" }).catch(() => {});
+            }
+        }
+
+        if (textBackup.length > 0 || voiceBackup.length > 0) {
+            global.channelBackupPermissions.set(guildId, { textBackup, voiceBackup });
+        }
+
+        // 3. Pause Invites (Feature 12)
+        if (isFeatureEnabled(guildId, "raidPauseInvites")) {
+            const invites = await guild.invites.fetch().catch(() => null);
+            if (invites) {
+                const guildInvitesBackup = [];
+                for (const [code, invite] of invites.entries()) {
+                    guildInvitesBackup.push({
+                        code: invite.code,
+                        channelId: invite.channelId,
+                        maxAge: invite.maxAge,
+                        maxUses: invite.maxUses,
+                        temporary: invite.temporary,
+                        unique: invite.unique,
+                        uses: invite.uses,
+                        inviterId: invite.inviter?.id
+                    });
+                    // Delete the invite code to temporarily deactivate it
+                    await invite.delete("Guard Anti-Raid | Davetleri Duraklatma").catch(() => {});
+                }
+                global.pausedInvitesCache.set(guildId, guildInvitesBackup);
+            }
+        }
+
+        // 4. Revert Vanity URL (Feature 13)
+        if (isFeatureEnabled(guildId, "raidRevertVanity") && guild.vanityURLCode) {
+            global.pausedVanityCache.set(guildId, guild.vanityURLCode);
+            await guild.setVanityCode(null, "Guard Anti-Raid | Özel Davet Kaldırma").catch(() => {});
+        }
+
+        // 5. Disable Integrations (Feature 16)
+        if (isFeatureEnabled(guildId, "raidDisableIntegrations")) {
+            await guild.edit({
+                widgetEnabled: false
+            }, "Guard Anti-Raid | Widget Engelleme").catch(() => {});
+        }
+
+        // 6. Integrity Freeze (Feature 15)
+        if (isFeatureEnabled(guildId, "raidIntegrityFreeze")) {
+            global.integrityFreeze = global.integrityFreeze || new Map();
+            global.integrityFreeze.set(guildId, true);
+        }
+
+        // 7. Alert Staff & Owner (Feature 29, 30, 31, 32)
+        const logChId = getSetting(guildId, "logChannelId");
+        const logChannel = guild.channels.cache.get(logChId);
+        
+        const staffPing = isFeatureEnabled(guildId, "raidAlertStaffPing") ? "@everyone" : "";
+        
+        const embedAlert = new EmbedBuilder()
+            .setColor(0xFF0000)
+            .setTitle("🚨 ACİL DURUM: Sunucu Saldırı Altında!")
+            .setDescription(`
+**Saldırı Sebebi:** \`${triggerReason}\`
+**Aktif Koruma Modları:** Sunucu kilitlendi (Lockdown). Kanallar kapatıldı, davet bağlantıları iptal edildi.
+            `)
+            .setTimestamp();
+
+        if (logChannel) {
+            await logChannel.send({ content: staffPing ? `${staffPing} **Giriş Saldırısı Algılandı!**` : null, embeds: [embedAlert] }).catch(() => {});
+        }
+
+        // Owner DM alert with Unlock Button (Feature 30)
+        if (isFeatureEnabled(guildId, "raidAlertOwnerDM")) {
+            const owner = await guild.members.fetch(guild.ownerId).catch(() => null);
+            if (owner) {
+                const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+                const rowUnlock = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId(`owner_force_unlock_${guildId}`).setLabel("🔓 Sunucu Kilidini Aç").setStyle(ButtonStyle.Success)
+                );
+                
+                const ownerEmbed = new EmbedBuilder()
+                    .setColor(0xFF0000)
+                    .setTitle(`🚨 Sunucunda Saldırı Algılandı: ${guild.name}`)
+                    .setDescription(`
+Sunucuna yönelik seri giriş saldırısı (Raid) algılandı ve otomatik önlemler alındı.
+**Algılanan Neden:** \`${triggerReason}\`
+
+Kilitleri manuel olarak açmak için aşağıdaki butona tıklayabilirsiniz.
+                    `)
+                    .setTimestamp();
+
+                await owner.send({ embeds: [ownerEmbed], components: [rowUnlock] }).catch(() => {});
+            }
+        }
+
+        // Public Announcement Notice (Feature 32)
+        if (isFeatureEnabled(guildId, "raidPublicNotice")) {
+            const systemCh = guild.systemChannel || guild.channels.cache.find(c => c.name.includes("duyuru") || c.name.includes("announcement") || c.name.includes("chat"));
+            if (systemCh) {
+                const publicEmbed = new EmbedBuilder()
+                    .setColor(0xFF0000)
+                    .setTitle("🛡️ Sunucu Güvenlik Kilidi Aktif")
+                    .setDescription("Sunucumuza yönelik olağandışı girişler tespit edildiğinden dolayı geçici olarak güvenlik kilidi (Lockdown) aktif edilmiştir. Kanallarda mesaj gönderimi geçici olarak kapatılmıştır. Güvenlik sağlandığında kilit otomatik olarak açılacaktır. Anlayışınız için teşekkür ederiz.")
+                    .setTimestamp();
+                await systemCh.send({ embeds: [publicEmbed] }).catch(() => {});
+            }
+        }
+
+        // 8. Auto Unlock (Feature 35) & Auto Cleanup (Feature 34) timers setup
+        if (isFeatureEnabled(guildId, "raidAutoUnlock")) {
+            global.autoUnlockTimers = global.autoUnlockTimers || new Map();
+            const existingTimer = global.autoUnlockTimers.get(guildId);
+            if (existingTimer) clearTimeout(existingTimer);
+
+            const timer = setTimeout(async () => {
+                await restoreServerLockdown(guild);
+            }, 30 * 60 * 1000);
+            global.autoUnlockTimers.set(guildId, timer);
+        }
+
+        if (isFeatureEnabled(guildId, "raidAutoCleanup")) {
+            global.autoCleanupTimers = global.autoCleanupTimers || new Map();
+            const existingCleanup = global.autoCleanupTimers.get(guildId);
+            if (existingCleanup) clearTimeout(existingCleanup);
+
+            const timerCleanup = setTimeout(async () => {
+                const raidJoins = raidJoinsCache.get(guildId) || [];
+                const raidStartTime = activeRaids.get(guildId);
+                if (raidStartTime && raidJoins.length > 0) {
+                    const toClean = raidJoins.filter(item => item.time >= raidStartTime);
+                    for (const userDetail of toClean) {
+                        const m = await guild.members.fetch(userDetail.userId).catch(() => null);
+                        if (m) {
+                            if (isFeatureEnabled(guildId, "raidActionBan")) {
+                                await m.ban({ reason: "Guard Anti-Raid | Otomatik Temizlik (Raid Katılımcısı)" }).catch(() => {});
+                            } else {
+                                await m.kick("Guard Anti-Raid | Otomatik Temizlik (Raid Katılımcısı)").catch(() => {});
+                            }
+                        }
+                    }
+                    if (logChannel) {
+                        await logChannel.send({ content: `🧹 **Otomatik Temizlik Tamamlandı:** Saldırı penceresinde katılan \`${toClean.length}\` hesap sunucudan temizlendi.` }).catch(() => {});
+                    }
+                }
+            }, 10 * 60 * 1000);
+            global.autoCleanupTimers.set(guildId, timerCleanup);
+        }
+    }
+
+    async function restoreServerLockdown(guild) {
+        const guildId = guild.id;
+
+        global.guildThreatLevels.set(guildId, 0);
+        activeRaids.delete(guildId);
+        global.integrityFreeze = global.integrityFreeze || new Map();
+        global.integrityFreeze.delete(guildId);
+
+        if (global.autoUnlockTimers) {
+            const t = global.autoUnlockTimers.get(guildId);
+            if (t) clearTimeout(t);
+            global.autoUnlockTimers.delete(guildId);
+        }
+        if (global.autoCleanupTimers) {
+            const tc = global.autoCleanupTimers.get(guildId);
+            if (tc) clearTimeout(tc);
+            global.autoCleanupTimers.delete(guildId);
+        }
+
+        if (global.channelBackupPermissions && global.channelBackupPermissions.has(guildId)) {
+            const backup = global.channelBackupPermissions.get(guildId);
+            const everyoneRole = guild.roles.everyone;
+
+            if (backup.textBackup) {
+                for (const item of backup.textBackup) {
+                    const channel = guild.channels.cache.get(item.channelId);
+                    if (channel) {
+                        const allowBit = BigInt(item.allow);
+                        const denyBit = BigInt(item.deny);
+                        if (allowBit === 0n && denyBit === 0n) {
+                            await channel.permissionOverwrites.delete(everyoneRole).catch(() => {});
+                        } else {
+                            await channel.permissionOverwrites.create(everyoneRole, {
+                                SendMessages: allowBit & PermissionFlagsBits.SendMessages ? true : (denyBit & PermissionFlagsBits.SendMessages ? false : null)
+                            }, { reason: "Guard Anti-Raid | Kilidi Kaldırma" }).catch(() => {});
+                        }
+                    }
+                }
+            }
+
+            if (backup.voiceBackup) {
+                for (const item of backup.voiceBackup) {
+                    const channel = guild.channels.cache.get(item.channelId);
+                    if (channel) {
+                        const allowBit = BigInt(item.allow);
+                        const denyBit = BigInt(item.deny);
+                        if (allowBit === 0n && denyBit === 0n) {
+                            await channel.permissionOverwrites.delete(everyoneRole).catch(() => {});
+                        } else {
+                            await channel.permissionOverwrites.create(everyoneRole, {
+                                Connect: allowBit & PermissionFlagsBits.Connect ? true : (denyBit & PermissionFlagsBits.Connect ? false : null)
+                            }, { reason: "Guard Anti-Raid | Kilidi Kaldırma" }).catch(() => {});
+                        }
+                    }
+                }
+            }
+            global.channelBackupPermissions.delete(guildId);
+        }
+
+        if (global.pausedInvitesCache && global.pausedInvitesCache.has(guildId)) {
+            const inviteBackup = global.pausedInvitesCache.get(guildId);
+            for (const inv of inviteBackup) {
+                const channel = guild.channels.cache.get(inv.channelId);
+                if (channel) {
+                    await channel.createInvite({
+                        maxAge: inv.maxAge,
+                        maxUses: inv.maxUses,
+                        temporary: inv.temporary,
+                        unique: inv.unique,
+                        reason: "Guard Anti-Raid | Davetleri Geri Yükleme"
+                    }).catch(() => {});
+                }
+            }
+            global.pausedInvitesCache.delete(guildId);
+        }
+
+        if (global.pausedVanityCache && global.pausedVanityCache.has(guildId)) {
+            const oldVanity = global.pausedVanityCache.get(guildId);
+            await guild.setVanityCode(oldVanity, "Guard Anti-Raid | Özel Davet Geri Yükleme").catch(() => {});
+            global.pausedVanityCache.delete(guildId);
+        }
+
+        if (isFeatureEnabled(guildId, "raidDisableIntegrations")) {
+            await guild.edit({
+                widgetEnabled: true
+            }, "Guard Anti-Raid | Widget Geri Yükleme").catch(() => {});
+        }
+
+        const logChId = getSetting(guildId, "logChannelId");
+        const logChannel = guild.channels.cache.get(logChId);
+        if (logChannel) {
+            const embedRestore = new EmbedBuilder()
+                .setColor(0x57F287)
+                .setTitle("🔓 Sunucu Kilidi Kaldırıldı")
+                .setDescription("Güvenlik kilidi (Lockdown) sona erdi. Tüm kanal yetkileri ve davet bağlantıları eski haline geri yüklenmiştir.")
+                .setTimestamp();
+            await logChannel.send({ embeds: [embedRestore] }).catch(() => {});
+        }
+
+        const systemCh = guild.systemChannel || guild.channels.cache.find(c => c.name.includes("duyuru") || c.name.includes("announcement") || c.name.includes("chat"));
+        if (systemCh) {
+            const publicEmbed = new EmbedBuilder()
+                .setColor(0x57F287)
+                .setTitle("🔓 Sunucu Kilidi Kaldırıldı")
+                .setDescription("Güvenlik kilidi devre dışı bırakılmıştır. Sohbet kanalları tekrar kullanıma açılmıştır.")
+                .setTimestamp();
+            await systemCh.send({ embeds: [publicEmbed] }).catch(() => {});
         }
     }
 
@@ -420,21 +796,256 @@ Sunucuya yeni bir bot eklendi ve onay bekliyor:
             }
         }
 
-        // Anti-Raid Koruması (Önceki kodda yoktu, yerel Map kullanarak ekledim)
-        if (isFeatureEnabled(guildId, "raidGuard")) {
+        // Anti-Raid Koruması Tetikleyicisi
+        const isRaidEnabled = isFeatureEnabled(guildId, "raidBlockAll") || isFeatureEnabled(guildId, "raidGuard");
+        if (isRaidEnabled) {
             const raidLimit = getSetting(guildId, "raidLimit") || 5;
             const raidTime = getSetting(guildId, "raidTime") || 10;
+
+            // Invite code tracking
+            const usedInviteCode = await trackInviteUsed(member);
 
             let joins = joinTracker.get(guildId) || [];
             joins = joins.filter(t => now - t < raidTime * 1000);
             joins.push(now);
             joinTracker.set(guildId, joins);
 
-            if (joins.length >= raidLimit) {
-                increaseThreat(guildId, 25, "Mass Join (Raid) Tespit Edildi", member.guild);
-                member.kick("Slesy Guard - Raid Koruması Aktif").catch(() => {});
-                sendGuardLog(member.guild, member.user, null, `Raid limiti aşıldı! (${joins.length} giriş / ${raidTime} sn)`, "Sunucudan Atıldı", guildId);
-                return;
+            // Calculate interval from last join
+            let interval = 0;
+            if (joins.length > 1) {
+                interval = now - joins[joins.length - 2];
+            }
+
+            // Cache details for recovery/cleanup and diagnostics
+            let guildRaidJoins = raidJoinsCache.get(guildId) || [];
+            guildRaidJoins = guildRaidJoins.filter(item => now - item.time < 30 * 60 * 1000); // keep last 30m
+            guildRaidJoins.push({
+                time: now,
+                userId: member.id,
+                tag: member.user.tag,
+                inviteCode: usedInviteCode,
+                interval: interval
+            });
+            raidJoinsCache.set(guildId, guildRaidJoins);
+
+            // Maintain similarity history
+            let simNames = nameSimilarityHistory.get(guildId) || [];
+            simNames.push(member.user.username);
+            if (simNames.length > 20) simNames.shift();
+            nameSimilarityHistory.set(guildId, simNames);
+
+            // Heuristic flags
+            let similarNameCount = 0;
+            if (isFeatureEnabled(guildId, "raidDetectSimilarNames")) {
+                for (let i = 0; i < simNames.length - 1; i++) {
+                    if (areNamesSimilar(member.user.username, simNames[i])) {
+                        similarNameCount++;
+                    }
+                }
+            }
+
+            const isYoungAccount = accountAgeDays < 1.0; // < 24 hours
+            const isDefaultAvatar = !member.user.avatar;
+
+            // Interval pattern check
+            let isPatternJoin = false;
+            if (isFeatureEnabled(guildId, "raidDetectPatternJoins") && guildRaidJoins.length >= 3) {
+                const lastThree = guildRaidJoins.slice(-3);
+                const diff1 = lastThree[1].time - lastThree[0].time;
+                const diff2 = lastThree[2].time - lastThree[1].time;
+                if (Math.abs(diff1 - diff2) < 150 && diff1 > 200) {
+                    isPatternJoin = true;
+                }
+            }
+
+            // Invite spam check
+            let inviteUseCount = 0;
+            if (isFeatureEnabled(guildId, "raidDetectInviteSpam") && usedInviteCode !== "bilinmeyen") {
+                inviteUseCount = guildRaidJoins.filter(item => item.inviteCode === usedInviteCode && (now - item.time < raidTime * 1000)).length;
+            }
+
+            // Check if raid is active or triggered
+            let isRaidTriggered = joins.length >= raidLimit;
+            let triggerReason = `Raid limiti aşıldı! (${joins.length} giriş / ${raidTime} sn)`;
+
+            if (!isRaidTriggered && isFeatureEnabled(guildId, "raidDetectSimilarNames") && similarNameCount >= 3) {
+                isRaidTriggered = true;
+                triggerReason = `Benzer isimli üye girişi yoğunluğu tespit edildi (${similarNameCount} benzer isim)`;
+            }
+            if (!isRaidTriggered && isFeatureEnabled(guildId, "raidDetectInviteSpam") && inviteUseCount >= 3) {
+                isRaidTriggered = true;
+                triggerReason = `Aynı davet koduyla seri giriş tespit edildi (Kod: ${usedInviteCode}, ${inviteUseCount} giriş)`;
+            }
+            if (!isRaidTriggered && isFeatureEnabled(guildId, "raidDetectPatternJoins") && isPatternJoin) {
+                isRaidTriggered = true;
+                triggerReason = `Script/Bot tarzı düzenli aralıklı (pattern) giriş tespit edildi`;
+            }
+
+            // Check Whitelist / Bypasses
+            let isBypassed = false;
+            let bypassReason = "";
+
+            if (member.user.bot) {
+                if (isFeatureEnabled(guildId, "raidBypassVerifiedBots") && member.user.flags?.has("VerifiedBot")) {
+                    isBypassed = true;
+                    bypassReason = "Doğrulanmış Bot";
+                }
+            } else {
+                if (isFeatureEnabled(guildId, "raidBypassOwnerFriends") && isWhitelisted(member.guild, member.id)) {
+                    isBypassed = true;
+                    bypassReason = "Güvenli Listede";
+                }
+                if (isFeatureEnabled(guildId, "raidBypassAgeThreshold") && accountAgeDays > 90) {
+                    isBypassed = true;
+                    bypassReason = "Olgun Hesap (>90 Günlük)";
+                }
+                if (isFeatureEnabled(guildId, "raidBypassPartnerInvites") && usedInviteCode !== "bilinmeyen") {
+                    const guildInvites = await member.guild.invites.fetch().catch(() => null);
+                    const inv = guildInvites?.get(usedInviteCode);
+                    if (inv && (inv.channel?.name?.includes("partner") || inv.guild?.features?.includes("PARTNERED"))) {
+                        isBypassed = true;
+                        bypassReason = "Partner Davet Linki";
+                    }
+                }
+            }
+
+            const wasRaidAlreadyActive = activeRaids.has(guildId) && (now - activeRaids.get(guildId) < 15 * 60 * 1000);
+
+            if (isRaidTriggered && !isBypassed) {
+                activeRaids.set(guildId, now);
+                if (!wasRaidAlreadyActive) {
+                    await handleRaidTrigger(member.guild, guildRaidJoins, triggerReason);
+                }
+            }
+
+            const isCurrentlyRaidActive = activeRaids.has(guildId) && (now - activeRaids.get(guildId) < 15 * 60 * 1000);
+
+            if (isCurrentlyRaidActive && !isBypassed) {
+                let actionTaken = "Giriş Kısıtlandı";
+                let punished = false;
+
+                let verificationRequired = false;
+                if (isFeatureEnabled(guildId, "raidRequireMathVerify")) {
+                    verificationRequired = true;
+                    const num1 = Math.floor(Math.random() * 9) + 1;
+                    const num2 = Math.floor(Math.random() * 9) + 1;
+                    const answer = num1 + num2;
+                    mathVerifications.set(member.id, {
+                        answer: answer,
+                        guildId: guildId,
+                        timestamp: now
+                    });
+
+                    const mathEmbed = new EmbedBuilder()
+                        .setColor(0xFEE75C)
+                        .setTitle("🔢 Güvenlik Doğrulaması: Matematik Sorusu")
+                        .setDescription(`**${member.guild.name}** sunucusu şu anda saldırı koruması (Lockdown) altındadır.\nSunucuya erişmek için aşağıdaki matematik sorusunu bu DM üzerinden cevaplamalısınız:\n\n**Soru:** \`${num1} + ${num2} = ?\`\n\n*Lütfen sadece cevabı (sayı olarak) yazıp gönderin. 2 dakika süreniz vardır.*`)
+                        .setTimestamp();
+                    
+                    const dmSent = await member.send({ embeds: [mathEmbed] }).catch(() => null);
+                    if (!dmSent) {
+                        await member.kick("Guard | Anti-Raid DM Kapalı (Matematik Doğrulaması Gönderilemedi)").catch(() => {});
+                        actionTaken = "DM Kapalı Olduğu İçin Sunucudan Atıldı (Kick)";
+                        punished = true;
+                    } else {
+                        const quarantineRolId = getSetting(guildId, "quarantineRoleId");
+                        if (quarantineRolId) {
+                            await member.roles.add(quarantineRolId, "Anti-Raid Matematik Doğrulaması").catch(() => {});
+                        }
+                        actionTaken = "Matematik Doğrulaması Gönderildi (Karantinada)";
+                        punished = true;
+                    }
+                } else if (isFeatureEnabled(guildId, "raidRequireCaptcha")) {
+                    verificationRequired = true;
+                    const captchaEmbed = new EmbedBuilder()
+                        .setColor(0xFEE75C)
+                        .setTitle("🤖 Güvenlik Doğrulaması: Captcha")
+                        .setDescription(`**${member.guild.name}** sunucusu saldırı koruması altındadır.\nLütfen sunucuya katılmak için aşağıdaki bağlantıdan Captcha doğrulamasını tamamlayın:\n\n[Captcha Doğrula](https://captcha.slesy.gg/verify?user=${member.id}&guild=${guildId})`)
+                        .setTimestamp();
+                    const dmSent = await member.send({ embeds: [captchaEmbed] }).catch(() => null);
+                    if (!dmSent) {
+                        await member.kick("Guard | Anti-Raid DM Kapalı (Captcha Gönderilemedi)").catch(() => {});
+                        actionTaken = "DM Kapalı Olduğu İçin Sunucudan Atıldı (Kick)";
+                        punished = true;
+                    } else {
+                        const quarantineRolId = getSetting(guildId, "quarantineRoleId");
+                        if (quarantineRolId) {
+                            await member.roles.add(quarantineRolId, "Anti-Raid Captcha Doğrulaması").catch(() => {});
+                        }
+                        actionTaken = "Captcha Doğrulaması Gönderildi (Karantinada)";
+                        punished = true;
+                    }
+                } else if (isFeatureEnabled(guildId, "raidRequireButton")) {
+                    verificationRequired = true;
+                    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+                    const rowVerify = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder().setCustomId(`raid_dm_verify_${guildId}`).setLabel("✅ Ben İnsanım (Doğrula)").setStyle(ButtonStyle.Success)
+                    );
+                    const buttonEmbed = new EmbedBuilder()
+                        .setColor(0xFEE75C)
+                        .setTitle("🛡️ Güvenlik Doğrulaması")
+                        .setDescription(`**${member.guild.name}** sunucusu şu anda kilit modundadır.\nDoğrulamak için aşağıdaki butona tıklayın.`)
+                        .setTimestamp();
+                    const dmSent = await member.send({ embeds: [buttonEmbed], components: [rowVerify] }).catch(() => null);
+                    if (!dmSent) {
+                        await member.kick("Guard | Anti-Raid DM Kapalı (Buton Doğrulaması Gönderilemedi)").catch(() => {});
+                        actionTaken = "DM Kapalı Olduğu İçin Sunucudan Atıldı (Kick)";
+                        punished = true;
+                    } else {
+                        const quarantineRolId = getSetting(guildId, "quarantineRoleId");
+                        if (quarantineRolId) {
+                            await member.roles.add(quarantineRolId, "Anti-Raid Buton Doğrulaması").catch(() => {});
+                        }
+                        actionTaken = "Buton Doğrulaması Gönderildi (Karantinada)";
+                        punished = true;
+                    }
+                }
+
+                if (!verificationRequired) {
+                    if (isFeatureEnabled(guildId, "raidActionBan")) {
+                        await member.ban({ reason: `Slesy Guard Anti-Raid | Saldırı Anında Giriş Engelleme` }).catch(() => {});
+                        actionTaken = "Saldırı Modu: Sunucudan Yasaklandı (Ban)";
+                        punished = true;
+                    }
+                    else if (isFeatureEnabled(guildId, "raidActionKick")) {
+                        await member.kick("Slesy Guard Anti-Raid | Saldırı Anında Giriş Engelleme").catch(() => {});
+                        actionTaken = "Saldırı Modu: Sunucudan Atıldı (Kick)";
+                        punished = true;
+                    }
+                    else if (isFeatureEnabled(guildId, "raidActionQuarantine")) {
+                        const quarantineRolId = getSetting(guildId, "quarantineRoleId");
+                        if (quarantineRolId) {
+                            await member.roles.add(quarantineRolId, "Anti-Raid Karantina").catch(() => {});
+                            actionTaken = "Saldırı Modu: Karantinaya Alındı";
+                            punished = true;
+                        }
+                    }
+                    if (isFeatureEnabled(guildId, "raidActionTimeout")) {
+                        await member.timeout(24 * 60 * 60 * 1000, "Anti-Raid Koruması - 24 Saat Susturma").catch(() => {});
+                        actionTaken = punished ? actionTaken + " & 24s Susturuldu" : "Saldırı Modu: 24s Susturuldu";
+                        punished = true;
+                    }
+                }
+
+                if (!punished) {
+                    await member.kick("Slesy Guard Anti-Raid | Saldırı Koruma Modu Aktif").catch(() => {});
+                    actionTaken = "Varsayılan Önlem: Sunucudan Atıldı (Kick)";
+                }
+
+                if (isFeatureEnabled(guildId, "raidVerificationLog")) {
+                    await sendGuardLog(
+                        member.guild, 
+                        { id: "SYSTEM", tag: "Anti-Raid Koruması" }, 
+                        member.user, 
+                        `Hesap Yaşı: **${Math.floor(accountAgeDays)} Gün**\nVarsayılan Avatar: **${isDefaultAvatar ? "Evet" : "Hayır"}**\nKullanılan Davet: **${usedInviteCode}**`, 
+                        actionTaken, 
+                        guildId
+                    );
+                }
+
+                if (actionTaken.includes("Atıldı") || actionTaken.includes("Yasaklandı")) {
+                    return;
+                }
             }
         }
 
@@ -601,10 +1212,43 @@ Sunucuya son 24 saatte katılan bot bir işlem gerçekleştirdi:
         }
     });
 
-    // Verification approval buttons handler
+    // Verification approval buttons handler & Owner emergency unlock
     client.on("interactionCreate", async (interaction) => {
         if (!interaction.isButton()) return;
         const customId = interaction.customId;
+
+        if (customId.startsWith("owner_force_unlock_")) {
+            const guildId = customId.replace("owner_force_unlock_", "");
+            const guild = client.guilds.cache.get(guildId);
+            if (guild) {
+                await interaction.deferReply({ ephemeral: true });
+                await restoreServerLockdown(guild);
+                await interaction.editReply({ content: "✅ Sunucu kilidi başarıyla kaldırıldı ve ayarlar normalleştirildi." });
+            }
+            return;
+        }
+
+        if (customId.startsWith("raid_dm_verify_")) {
+            const targetGuildId = customId.replace("raid_dm_verify_", "");
+            const guild = client.guilds.cache.get(targetGuildId);
+            if (guild) {
+                const member = await guild.members.fetch(interaction.user.id).catch(() => null);
+                const quarantineRolId = getSetting(targetGuildId, "quarantineRoleId");
+                if (member) {
+                    if (quarantineRolId) {
+                        await member.roles.remove(quarantineRolId).catch(() => {});
+                    }
+                    await interaction.reply({ content: "✅ Doğrulama başarılı! Sunucuya erişiminiz sağlandı.", ephemeral: true });
+                    if (isFeatureEnabled(targetGuildId, "raidVerificationLog")) {
+                        await sendGuardLog(guild, { id: "SYSTEM", tag: "Anti-Raid Koruması" }, interaction.user, "Buton Doğrulaması", "Başarıyla Doğruladı", targetGuildId);
+                    }
+                } else {
+                    await interaction.reply({ content: "❌ Sunucuda bulunamadınız.", ephemeral: true });
+                }
+            }
+            return;
+        }
+
         if (!customId.startsWith("approve_bot_") && !customId.startsWith("deny_bot_")) return;
 
         const isApprove = customId.startsWith("approve_bot_");
@@ -777,5 +1421,40 @@ ${diff.join("\n")}
                 }
             }
         })();
+    });
+
+    // Math Verification DM message listener
+    client.on("messageCreate", async (message) => {
+        if (!message.guild && mathVerifications.has(message.author.id)) {
+            const verification = mathVerifications.get(message.author.id);
+            const guild = client.guilds.cache.get(verification.guildId);
+            if (!guild) return;
+
+            const answer = parseInt(message.content.trim());
+            const member = await guild.members.fetch(message.author.id).catch(() => null);
+
+            if (member) {
+                if (answer === verification.answer) {
+                    const quarantineRolId = getSetting(verification.guildId, "quarantineRoleId");
+                    if (quarantineRolId) {
+                        await member.roles.remove(quarantineRolId).catch(() => {});
+                    }
+                    mathVerifications.delete(message.author.id);
+                    await message.reply("✅ Doğrulama başarılı! Sunucuya erişiminiz onaylandı.").catch(() => {});
+
+                    if (isFeatureEnabled(verification.guildId, "raidVerificationLog")) {
+                        await sendGuardLog(guild, { id: "SYSTEM", tag: "Anti-Raid Koruması" }, message.author, "Matematik Doğrulaması", "Başarıyla Doğruladı", verification.guildId);
+                    }
+                } else {
+                    await member.kick("Guard Anti-Raid | Yanlış Matematik Cevabı").catch(() => {});
+                    mathVerifications.delete(message.author.id);
+                    await message.reply("❌ Yanlış cevap! Doğrulama başarısız oldu ve sunucudan atıldınız.").catch(() => {});
+
+                    if (isFeatureEnabled(verification.guildId, "raidVerificationLog")) {
+                        await sendGuardLog(guild, { id: "SYSTEM", tag: "Anti-Raid Koruması" }, message.author, "Matematik Doğrulaması", "Yanlış Cevap - Sunucudan Atıldı", verification.guildId);
+                    }
+                }
+            }
+        }
     });
 };
