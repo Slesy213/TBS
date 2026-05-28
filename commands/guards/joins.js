@@ -1049,14 +1049,94 @@ Sunucuya yeni bir bot eklendi ve onay bekliyor:
             }
         }
 
-        // Kötü İsim Koruması
-        if (isFeatureEnabled(guildId, "usernameRegexGuard")) {
-            const badNameRegex = /(https?:\/\/|discord\.gg\/|www\.)/gi;
-            if (badNameRegex.test(member.user.username) || badNameRegex.test(member.user.displayName)) {
-                increaseThreat(guildId, 15, "Reklamlı İsim Katılımı", member.guild);
-                sendGuardLog(member.guild, member.user, null, "Profil İsim Koruması (Reklam/Link)", "Sunucudan Atıldı", guildId);
-                member.kick("Guard | Kötü Profil Adı").catch(() => {});
-                return;
+        // Reklamlı İsim Koruması (10 Özellik)
+        const isUsernameGuardEnabled = isFeatureEnabled(guildId, "usernameGuard") || isFeatureEnabled(guildId, "usernameRegexGuard");
+        if (isUsernameGuardEnabled) {
+            let isBypassed = false;
+            if (isFeatureEnabled(guildId, "usernameBypassWhitelisted") && isWhitelisted(member.guild, member.id)) {
+                isBypassed = true;
+            }
+
+            if (!isBypassed) {
+                let isViolating = false;
+                let violationReason = "";
+                const username = member.user.username || "";
+                const displayName = member.user.displayName || "";
+
+                // 7. Davet/Link Tespiti
+                if (isFeatureEnabled(guildId, "usernameDetectLink") || isFeatureEnabled(guildId, "usernameRegexGuard")) {
+                    const linkRegex = /(https?:\/\/|discord\.gg\/|discord\.me\/|\.gg\/|www\.)/gi;
+                    if (linkRegex.test(username) || linkRegex.test(displayName)) {
+                        isViolating = true;
+                        violationReason = "Kullanıcı adında reklam/davet bağlantısı tespit edildi";
+                    }
+                }
+
+                // 8. Kelime Kara Listesi Taraması
+                if (!isViolating && isFeatureEnabled(guildId, "usernameDetectWords")) {
+                    const badWords = ["twitch.tv", "youtube.com", "shop", "sales", "reklam", "satış", "csgo", "skins"];
+                    const lowerUser = username.toLowerCase();
+                    const lowerDisplay = displayName.toLowerCase();
+                    const foundWord = badWords.find(w => lowerUser.includes(w) || lowerDisplay.includes(w));
+                    if (foundWord) {
+                        isViolating = true;
+                        violationReason = `Kullanıcı adında yasaklı kelime tespit edildi (${foundWord})`;
+                    }
+                }
+
+                if (isViolating) {
+                    increaseThreat(guildId, 15, "Reklamlı İsim Katılımı", member.guild);
+
+                    let actionTaken = "İşlem Yapılmadı";
+                    let punished = false;
+
+                    // 3. Sunucudan Yasakla (Ban)
+                    if (isFeatureEnabled(guildId, "usernameActionBan")) {
+                        await member.ban({ reason: `Slesy Guard Reklamlı İsim | ${violationReason}` }).catch(() => {});
+                        actionTaken = "Sunucudan Yasaklandı (Ban)";
+                        punished = true;
+                    }
+                    // 2. Sunucudan At (Kick)
+                    else if (isFeatureEnabled(guildId, "usernameActionKick")) {
+                        await member.kick(`Slesy Guard Reklamlı İsim | ${violationReason}`).catch(() => {});
+                        actionTaken = "Sunucudan Atıldı (Kick)";
+                        punished = true;
+                    }
+                    // 4. Karantinaya Al
+                    else if (isFeatureEnabled(guildId, "usernameActionQuarantine")) {
+                        const quarantineRolId = getSetting(guildId, "quarantineRoleId");
+                        if (quarantineRolId) {
+                            await member.roles.add(quarantineRolId, "Reklamlı İsim Koruması").catch(() => {});
+                            actionTaken = "Karantina Rolü Verildi";
+                            punished = true;
+                        }
+                    }
+                    // 5. Sustur (Timeout)
+                    if (isFeatureEnabled(guildId, "usernameActionTimeout")) {
+                        await member.timeout(60 * 60 * 1000, "Reklamlı İsim Koruması - 1 Saat").catch(() => {});
+                        actionTaken = punished ? actionTaken + " & 1s Susturuldu" : "1 Saat Susturuldu";
+                        punished = true;
+                    }
+                    // 6. İsim Değiştir (Auto-Nick)
+                    if (isFeatureEnabled(guildId, "usernameActionNickChange") && !actionTaken.includes("Ban") && !actionTaken.includes("Kick")) {
+                        const safeNick = `Slesy_Safe_${Math.floor(1000 + Math.random() * 9000)}`;
+                        await member.setNickname(safeNick, "Reklamlı İsim Koruması").catch(() => {});
+                        actionTaken = punished ? actionTaken + " & Nick Değiştirildi" : "Nick Temiz Adla Değiştirildi";
+                        punished = true;
+                    }
+
+                    // Default legacy fallback if no actions enabled
+                    if (!punished) {
+                        await member.kick("Guard | Kötü Profil Adı").catch(() => {});
+                        actionTaken = "Varsayılan: Sunucudan Atıldı (Kick)";
+                    }
+
+                    sendGuardLog(member.guild, { id: "SYSTEM", tag: "Reklamlı İsim Koruması" }, member.user, `${violationReason}`, actionTaken, guildId);
+
+                    if (actionTaken.includes("Atıldı") || actionTaken.includes("Yasaklandı")) {
+                        return;
+                    }
+                }
             }
         }
 
@@ -1452,6 +1532,95 @@ ${diff.join("\n")}
 
                     if (isFeatureEnabled(verification.guildId, "raidVerificationLog")) {
                         await sendGuardLog(guild, { id: "SYSTEM", tag: "Anti-Raid Koruması" }, message.author, "Matematik Doğrulaması", "Yanlış Cevap - Sunucudan Atıldı", verification.guildId);
+                    }
+                }
+            }
+        }
+    });
+
+    // 10. İsim Değişimini Takip Et (usernameMonitorNickChange)
+    client.on("guildMemberUpdate", async (oldMember, newMember) => {
+        if (newMember.user.bot) return;
+        const guildId = newMember.guild.id;
+        if (!global.guardDurums.get(guildId)) return;
+
+        if (oldMember.nickname !== newMember.nickname) {
+            const isUsernameGuardEnabled = isFeatureEnabled(guildId, "usernameGuard");
+            const isMonitorEnabled = isFeatureEnabled(guildId, "usernameMonitorNickChange");
+
+            if (isUsernameGuardEnabled && isMonitorEnabled) {
+                let isBypassed = false;
+                if (isFeatureEnabled(guildId, "usernameBypassWhitelisted") && isWhitelisted(newMember.guild, newMember.id)) {
+                    isBypassed = true;
+                }
+
+                if (!isBypassed) {
+                    const newNick = newMember.nickname || "";
+                    if (newNick === "") return;
+
+                    let isViolating = false;
+                    let violationReason = "";
+
+                    if (isFeatureEnabled(guildId, "usernameDetectLink")) {
+                        const linkRegex = /(https?:\/\/|discord\.gg\/|discord\.me\/|\.gg\/|www\.)/gi;
+                        if (linkRegex.test(newNick)) {
+                            isViolating = true;
+                            violationReason = "Yeni takma adda reklam/davet bağlantısı tespit edildi";
+                        }
+                    }
+
+                    if (!isViolating && isFeatureEnabled(guildId, "usernameDetectWords")) {
+                        const badWords = ["twitch.tv", "youtube.com", "shop", "sales", "reklam", "satış", "csgo", "skins"];
+                        const lowerNick = newNick.toLowerCase();
+                        const foundWord = badWords.find(w => lowerNick.includes(w));
+                        if (foundWord) {
+                            isViolating = true;
+                            violationReason = `Yeni takma adda yasaklı kelime tespit edildi (${foundWord})`;
+                        }
+                    }
+
+                    if (isViolating) {
+                        increaseThreat(guildId, 10, "Reklamlı Takma Ad Değişimi", newMember.guild);
+
+                        let actionTaken = "İşlem Yapılmadı";
+                        let punished = false;
+
+                        if (isFeatureEnabled(guildId, "usernameActionBan")) {
+                            await newMember.ban({ reason: `Slesy Guard Reklamlı Takma Ad | ${violationReason}` }).catch(() => {});
+                            actionTaken = "Sunucudan Yasaklandı (Ban)";
+                            punished = true;
+                        }
+                        else if (isFeatureEnabled(guildId, "usernameActionKick")) {
+                            await newMember.kick(`Slesy Guard Reklamlı Takma Ad | ${violationReason}`).catch(() => {});
+                            actionTaken = "Sunucudan Atıldı (Kick)";
+                            punished = true;
+                        }
+                        else if (isFeatureEnabled(guildId, "usernameActionQuarantine")) {
+                            const quarantineRolId = getSetting(guildId, "quarantineRoleId");
+                            if (quarantineRolId) {
+                                await newMember.roles.add(quarantineRolId, "Reklamlı Takma Ad").catch(() => {});
+                                actionTaken = "Karantina Rolü Verildi";
+                                punished = true;
+                            }
+                        }
+                        if (isFeatureEnabled(guildId, "usernameActionTimeout")) {
+                            await newMember.timeout(60 * 60 * 1000, "Reklamlı Takma Ad - 1 Saat").catch(() => {});
+                            actionTaken = punished ? actionTaken + " & 1s Susturuldu" : "1 Saat Susturuldu";
+                            punished = true;
+                        }
+                        if (isFeatureEnabled(guildId, "usernameActionNickChange") && !actionTaken.includes("Ban") && !actionTaken.includes("Kick")) {
+                            const safeNick = `Slesy_Safe_${Math.floor(1000 + Math.random() * 9000)}`;
+                            await newMember.setNickname(safeNick, "Reklamlı İsim Koruması (Revert)").catch(() => {});
+                            actionTaken = punished ? actionTaken + " & Takma Ad Sıfırlandı" : "Takma Ad Temiz Adla Değiştirildi";
+                            punished = true;
+                        }
+
+                        if (!punished) {
+                            await newMember.setNickname(oldMember.nickname, "Reklamlı Takma Ad Değişimi").catch(() => {});
+                            actionTaken = "Eski Takma Ada Geri Döndürüldü";
+                        }
+
+                        sendGuardLog(newMember.guild, { id: "SYSTEM", tag: "Reklamlı İsim Koruması" }, newMember.user, `${violationReason}`, actionTaken, guildId);
                     }
                 }
             }
