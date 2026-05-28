@@ -471,7 +471,7 @@ Bot reddedildi ve sunucudan atıldı.
         }
     });
 
-    // Sunucu Güncelleme Koruması
+    // Sunucu Güncelleme Koruması (15 Özellik)
     client.on("guildUpdate", async (oldGuild, newGuild) => {
         if (!newGuild) return;
         const guildId = newGuild.id;
@@ -484,16 +484,115 @@ Bot reddedildi ve sunucudan atıldı.
             const executor = entry.executor;
             if (isWhitelisted(newGuild, executor.id, "channel")) return;
 
-            increaseThreat(guildId, 30, "Sunucu ayarları güncellendi", newGuild);
+            // Speed lock check (Feature 14)
+            if (isFeatureEnabled(guildId, "antiGuildFeatureRevertLock")) {
+                global.guildUpdateTracker = global.guildUpdateTracker || new Map();
+                let timestamps = global.guildUpdateTracker.get(guildId) || [];
+                const now = Date.now();
+                timestamps = timestamps.filter(t => now - t < 5000); // 5 seconds
+                timestamps.push(now);
+                global.guildUpdateTracker.set(guildId, timestamps);
 
-            punishAdmin(newGuild, executor, "İzinsiz Sunucu Ayarları Güncelleme", guildId);
+                if (timestamps.length > 3) {
+                    increaseThreat(guildId, 60, "Spam Sunucu Ayarı Değişikliği (Speed Lock Tetiklendi)", newGuild);
+                    await punishAdmin(newGuild, executor, "Spam Sunucu Ayarı Değiştirme (Hızlı Değişim Saldırısı)", guildId);
+                    return;
+                }
+            }
 
-            await newGuild.edit({
-                name: oldGuild.name,
-                icon: oldGuild.iconURL(),
-                banner: oldGuild.bannerURL(),
-                splash: oldGuild.splashURL()
-            }).catch(() => {});
+            const revertFields = {};
+            const diff = [];
+
+            // Name
+            if (newGuild.name !== oldGuild.name && isFeatureEnabled(guildId, "antiGuildNameUpdate")) {
+                revertFields.name = oldGuild.name;
+                diff.push(`• **Sunucu İsmi:** \`${newGuild.name}\` ➔ \`${oldGuild.name}\``);
+            }
+            // Icon
+            if (newGuild.icon !== oldGuild.icon && isFeatureEnabled(guildId, "antiGuildIconUpdate")) {
+                revertFields.icon = oldGuild.iconURL();
+                diff.push(`• **Sunucu İkonu:** Değiştirildi ➔ Eski İkon Yüklendi`);
+            }
+            // Banner
+            if (newGuild.banner !== oldGuild.banner && isFeatureEnabled(guildId, "antiGuildBannerUpdate")) {
+                revertFields.banner = oldGuild.bannerURL();
+                diff.push(`• **Banner Resmi:** Değiştirildi ➔ Eski Banner Yüklendi`);
+            }
+            // Splash
+            if (newGuild.splash !== oldGuild.splash && isFeatureEnabled(guildId, "antiGuildSplashUpdate")) {
+                revertFields.splash = oldGuild.splashURL();
+                diff.push(`• **Giriş Resmi (Splash):** Değiştirildi ➔ Eski Splash Yüklendi`);
+            }
+            // Verification Level
+            if (newGuild.verificationLevel !== oldGuild.verificationLevel && isFeatureEnabled(guildId, "antiGuildVerificationLevelUpdate")) {
+                revertFields.verificationLevel = oldGuild.verificationLevel;
+                diff.push(`• **Doğrulama Seviyesi:** \`${newGuild.verificationLevel}\` ➔ \`${oldGuild.verificationLevel}\``);
+            }
+            // Explicit Content Filter
+            if (newGuild.explicitContentFilter !== oldGuild.explicitContentFilter && isFeatureEnabled(guildId, "antiGuildContentFilterUpdate")) {
+                revertFields.explicitContentFilter = oldGuild.explicitContentFilter;
+                diff.push(`• **Medya İçerik Filtresi:** \`${newGuild.explicitContentFilter}\` ➔ \`${oldGuild.explicitContentFilter}\``);
+            }
+            // Widget Enabled
+            if (newGuild.widgetEnabled !== oldGuild.widgetEnabled && isFeatureEnabled(guildId, "antiGuildWidgetUpdate")) {
+                revertFields.widgetEnabled = oldGuild.widgetEnabled;
+                diff.push(`• **Sunucu Widgetı:** \`${newGuild.widgetEnabled ? "Açık" : "Kapalı"}\` ➔ \`${oldGuild.widgetEnabled ? "Açık" : "Kapalı"}\``);
+            }
+            // System Channel
+            if (newGuild.systemChannelId !== oldGuild.systemChannelId && isFeatureEnabled(guildId, "antiGuildSystemChannelUpdate")) {
+                revertFields.systemChannel = oldGuild.systemChannelId;
+                diff.push(`• **Sistem Kanalı:** <#${newGuild.systemChannelId}> ➔ <#${oldGuild.systemChannelId}>`);
+            }
+            // Rules Channel
+            if (newGuild.rulesChannelId !== oldGuild.rulesChannelId && isFeatureEnabled(guildId, "antiGuildRulesChannelUpdate")) {
+                revertFields.rulesChannel = oldGuild.rulesChannelId;
+                diff.push(`• **Kurallar Kanalı:** <#${newGuild.rulesChannelId}> ➔ <#${oldGuild.rulesChannelId}>`);
+            }
+            // Public Updates Channel
+            if (newGuild.publicUpdatesChannelId !== oldGuild.publicUpdatesChannelId && isFeatureEnabled(guildId, "antiGuildUpdatesChannelUpdate")) {
+                revertFields.publicUpdatesChannel = oldGuild.publicUpdatesChannelId;
+                diff.push(`• **Güncellemeler Kanalı:** <#${newGuild.publicUpdatesChannelId}> ➔ <#${oldGuild.publicUpdatesChannelId}>`);
+            }
+            // MFA Level
+            if (newGuild.mfaLevel !== oldGuild.mfaLevel && isFeatureEnabled(guildId, "antiGuildMfaLevelUpdate")) {
+                revertFields.mfaLevel = oldGuild.mfaLevel;
+                diff.push(`• **MFA 2FA Gereksinimi:** \`${newGuild.mfaLevel}\` ➔ \`${oldGuild.mfaLevel}\``);
+            }
+
+            // Vanity URL (Feature 13 - separate set method)
+            if (newGuild.vanityURLCode !== oldGuild.vanityURLCode && isFeatureEnabled(guildId, "antiGuildVanityUrlUpdate")) {
+                await newGuild.setVanityCode(oldGuild.vanityURLCode, "Guard | Vanity URL Koruma").catch(() => {});
+                diff.push(`• **Özel Davet Kodu (Vanity):** \`${newGuild.vanityURLCode || "Yok"}\` ➔ \`${oldGuild.vanityURLCode}\``);
+            }
+
+            if (diff.length === 0) return;
+
+            increaseThreat(guildId, 30, `Sunucu Ayarları Değiştirildi: ${diff.join(", ")}`, newGuild);
+
+            await punishAdmin(newGuild, executor, `İzinsiz Sunucu Ayarları Güncelleme (${diff.length} Değişiklik)`, guildId);
+
+            // Revert changes
+            if (Object.keys(revertFields).length > 0) {
+                await newGuild.edit(revertFields, "Guard | Revert Settings").catch(() => {});
+            }
+
+            // Owner alert (Feature 15)
+            if (isFeatureEnabled(guildId, "antiGuildActionOwnerAlert")) {
+                const owner = await newGuild.members.fetch(newGuild.ownerId).catch(() => null);
+                if (owner) {
+                    const alertEmbed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setTitle("🖥️ Kritik Uyarı: Sunucu Ayarları Değiştirildi!")
+                        .setDescription(`
+Sunucu ayarlarınız izinsiz bir yetkili tarafından değiştirildi ve otomatik olarak eski haline geri döndürüldü.
+**Eylemi Yapan:** <@${executor.id}> (\`${executor.tag}\` / \`${executor.id}\`)
+**Yapılan Değişiklikler:**
+${diff.join("\n")}
+                        `)
+                        .setTimestamp();
+                    await owner.send({ embeds: [alertEmbed] }).catch(() => {});
+                }
+            }
         })();
     });
 };
