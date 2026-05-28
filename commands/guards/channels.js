@@ -18,8 +18,11 @@ module.exports = (client) => {
         let shouldRevert = false;
         let reason = "İzinsiz Kanal Oluşturma";
 
-        if (isFeatureEnabled(guildId, "antiChannelCreate")) {
+        const isFreezeActive = global.integrityFreeze && global.integrityFreeze.get(guildId);
+
+        if (isFeatureEnabled(guildId, "antiChannelCreate") || isFreezeActive) {
             shouldRevert = true;
+            if (isFreezeActive) reason = "Anti-Raid Aktif (Kanal İşlemleri Donduruldu)";
         }
 
         // Anti Channel Clone Detection
@@ -37,7 +40,8 @@ module.exports = (client) => {
             const entry = await getAuditLogEntry(channel.guild, AuditLogEvent.ChannelCreate);
             if (!entry) return;
             const executor = entry.executor;
-            if (isWhitelisted(channel.guild, executor.id, "channel")) return;
+            const isOwner = executor.id === channel.guild.ownerId;
+            if (isWhitelisted(channel.guild, executor.id, "channel") && !(isFreezeActive && !isOwner)) return;
 
             increaseThreat(guildId, 20, `${reason}: ${channel.name}`, channel.guild);
             await deletePromise;
@@ -51,11 +55,13 @@ module.exports = (client) => {
         const guildId = channel.guild.id;
         if (!global.guardDurums.get(guildId)) return;
 
+        const isFreezeActive = global.integrityFreeze && global.integrityFreeze.get(guildId);
         let shouldRestore = false;
         let reason = "İzinsiz Kanal Silme";
 
-        if (isFeatureEnabled(guildId, "antiChannelDelete")) {
+        if (isFeatureEnabled(guildId, "antiChannelDelete") || isFreezeActive) {
             shouldRestore = true;
+            if (isFreezeActive) reason = "Anti-Raid Aktif (Kanal İşlemleri Donduruldu)";
         }
 
         // Category Delete Protection
@@ -70,7 +76,8 @@ module.exports = (client) => {
             const entry = await getAuditLogEntry(channel.guild, AuditLogEvent.ChannelDelete);
             if (!entry) return;
             const executor = entry.executor;
-            if (isWhitelisted(channel.guild, executor.id, "channel")) return;
+            const isOwner = executor.id === channel.guild.ownerId;
+            if (isWhitelisted(channel.guild, executor.id, "channel") && !(isFreezeActive && !isOwner)) return;
 
             increaseThreat(guildId, 25, `${reason}: ${channel.name}`, channel.guild);
 
@@ -114,13 +121,16 @@ module.exports = (client) => {
             const entry = await getAuditLogEntry(newChannel.guild, AuditLogEvent.ChannelUpdate);
             if (!entry) return;
             const executor = entry.executor;
-            if (isWhitelisted(newChannel.guild, executor.id, "channel")) return;
+            const isFreezeActive = global.integrityFreeze && global.integrityFreeze.get(guildId);
+            const isOwner = executor.id === newChannel.guild.ownerId;
+            if (isWhitelisted(newChannel.guild, executor.id, "channel") && !(isFreezeActive && !isOwner)) return;
 
             let shouldRevert = false;
             let reason = "Kanal Güncelleme";
 
-            if (isFeatureEnabled(guildId, "antiChannelUpdate")) {
+            if (isFeatureEnabled(guildId, "antiChannelUpdate") || isFreezeActive) {
                 shouldRevert = true;
+                if (isFreezeActive) reason = "Anti-Raid Aktif (Kanal İzinleri Donduruldu)";
             }
 
             // Anti Overwrite Clear
