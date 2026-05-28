@@ -97,6 +97,25 @@ const defaultSettings = {
     antiStickerUpdate: false,
     antiGuildUpdate: false,
     antiBotAdd: false,
+    antiBotLimitAdd: false,
+    antiBotRequireVerify: false,
+    antiBotLockdown: false,
+    antiBotBlockUnverified: false,
+    antiBotLimitPermissions: false,
+    antiBotRestrictRoles: false,
+    antiBotQuarantine: false,
+    antiBotActionKickAddExecutor: false,
+    antiBotActionBanAddExecutor: false,
+    antiBotLogAddedDetails: false,
+    antiBotCheckCreationDate: false,
+    antiBotBlockPublicBots: false,
+    antiBotScanCommandNameSpam: false,
+    antiBotAuditLogCompare: false,
+    antiBotAutonomousBypass: false,
+    antiBotAdminRoleAlert: false,
+    antiBotBlockTokenLeaks: false,
+    antiBotChannelRestriction: false,
+    antiBotIntegrityLogs: false,
     antiIntegrationCreate: false,
     antiPrune: false,
 
@@ -244,7 +263,12 @@ const booleanKeys = [
     "webhookRoleMentionGuard",
     "antiEmojiCreate", "antiEmojiDelete", "antiEmojiUpdate",
     "antiStickerCreate", "antiStickerDelete", "antiStickerUpdate",
-    "antiGuildUpdate", "antiBotAdd", "antiIntegrationCreate", "antiPrune",
+    "antiGuildUpdate", "antiBotAdd", "antiBotLimitAdd", "antiBotRequireVerify", "antiBotLockdown",
+    "antiBotBlockUnverified", "antiBotLimitPermissions", "antiBotRestrictRoles", "antiBotQuarantine",
+    "antiBotActionKickAddExecutor", "antiBotActionBanAddExecutor", "antiBotLogAddedDetails", "antiBotCheckCreationDate",
+    "antiBotBlockPublicBots", "antiBotScanCommandNameSpam", "antiBotAuditLogCompare", "antiBotAutonomousBypass",
+    "antiBotAdminRoleAlert", "antiBotBlockTokenLeaks", "antiBotChannelRestriction", "antiBotIntegrityLogs",
+    "antiIntegrationCreate", "antiPrune",
     "linkBlockAll", "linkBlockInvites", "linkBlockHttpsOnly", "linkBlockHttpOnly",
     "linkBlockIPLinks", "linkBlockSubdomains", "linkBlockShorteners", "linkBlockPhishing",
     "linkBlockIpLoggers", "linkBlockAdultContent", "linkBlockDownloads", "linkBlockMalware",
@@ -683,7 +707,7 @@ ${divider}
 • **Entegrasyon Rolü Silme** :: ${statusEmoji("antiIntegrationRoleDelete")}
 
 **« DİĞER SİSTEM KORUMALARI »**
-• **Anti Bot Ekleme**        :: ${statusEmoji("antiBotAdd")} \`[Bot & Admin Engelleyici]\`
+• **Anti Bot Ekleme**        :: ${statusEmoji("antiBotAdd")} \`[/guard -> Anti-Bot Koruması]\`
 • **Sunucu Ayarları Koruması**:: ${statusEmoji("antiGuildUpdate")}
 • **Sunucu Budama (Prune)**  :: ${statusEmoji("antiPrune")}
 
@@ -721,7 +745,7 @@ ${divider}
                     .setDescription(`
 ${divider}
 **« İÇERİK ENGELLERİ »**
-• **Argo Sözcük Engeli (Basit Motor)**       :: ${statusEmoji("argoEngel")}
+• **Argo Sözcük Engeli (Basit Motor)** :: ${statusEmoji("argoEngel")}
 
 **« BİÇİM & SPAM FİLTRELERİ »**
 • **Büyük Harf (Caps Lock)**   :: ${statusEmoji("capsEngel")} \`[>%70 Oran]\`
@@ -804,7 +828,7 @@ ${divider}
 • **Dini Değerlere Küfür**    :: ${statusEmoji("kufurBlockReligious")}
 • **Irkçı Hakaret Engeli**    :: ${statusEmoji("kufurBlockRacist")}
 • **Siyasi Taciz Engeli**     :: ${statusEmoji("kufurBlockPolitical")}
-• **Argo Sözcük Engeli (Gelişmiş Motor)**       :: ${statusEmoji("kufurBlockArgo")}
+• **Argo Sözcük Engeli (Gelişmiş Motor)** :: ${statusEmoji("kufurBlockArgo")}
 • **Kısaltmalar Koruması**    :: ${statusEmoji("kufurBlockAbbreviations")}
 • **Cinsiyetçi Taciz Engeli** :: ${statusEmoji("kufurBlockHomophobic")}
 • **Hakaret Spami Engeli**    :: ${statusEmoji("kufurBlockSpamInsults")}
@@ -842,6 +866,41 @@ ${divider}
 • **Yetkili Log Bildirimi**   :: ${statusEmoji("kufurActionStaffLog")}
 ${divider}
 *İstediğiniz küfür/hakaret filtresini veya tarama davranışını yapılandırmak için aşağıdaki açılır menüleri kullanın.*`);
+            }
+
+            if (activePage === "antibot") {
+                return new EmbedBuilder()
+                    .setColor(0x2B2D31)
+                    .setTitle("🤖 Anti-Bot Koruması (20 Özellik)")
+                    .setDescription(`
+${divider}
+**« SİSTEM KİLİTLERİ VE FİLTRELER »**
+• **Genel Engel**            :: ${statusEmoji("antiBotAdd")}
+• **Yeni Bot Limit Sınırı**   :: ${statusEmoji("antiBotLimitAdd")} \`[Maks 1 Bot / Saat]\`
+• **Bot Onaylama İzni**      :: ${statusEmoji("antiBotRequireVerify")}
+• **Tam Karantina Kilidi**    :: ${statusEmoji("antiBotLockdown")}
+• **Doğrulanmamış Bot Engeli**:: ${statusEmoji("antiBotBlockUnverified")}
+• **Özel Bot Filtresi**       :: ${statusEmoji("antiBotBlockPublicBots")}
+• **Yeni Bot Yaş Sınırı**     :: ${statusEmoji("antiBotCheckCreationDate")} \`[Maks 15 Günlük]\`
+• **Şüpheli Komut Taraması**  :: ${statusEmoji("antiBotScanCommandNameSpam")}
+
+**« YETKİ VE ROL SINIRLANDIRMALARI »**
+• **Yetki Temizleme Modu**    :: ${statusEmoji("antiBotLimitPermissions")} \`[Yönetici İzni Siler]\`
+• **Rol Verme Engeli**        :: ${statusEmoji("antiBotRestrictRoles")} \`[Yetkili Rol Alamaz]\`
+• **Karantina Kanalı**        :: ${statusEmoji("antiBotQuarantine")}
+• **Sunucu Kanalları Kilidi** :: ${statusEmoji("antiBotChannelRestriction")} \`[Sadece Test Kanalı]\`
+• **Rol Verme Bildirimi**     :: ${statusEmoji("antiBotAdminRoleAlert")} \`[Sahibe DM Bildirimi]\`
+• **İstikrar Denetimi**       :: ${statusEmoji("antiBotIntegrityLogs")} \`[24 Saat Takip]\`
+
+**« DENETİM VE CEZALANDIRMALAR »**
+• **Ekleyeni Sunucudan At**    :: ${statusEmoji("antiBotActionKickAddExecutor")}
+• **Ekleyeni Sunucudan Banla** :: ${statusEmoji("antiBotActionBanAddExecutor")}
+• **Gelişmiş Detay Günlüğü**  :: ${statusEmoji("antiBotLogAddedDetails")}
+• **Çift Denetim Modu**       :: ${statusEmoji("antiBotAuditLogCompare")}
+• **Otonom Susturma Bypassı** :: ${statusEmoji("antiBotAutonomousBypass")}
+• **Token Sızıntı Koruması**  :: ${statusEmoji("antiBotBlockTokenLeaks")}
+${divider}
+*İstediğiniz anti-bot korumasını veya denetim davranışını yapılandırmak için aşağıdaki seçim menüsünü kullanın.*`);
             }
 
             if (activePage === "raid") {
@@ -939,6 +998,7 @@ ${divider}
                         { label: "💬 Sohbet & İçerik Korumaları", value: "page_chat", description: "Küfür, link ve spam engelleri.", default: activePage === "chat" },
                         { label: "🔗 Link Engel Koruması (40 Özellik)", value: "page_links", description: "Link türleri, muafiyetler ve cezalar.", default: activePage === "links" },
                         { label: "🤬 Küfür Engel Koruması (40 Özellik)", value: "page_kufur", description: "Küfür, hakaret ve bypass engelleri.", default: activePage === "kufur" },
+                        { label: "🤖 Anti-Bot Koruması (20 Özellik)", value: "page_antibot", description: "Bot engelleme, izin sınırları ve denetim.", default: activePage === "antibot" },
                         { label: "👥 Giriş Güvenliği & Raid", value: "page_raid", description: "Hesap yaşı, anti-raid ve karantina.", default: activePage === "raid" },
                         { label: "⚙️ Yönetici Hız Limitleri", value: "page_limits", description: "Yöneticilerin eylem eşik sınırları.", default: activePage === "limits" },
                         { label: "📄 Sistem Ayarları & Whitelist", value: "page_logs", description: "Log kanalı, roller ve whitelist.", default: activePage === "logs" }
@@ -1030,9 +1090,8 @@ ${divider}
                     .setCustomId("toggle_server_other")
                     .setPlaceholder("⚙️ Diğer Sistem Korumalarını Seçin (Çoklu Seçim)")
                     .setMinValues(0)
-                    .setMaxValues(3)
+                    .setMaxValues(2)
                     .addOptions([
-                        { label: "Anti-Bot Ekleme", value: "antiBotAdd", description: "İzinsiz botları atar & ekleyeni engeller.", default: getSetting(guildId, "antiBotAdd") },
                         { label: "Sunucu Ayarları Koruması", value: "antiGuildUpdate", description: "Sunucu ayarlarını geri yükler.", default: getSetting(guildId, "antiGuildUpdate") },
                         { label: "Sunucu Budama (Prune) Engeli", value: "antiPrune", description: "Toplu üye budamalarını engeller.", default: getSetting(guildId, "antiPrune") }
                     ]);
@@ -1048,7 +1107,7 @@ ${divider}
                     .setMinValues(0)
                     .setMaxValues(7)
                     .addOptions([
-                        { label: "Argo Filtresi", value: "argoEngel", description: "Argo kelimeleri engeller.", default: getSetting(guildId, "argoEngel") },
+                        { label: "Argo Filtresi (Basit Motor)", value: "argoEngel", description: "Argo kelimeleri engeller.", default: getSetting(guildId, "argoEngel") },
                         { label: "Caps Lock Filtresi", value: "capsEngel", description: "Aşırı büyük harf kullanımını engeller.", default: getSetting(guildId, "capsEngel") },
                         { label: "Emoji Spam Filtresi", value: "emojiSpamEngel", description: "Çok fazla emoji kullanımını engeller.", default: getSetting(guildId, "emojiSpamEngel") },
                         { label: "Etiket Spam Filtresi", value: "mentionSpamEngel", description: "Çok fazla etiket kullanımını engeller.", default: getSetting(guildId, "mentionSpamEngel") },
@@ -1128,7 +1187,7 @@ ${divider}
                         { label: "Dini Değerlere Küfür", value: "kufurBlockReligious", description: "Dini değerlere küfürleri engeller.", default: getSetting(guildId, "kufurBlockReligious") },
                         { label: "Irkçı Hakaret Engeli", value: "kufurBlockRacist", description: "Irkçı hakaretleri engeller.", default: getSetting(guildId, "kufurBlockRacist") },
                         { label: "Siyasi Taciz Engeli", value: "kufurBlockPolitical", description: "Siyasi taciz ve hakaretleri engeller.", default: getSetting(guildId, "kufurBlockPolitical") },
-                        { label: "Argo Sözcük Engeli", value: "kufurBlockArgo", description: "Argo ve kaba kelimeleri engeller.", default: getSetting(guildId, "kufurBlockArgo") },
+                        { label: "Argo Sözcük Engeli (Gelişmiş Motor)", value: "kufurBlockArgo", description: "Argo ve kaba kelimeleri engeller.", default: getSetting(guildId, "kufurBlockArgo") },
                         { label: "Kısaltmalar Koruması", value: "kufurBlockAbbreviations", description: "Kısaltılmış küfürleri engeller (amk, aq, vb.).", default: getSetting(guildId, "kufurBlockAbbreviations") },
                         { label: "Cinsiyetçi Taciz Engeli", value: "kufurBlockHomophobic", description: "Homofobik ve cinsiyetçi kelimeleri engeller.", default: getSetting(guildId, "kufurBlockHomophobic") },
                         { label: "Hakaret Spami Engeli", value: "kufurBlockSpamInsults", description: "Aynı hakareti tekrarlamayı engeller.", default: getSetting(guildId, "kufurBlockSpamInsults") },
@@ -1173,6 +1232,35 @@ ${divider}
                     ]);
                 rows.push(new ActionRowBuilder().addComponents(selectKufur1));
                 rows.push(new ActionRowBuilder().addComponents(selectKufur2));
+            } else if (activePage === "antibot") {
+                const selectAntiBot = new StringSelectMenuBuilder()
+                    .setCustomId("toggle_antibot")
+                    .setPlaceholder("🤖 Anti-Bot Korumalarını Seçin (Çoklu Seçim)")
+                    .setMinValues(0)
+                    .setMaxValues(20)
+                    .addOptions([
+                        { label: "Genel Bot Engeli", value: "antiBotAdd", description: "İzinsiz bot eklenmesini engeller.", default: getSetting(guildId, "antiBotAdd") },
+                        { label: "Ekleme Limit Koruması", value: "antiBotLimitAdd", description: "Yöneticilerin saatte maks 1 bot eklemesine izin verir.", default: getSetting(guildId, "antiBotLimitAdd") },
+                        { label: "Onaylama Mekanizması", value: "antiBotRequireVerify", description: "Botların yetkili onayından sonra açılmasını sağlar.", default: getSetting(guildId, "antiBotRequireVerify") },
+                        { label: "Tam Kilit Modu", value: "antiBotLockdown", description: "Herkes için bot eklemeyi geçici kapatır.", default: getSetting(guildId, "antiBotLockdown") },
+                        { label: "Doğrulanmamış Bot Engeli", value: "antiBotBlockUnverified", description: "Sadece doğrulanmış resmi botlara izin verir.", default: getSetting(guildId, "antiBotBlockUnverified") },
+                        { label: "Yetki Temizleme Modu", value: "antiBotLimitPermissions", description: "Yeni botların Yönetici yetkilerini sıfırlar.", default: getSetting(guildId, "antiBotLimitPermissions") },
+                        { label: "Rol Kısıtlama Modu", value: "antiBotRestrictRoles", description: "Yeni botların yetkili rol almasını engeller.", default: getSetting(guildId, "antiBotRestrictRoles") },
+                        { label: "Karantina Filtresi", value: "antiBotQuarantine", description: "Botları onaylanana kadar karantinada tutar.", default: getSetting(guildId, "antiBotQuarantine") },
+                        { label: "Ekleyeni At (Kick)", value: "antiBotActionKickAddExecutor", description: "İzinsiz bot ekleyen yöneticiyi sunucudan atar.", default: getSetting(guildId, "antiBotActionKickAddExecutor") },
+                        { label: "Ekleyeni Yasakla (Ban)", value: "antiBotActionBanAddExecutor", description: "İzinsiz bot ekleyen yöneticiyi banlar.", default: getSetting(guildId, "antiBotActionBanAddExecutor") },
+                        { label: "Detay Günlük Kaydı", value: "antiBotLogAddedDetails", description: "Bot hakkında teknik detayları loglar.", default: getSetting(guildId, "antiBotLogAddedDetails") },
+                        { label: "Bot Yaş Koruması", value: "antiBotCheckCreationDate", description: "15 günden yeni açılmış botları engeller.", default: getSetting(guildId, "antiBotCheckCreationDate") },
+                        { label: "Genel Bot Engel Koruması", value: "antiBotBlockPublicBots", description: "Sadece özel botlara izin verir, genel botları engeller.", default: getSetting(guildId, "antiBotBlockPublicBots") },
+                        { label: "Şüpheli Komut Kontrolü", value: "antiBotScanCommandNameSpam", description: "Tehlikeli komut içeren botları engeller.", default: getSetting(guildId, "antiBotScanCommandNameSpam") },
+                        { label: "Çift Denetim Modu", value: "antiBotAuditLogCompare", description: "Gecikmeli log bypasslarını engeller.", default: getSetting(guildId, "antiBotAuditLogCompare") },
+                        { label: "Otonom Susturma Bypassı", value: "antiBotAutonomousBypass", description: "Tehdit seviyesine göre kuralları gevşetir.", default: getSetting(guildId, "antiBotAutonomousBypass") },
+                        { label: "Rol Atama Uyarısı", value: "antiBotAdminRoleAlert", description: "Bota yönetici rolü verilince sahibe DM atar.", default: getSetting(guildId, "antiBotAdminRoleAlert") },
+                        { label: "Token İptal Koruması", value: "antiBotBlockTokenLeaks", description: "Kanalda bot tokenı sızarsa tokenı iptal eder.", default: getSetting(guildId, "antiBotBlockTokenLeaks") },
+                        { label: "Kanal Erişim Sınırı", value: "antiBotChannelRestriction", description: "Bota sadece test kanallarını gösterir.", default: getSetting(guildId, "antiBotChannelRestriction") },
+                        { label: "İstikrar Günlüğü", value: "antiBotIntegrityLogs", description: "Botun ilk 24 saatteki hareketlerini takip eder.", default: getSetting(guildId, "antiBotIntegrityLogs") }
+                    ]);
+                rows.push(new ActionRowBuilder().addComponents(selectAntiBot));
             } else if (activePage === "raid") {
                 const selectRaidBools = new StringSelectMenuBuilder()
                     .setCustomId("toggle_raid_bools")
@@ -1434,6 +1522,22 @@ ${divider}
                     "kufurScanRegexBypass", "kufurScanCapsInsult", "kufurScanZalgo", "kufurScanLengthRatio",
                     "kufurScanSpoilers", "kufurScanAttachments", "kufurActionDelete", "kufurActionWarn",
                     "kufurActionMute", "kufurActionKick", "kufurActionBan", "kufurActionStaffLog"
+                ];
+                keys.forEach(k => settings[k] = i.values.includes(k));
+                global.guardSettings.set(guildId, settings);
+                await updateSetting(guildId, "guard_settings", settings);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "toggle_antibot") {
+                const settings = global.guardSettings.get(guildId) || {};
+                const keys = [
+                    "antiBotAdd", "antiBotLimitAdd", "antiBotRequireVerify", "antiBotLockdown",
+                    "antiBotBlockUnverified", "antiBotLimitPermissions", "antiBotRestrictRoles", "antiBotQuarantine",
+                    "antiBotActionKickAddExecutor", "antiBotActionBanAddExecutor", "antiBotLogAddedDetails", "antiBotCheckCreationDate",
+                    "antiBotBlockPublicBots", "antiBotScanCommandNameSpam", "antiBotAuditLogCompare", "antiBotAutonomousBypass",
+                    "antiBotAdminRoleAlert", "antiBotBlockTokenLeaks", "antiBotChannelRestriction", "antiBotIntegrityLogs"
                 ];
                 keys.forEach(k => settings[k] = i.values.includes(k));
                 global.guardSettings.set(guildId, settings);
