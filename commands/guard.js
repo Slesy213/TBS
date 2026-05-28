@@ -148,6 +148,27 @@ const defaultSettings = {
     antiPruneAuditDoubleCheck: false,
     antiPruneIntegrityQuarantine: false,
 
+    spamBlockAll: false,
+    spamDuplicateLimit: false,
+    spamMaxMessages: false,
+    spamMinTimeBetweenMessages: false,
+    spamCapsPercentage: false,
+    spamMaxEmojis: false,
+    spamMaxMentions: false,
+    spamMaxLines: false,
+    spamMaxLength: false,
+    spamRoleMentions: false,
+    spamFastReact: false,
+    spamLinkCount: false,
+    spamActionDelete: false,
+    spamActionWarn: false,
+    spamActionMute: false,
+    spamActionKick: false,
+    spamActionBan: false,
+    spamActionStaffLog: false,
+    spamAllowStaff: false,
+    spamBypassChannels: false,
+
     // Category 2: Chat & Content Security
     linkBlockAll: false,
     linkBlockInvites: false,
@@ -306,6 +327,11 @@ const booleanKeys = [
     "antiPruneActionKickExecutor", "antiPruneActionStripRoles", "antiPruneLockdownOnPrune", "antiPruneThreatMax",
     "antiPruneOwnerNotification", "antiPruneLogStaff", "antiPruneRoleRecoveryTracker", "antiPruneTimeLimit",
     "antiPruneAuditDoubleCheck", "antiPruneIntegrityQuarantine",
+    "spamBlockAll", "spamDuplicateLimit", "spamMaxMessages", "spamMinTimeBetweenMessages",
+    "spamCapsPercentage", "spamMaxEmojis", "spamMaxMentions", "spamMaxLines",
+    "spamMaxLength", "spamRoleMentions", "spamFastReact", "spamLinkCount",
+    "spamActionDelete", "spamActionWarn", "spamActionMute", "spamActionKick",
+    "spamActionBan", "spamActionStaffLog", "spamAllowStaff", "spamBypassChannels",
     "linkBlockAll", "linkBlockInvites", "linkBlockHttpsOnly", "linkBlockHttpOnly",
     "linkBlockIPLinks", "linkBlockSubdomains", "linkBlockShorteners", "linkBlockPhishing",
     "linkBlockIpLoggers", "linkBlockAdultContent", "linkBlockDownloads", "linkBlockMalware",
@@ -1002,6 +1028,43 @@ ${divider}
 *Mass prune (budama) saldırılarını engellemek ve izinsiz tetikleyen yöneticileri engellemek için aşağıdaki seçim menüsünü kullanın.*`);
             }
 
+            if (activePage === "spam") {
+                return new EmbedBuilder()
+                    .setColor(0x2B2D31)
+                    .setTitle("💬 Spam Engel Koruması (20 Özellik)")
+                    .setDescription(`
+${divider}
+**« SİSTEM KONTROLLERİ VE SINIRLARI »**
+• **Genel Engel**            :: ${statusEmoji("spamBlockAll")}
+• **Tekrarlanan Mesaj Engeli** :: ${statusEmoji("spamDuplicateLimit")} \`[Maks 15 Sn]\`
+• **Mesaj Hız Sınırı**        :: ${statusEmoji("spamMaxMessages")} \`[Maks 5 Mesaj / 3 Sn]\`
+• **Min Mesaj Aralığı**       :: ${statusEmoji("spamMinTimeBetweenMessages")} \`[500 Ms Bekleme]\`
+• **Süre Kısıtlaması (React)**:: ${statusEmoji("spamFastReact")} \`[Maks 5 Reaksiyon / 3 Sn]\`
+
+**« BİÇİM VE METRİK FİLTRELERİ »**
+• **Büyük Harf Koruması**    :: ${statusEmoji("spamCapsPercentage")} \`[>%70 Oran]\`
+• **Emoji Yoğunluk Sınırı**   :: ${statusEmoji("spamMaxEmojis")} \`[Maks 5 Emoji]\`
+• **Etiket Yoğunluk Sınırı**  :: ${statusEmoji("spamMaxMentions")} \`[Maks 4 Etiket]\`
+• **Rol Etiket Kısıtlaması**  :: ${statusEmoji("spamRoleMentions")} \`[Maks 2 Rol]\`
+• **Satır Sınırı Koruması**   :: ${statusEmoji("spamMaxLines")} \`[Maks 5 Satır]\`
+• **Karakter Uzunluk Sınırı**  :: ${statusEmoji("spamMaxLength")} \`[Maks 800 Karakter]\`
+• **Çoklu Link Filtresi**     :: ${statusEmoji("spamLinkCount")} \`[Maks 2 Link]\`
+
+**« YAPTIRIMLAR VE CEZALANDIRMALAR »**
+• **Mesajı Silme Cezası**     :: ${statusEmoji("spamActionDelete")}
+• **Uyarı Gönderme Cezası**   :: ${statusEmoji("spamActionWarn")}
+• **Susturma (Mute) Cezası**  :: ${statusEmoji("spamActionMute")} \`[5 Dakika Susturur]\`
+• **Sunucudan Atma (Kick)**   :: ${statusEmoji("spamActionKick")}
+• **Sunucudan Yasaklama (Ban)** :: ${statusEmoji("spamActionBan")} \`[Mass Raid Koruması]\`
+• **Yetkili Rapor Bildirimi**  :: ${statusEmoji("spamActionStaffLog")}
+
+**« MUAFİYETLER VE BÖLGELER »**
+• **Yetkili Muafiyeti**       :: ${statusEmoji("spamAllowStaff")}
+• **Kanal Muafiyetleri**      :: ${statusEmoji("spamBypassChannels")}
+${divider}
+*Spam saldırılarını engellemek ve sohbet akışını korumak için aşağıdaki seçim menüsünü kullanın.*`);
+            }
+
             if (activePage === "raid") {
                 const limitDays = getSetting(guildId, "accountAgeLimit");
                 const limitRejoins = getSetting(guildId, "raidLimit");
@@ -1099,6 +1162,7 @@ ${divider}
                         { label: "💬 Sohbet & İçerik Korumaları", value: "page_chat", description: "Küfür, link ve spam engelleri.", default: activePage === "chat" },
                         { label: "🔗 Link Engel Koruması (40 Özellik)", value: "page_links", description: "Link türleri, muafiyetler ve cezalar.", default: activePage === "links" },
                         { label: "🤬 Küfür Engel Koruması (40 Özellik)", value: "page_kufur", description: "Küfür, hakaret ve bypass engelleri.", default: activePage === "kufur" },
+                        { label: "💬 Spam Engel Koruması (20 Özellik)", value: "page_spam", description: "Mesaj hızı, tekrarlı mesaj, emoji ve harf engeli.", default: activePage === "spam" },
                         { label: "🤖 Anti-Bot Koruması (20 Özellik)", value: "page_antibot", description: "Bot engelleme, izin sınırları ve denetim.", default: activePage === "antibot" },
                         { label: "👥 Giriş Güvenliği & Raid", value: "page_raid", description: "Hesap yaşı, anti-raid ve karantina.", default: activePage === "raid" },
                         { label: "⚙️ Yönetici Hız Limitleri", value: "page_limits", description: "Yöneticilerin eylem eşik sınırları.", default: activePage === "limits" },
@@ -1410,6 +1474,35 @@ ${divider}
                         { label: "Gelişmiş Rapor Günlüğü", value: "antiPruneLogStaff", description: "Budama verilerini yetkili loguna raporlar.", default: getSetting(guildId, "antiPruneLogStaff") }
                     ]);
                 rows.push(new ActionRowBuilder().addComponents(selectPrune));
+            } else if (activePage === "spam") {
+                const selectSpam = new StringSelectMenuBuilder()
+                    .setCustomId("toggle_spam_settings")
+                    .setPlaceholder("💬 Spam Korumalarını Seçin (Çoklu Seçim)")
+                    .setMinValues(0)
+                    .setMaxValues(20)
+                    .addOptions([
+                        { label: "Genel Engel", value: "spamBlockAll", description: "Tüm spam filtreleme sistemini aktif eder.", default: getSetting(guildId, "spamBlockAll") },
+                        { label: "Tekrarlanan Mesaj Engeli", value: "spamDuplicateLimit", description: "Son 15 saniyede gönderilen aynı mesajları siler.", default: getSetting(guildId, "spamDuplicateLimit") },
+                        { label: "Mesaj Hız Sınırı", value: "spamMaxMessages", description: "3 saniyede 5'ten fazla mesaj gönderilmesini engeller.", default: getSetting(guildId, "spamMaxMessages") },
+                        { label: "Min Mesaj Aralığı", value: "spamMinTimeBetweenMessages", description: "Mesajlar arasında 500ms bekleme zorunluluğu getirir.", default: getSetting(guildId, "spamMinTimeBetweenMessages") },
+                        { label: "Büyük Harf Koruması", value: "spamCapsPercentage", description: "Mesajdaki büyük harf oranı %70'ten fazla ise engeller.", default: getSetting(guildId, "spamCapsPercentage") },
+                        { label: "Emoji Yoğunluk Sınırı", value: "spamMaxEmojis", description: "Tek mesajda maksimum 5 emoji kullanımına izin verir.", default: getSetting(guildId, "spamMaxEmojis") },
+                        { label: "Etiket Yoğunluk Sınırı", value: "spamMaxMentions", description: "Tek mesajda maksimum 4 etiket kullanımına izin verir.", default: getSetting(guildId, "spamMaxMentions") },
+                        { label: "Rol Etiket Kısıtlaması", value: "spamRoleMentions", description: "Tek mesajda maksimum 2 rol etiketlemesine izin verir.", default: getSetting(guildId, "spamRoleMentions") },
+                        { label: "Satır Sınırı Koruması", value: "spamMaxLines", description: "Mesajlardaki maksimum satır sayısını 5 ile sınırlar.", default: getSetting(guildId, "spamMaxLines") },
+                        { label: "Karakter Uzunluk Sınırı", value: "spamMaxLength", description: "Mesajlardaki maksimum karakter sayısını 800 ile sınırlar.", default: getSetting(guildId, "spamMaxLength") },
+                        { label: "Süre Kısıtlaması (React)", value: "spamFastReact", description: "Çok hızlı tepki (reaction) spamlarını engeller.", default: getSetting(guildId, "spamFastReact") },
+                        { label: "Çoklu Link Filtresi", value: "spamLinkCount", description: "Tek mesajda maksimum 2 bağlantı paylaşımına izin verir.", default: getSetting(guildId, "spamLinkCount") },
+                        { label: "Mesajı Silme Cezası", value: "spamActionDelete", description: "Spam tespit edildiğinde mesajı otomatik olarak siler.", default: getSetting(guildId, "spamActionDelete") },
+                        { label: "Uyarı Gönderme Cezası", value: "spamActionWarn", description: "Spam tespit edildiğinde kullanıcıyı kanalda uyarır.", default: getSetting(guildId, "spamActionWarn") },
+                        { label: "Susturma (Mute) Cezası", value: "spamActionMute", description: "Spam yapan kullanıcıyı 5 dakika boyunca susturur.", default: getSetting(guildId, "spamActionMute") },
+                        { label: "Sunucudan Atma (Kick)", value: "spamActionKick", description: "Spam yapmaya devam eden kullanıcıyı sunucudan atar.", default: getSetting(guildId, "spamActionKick") },
+                        { label: "Sunucudan Yasaklama (Ban)", value: "spamActionBan", description: "Ciddi spam raidlerinde kullanıcıyı doğrudan banlar.", default: getSetting(guildId, "spamActionBan") },
+                        { label: "Yetkili Rapor Bildirimi", value: "spamActionStaffLog", description: "Spam ihlal detaylarını yetkili log kanalına raporlar.", default: getSetting(guildId, "spamActionStaffLog") },
+                        { label: "Yetkili Muafiyeti", value: "spamAllowStaff", description: "Yöneticileri ve yetkilileri spam engeline karşı muaf tutar.", default: getSetting(guildId, "spamAllowStaff") },
+                        { label: "Kanal Muafiyetleri", value: "spamBypassChannels", description: "Spam serbest kanalları veya bot komut kanallarını muaf tutar.", default: getSetting(guildId, "spamBypassChannels") }
+                    ]);
+                rows.push(new ActionRowBuilder().addComponents(selectSpam));
             } else if (activePage === "raid") {
                 const selectRaidBools = new StringSelectMenuBuilder()
                     .setCustomId("toggle_raid_bools")
@@ -1725,6 +1818,22 @@ ${divider}
                     embeds: [generateEmbed()],
                     components: generateComponents()
                 });
+            } else if (i.customId === "toggle_spam_settings") {
+                const settings = global.guardSettings.get(guildId) || {};
+                const keys = [
+                    "spamBlockAll", "spamDuplicateLimit", "spamMaxMessages", "spamMinTimeBetweenMessages",
+                    "spamCapsPercentage", "spamMaxEmojis", "spamMaxMentions", "spamMaxLines",
+                    "spamMaxLength", "spamRoleMentions", "spamFastReact", "spamLinkCount",
+                    "spamActionDelete", "spamActionWarn", "spamActionMute", "spamActionKick",
+                    "spamActionBan", "spamActionStaffLog", "spamAllowStaff", "spamBypassChannels"
+                ];
+                keys.forEach(k => settings[k] = i.values.includes(k));
+                global.guardSettings.set(guildId, settings);
+                await updateSetting(guildId, "guard_settings", settings);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
             } else if (i.customId === "toggle_raid_bools") {
                 const settings = global.guardSettings.get(guildId) || {};
                 const keys = [
@@ -1971,6 +2080,7 @@ ${divider}
         require("./guards/limits.js")(client);
         require("./guards/chat.js")(client);
         require("./guards/prune.js")(client);
+        require("./guards/spam.js")(client);
     }
 };
 
