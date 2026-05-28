@@ -200,25 +200,95 @@ module.exports = (client) => {
             const entry = logs.entries.first();
             if (!entry || (Date.now() - entry.createdTimestamp) > 8000) return;
 
-            let actionType = "";
-            if (entry.action === AuditLogEvent.WebhookCreate && isFeatureEnabled(guildId, "antiWebhookCreate")) actionType = "Webhook Oluşturma";
-            else if (entry.action === AuditLogEvent.WebhookDelete && isFeatureEnabled(guildId, "antiWebhookDelete")) actionType = "Webhook Silme";
-            else if (entry.action === AuditLogEvent.WebhookUpdate && isFeatureEnabled(guildId, "antiWebhookUpdate")) actionType = "Webhook Güncelleme";
-
-            if (!actionType) return;
-
             const executor = entry.executor;
             if (isWhitelisted(channel.guild, executor.id, "channel")) return;
 
-            increaseThreat(guildId, 15, `Webhook ihlali: ${actionType}`, channel.guild);
-
-            punishAdmin(channel.guild, executor, `İzinsiz ${actionType}`, guildId);
+            const targetId = entry.target.id;
 
             if (entry.action === AuditLogEvent.WebhookCreate) {
-                const webhooks = await channel.fetchWebhooks().catch(() => null);
-                if (webhooks) {
-                    const target = webhooks.first();
-                    if (target) await target.delete().catch(() => {});
+                // Feature 1: antiWebhookCreate
+                if (isFeatureEnabled(guildId, "antiWebhookCreate")) {
+                    increaseThreat(guildId, 20, `Webhook oluşturuldu (Engellendi)`, channel.guild);
+                    punishAdmin(channel.guild, executor, `İzinsiz Webhook Oluşturma`, guildId);
+                    const webhooks = await channel.fetchWebhooks().catch(() => null);
+                    const target = webhooks?.get(targetId);
+                    if (target) await target.delete("Guard | Webhook Oluşturma Engeli").catch(() => {});
+                    return;
+                }
+
+                // Feature 9: webhookLimitPerChannel
+                if (isFeatureEnabled(guildId, "webhookLimitPerChannel")) {
+                    const webhooks = await channel.fetchWebhooks().catch(() => null);
+                    if (webhooks && webhooks.size > 1) {
+                        increaseThreat(guildId, 15, `Kanal webhook limiti aşıldı (Silindi)`, channel.guild);
+                        punishAdmin(channel.guild, executor, `Webhook Limit Aşımı`, guildId);
+                        const target = webhooks.get(targetId);
+                        if (target) await target.delete("Guard | Kanal Webhook Limiti").catch(() => {});
+                        return;
+                    }
+                }
+            }
+
+            if (entry.action === AuditLogEvent.WebhookDelete) {
+                // Feature 2: antiWebhookDelete
+                if (isFeatureEnabled(guildId, "antiWebhookDelete")) {
+                    increaseThreat(guildId, 25, `Webhook silindi (Kurtarıldı)`, channel.guild);
+                    punishAdmin(channel.guild, executor, `İzinsiz Webhook Silme`, guildId);
+                    // Recreate webhook
+                    await channel.createWebhook({
+                        name: entry.target.name || "Kurtarılan Webhook",
+                        avatar: entry.target.avatarURL ? entry.target.avatarURL() : null,
+                        reason: "Guard | Webhook Silme Engeli"
+                    }).catch(() => {});
+                }
+            }
+
+            if (entry.action === AuditLogEvent.WebhookUpdate) {
+                let shouldRevert = false;
+                let reason = "Webhook Güncelleme";
+                let threat = 15;
+
+                // Feature 3: antiWebhookUpdate
+                if (isFeatureEnabled(guildId, "antiWebhookUpdate")) {
+                    shouldRevert = true;
+                    reason = "İzinsiz Webhook Güncelleme";
+                }
+
+                // Feature 7: webhookChannelLock
+                const channelIdChange = entry.changes.find(c => c.key === "channel_id");
+                if (isFeatureEnabled(guildId, "webhookChannelLock") && channelIdChange) {
+                    shouldRevert = true;
+                    reason = "Webhook Kanal Kilidi İhlali";
+                    threat = 20;
+                }
+
+                // Feature 8: webhookAvatarLock
+                const avatarChange = entry.changes.find(c => c.key === "avatar_hash");
+                if (isFeatureEnabled(guildId, "webhookAvatarLock") && avatarChange) {
+                    shouldRevert = true;
+                    reason = "Webhook Avatar Kilidi İhlali";
+                }
+
+                if (shouldRevert) {
+                    increaseThreat(guildId, threat, reason, channel.guild);
+                    punishAdmin(channel.guild, executor, reason, guildId);
+
+                    const webhooks = await channel.fetchWebhooks().catch(() => null);
+                    const target = webhooks?.get(targetId);
+                    if (target) {
+                        const oldName = entry.changes.find(c => c.key === "name")?.old;
+                        const oldChannelId = channelIdChange?.old;
+
+                        let editData = {};
+                        if (oldName) editData.name = oldName;
+                        if (oldChannelId) editData.channel = oldChannelId;
+
+                        if (Object.keys(editData).length > 0) {
+                            await target.edit(editData).catch(() => {});
+                        } else {
+                            await target.delete("Guard | Güvenli Olmayan Güncelleme").catch(() => {});
+                        }
+                    }
                 }
             }
         })();
