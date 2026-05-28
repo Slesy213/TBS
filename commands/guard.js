@@ -69,6 +69,26 @@ const defaultSettings = {
     antiWebhookCreate: false,
     antiWebhookDelete: false,
     antiWebhookUpdate: false,
+    webhookSpamEngel: false,
+    webhookTokenLeakGuard: false,
+    webhookNameFilter: false,
+    webhookChannelLock: false,
+    webhookAvatarLock: false,
+    webhookLimitPerChannel: false,
+    webhookWhitelistOnly: false,
+    webhookImpersonationGuard: false,
+    webhookLinkEngel: false,
+    webhookKufurEngel: false,
+    webhookEveryoneEngel: false,
+    webhookAutonomousLock: false,
+    webhookMessageEditMonitor: false,
+    webhookIpBanList: false,
+    webhookAttachmentGuard: false,
+    webhookContentLengthLimit: false,
+    webhookEmbedSpamGuard: false,
+    webhookThreadPostGuard: false,
+    webhookRoleMentionGuard: false,
+
     antiEmojiCreate: false,
     antiEmojiDelete: false,
     antiEmojiUpdate: false,
@@ -138,6 +158,13 @@ const booleanKeys = [
     "antiRolePositionChange", "antiAdminRoleGiveLimit", "antiOnboardingRoleSpam",
     "antiIntegrationRoleDelete",
     "antiWebhookCreate", "antiWebhookDelete", "antiWebhookUpdate",
+    "webhookSpamEngel", "webhookTokenLeakGuard", "webhookNameFilter",
+    "webhookChannelLock", "webhookAvatarLock", "webhookLimitPerChannel",
+    "webhookWhitelistOnly", "webhookImpersonationGuard", "webhookLinkEngel",
+    "webhookKufurEngel", "webhookEveryoneEngel", "webhookAutonomousLock",
+    "webhookMessageEditMonitor", "webhookIpBanList", "webhookAttachmentGuard",
+    "webhookContentLengthLimit", "webhookEmbedSpamGuard", "webhookThreadPostGuard",
+    "webhookRoleMentionGuard",
     "antiEmojiCreate", "antiEmojiDelete", "antiEmojiUpdate",
     "antiStickerCreate", "antiStickerDelete", "antiStickerUpdate",
     "antiGuildUpdate", "antiBotAdd", "antiIntegrationCreate", "antiPrune",
@@ -549,10 +576,33 @@ ${divider}
 • **Entegrasyon Rolü Silme** :: ${statusEmoji("antiIntegrationRoleDelete")}
 
 **« DİĞER SİSTEM KORUMALARI »**
-• **Webhook Koruması**       :: ${statusEmoji("antiWebhookCreate")}
 • **Anti Bot Ekleme**        :: ${statusEmoji("antiBotAdd")} \`[Bot & Admin Engelleyici]\`
 • **Sunucu Ayarları Koruması**:: ${statusEmoji("antiGuildUpdate")}
 • **Sunucu Budama (Prune)**  :: ${statusEmoji("antiPrune")}
+
+**« WEBHOOK KORUMALARI (22 ÖZELLİK) »**
+• **Webhook Oluşturma**      :: ${statusEmoji("antiWebhookCreate")}
+• **Webhook Güncelleme**      :: ${statusEmoji("antiWebhookUpdate")}
+• **Webhook Silme**           :: ${statusEmoji("antiWebhookDelete")}
+• **Mesaj Spami Engeli**      :: ${statusEmoji("webhookSpamEngel")}
+• **Token Sızıntı Koruması**  :: ${statusEmoji("webhookTokenLeakGuard")}
+• **İsim Filtresi**           :: ${statusEmoji("webhookNameFilter")}
+• **Kanal Kilidi**            :: ${statusEmoji("webhookChannelLock")}
+• **Avatar Kilidi**           :: ${statusEmoji("webhookAvatarLock")}
+• **Kanal Başı Limit**        :: ${statusEmoji("webhookLimitPerChannel")}
+• **Yalnızca Güvenli Liste**  :: ${statusEmoji("webhookWhitelistOnly")}
+• **Taklit (İmmitasyon) Engeli**:: ${statusEmoji("webhookImpersonationGuard")}
+• **Link Engeli**             :: ${statusEmoji("webhookLinkEngel")}
+• **Küfür Engeli**            :: ${statusEmoji("webhookKufurEngel")}
+• **Everyone Engeli**         :: ${statusEmoji("webhookEveryoneEngel")}
+• **Otonom Kilit**            :: ${statusEmoji("webhookAutonomousLock")}
+• **Düzenleme Takibi**        :: ${statusEmoji("webhookMessageEditMonitor")}
+• **Şüpheli Link/IP Engeli**   :: ${statusEmoji("webhookIpBanList")}
+• **Zararlı Ek Koruması**     :: ${statusEmoji("webhookAttachmentGuard")}
+• **Karakter Sınırı**         :: ${statusEmoji("webhookContentLengthLimit")}
+• **Embed İstismar Engeli**   :: ${statusEmoji("webhookEmbedSpamGuard")}
+• **Başlık Koruması**         :: ${statusEmoji("webhookThreadPostGuard")}
+• **Rol Etiket Engeli**       :: ${statusEmoji("webhookRoleMentionGuard")}
 ${divider}
 *İstediğiniz koruma kategorisini yapılandırmak için aşağıdaki açılır menüleri kullanın.*`);
             }
@@ -734,13 +784,42 @@ ${divider}
                         { label: "Entegrasyon Rolü Silme", value: "antiIntegrationRoleDelete", description: "Silinen entegrasyon rollerini kurtarır.", default: getSetting(guildId, "antiIntegrationRoleDelete") }
                     ]);
 
+                const selectWebhooks = new StringSelectMenuBuilder()
+                    .setCustomId("toggle_webhooks")
+                    .setPlaceholder("⚡ Webhook Korumalarını Seçin (Çoklu Seçim)")
+                    .setMinValues(0)
+                    .setMaxValues(22)
+                    .addOptions([
+                        { label: "Webhook Oluşturma Engeli", value: "antiWebhookCreate", description: "İzinsiz webhook açılmasını engeller & siler.", default: getSetting(guildId, "antiWebhookCreate") },
+                        { label: "Webhook Güncelleme Engeli", value: "antiWebhookUpdate", description: "Webhook ayarlarının değiştirilmesini engeller & geri döndürür.", default: getSetting(guildId, "antiWebhookUpdate") },
+                        { label: "Webhook Silme Engeli", value: "antiWebhookDelete", description: "Silinen webhookları otomatik olarak geri açar.", default: getSetting(guildId, "antiWebhookDelete") },
+                        { label: "Mesaj Spami Engeli", value: "webhookSpamEngel", description: "Webhook hızlı mesaj spamlerini siler & durdurur.", default: getSetting(guildId, "webhookSpamEngel") },
+                        { label: "Token Sızıntı Koruması", value: "webhookTokenLeakGuard", description: "Leaked webhook tokenlarını discorddan silerek iptal eder.", default: getSetting(guildId, "webhookTokenLeakGuard") },
+                        { label: "İsim Filtresi", value: "webhookNameFilter", description: "Webhook isimlerindeki küfür/reklamları engeller.", default: getSetting(guildId, "webhookNameFilter") },
+                        { label: "Kanal Kilidi", value: "webhookChannelLock", description: "Webhookların farklı kanallarda paylaşım yapmasını engeller.", default: getSetting(guildId, "webhookChannelLock") },
+                        { label: "Avatar Kilidi", value: "webhookAvatarLock", description: "Boş avatar veya avatar değişimlerini engeller.", default: getSetting(guildId, "webhookAvatarLock") },
+                        { label: "Kanal Başı Limit", value: "webhookLimitPerChannel", description: "Kanal başına webhook sınırını aşanları siler.", default: getSetting(guildId, "webhookLimitPerChannel") },
+                        { label: "Yalnızca Güvenli Liste", value: "webhookWhitelistOnly", description: "Güvenli listede olmayanların webhooklarını engeller.", default: getSetting(guildId, "webhookWhitelistOnly") },
+                        { label: "Taklit (İmmitasyon) Engeli", value: "webhookImpersonationGuard", description: "Yetkili/Bot isimlerini taklit eden webhookları engeller.", default: getSetting(guildId, "webhookImpersonationGuard") },
+                        { label: "Link Engeli", value: "webhookLinkEngel", description: "Webhook mesajlarındaki linkleri engeller.", default: getSetting(guildId, "webhookLinkEngel") },
+                        { label: "Küfür Engeli", value: "webhookKufurEngel", description: "Webhook mesajlarındaki küfürleri engeller.", default: getSetting(guildId, "webhookKufurEngel") },
+                        { label: "Everyone Engeli", value: "webhookEveryoneEngel", description: "Webhookların @everyone / @here etiketlerini engeller.", default: getSetting(guildId, "webhookEveryoneEngel") },
+                        { label: "Otonom Kilit", value: "webhookAutonomousLock", description: "Saldırı/Raid anında tüm webhookları kilitler.", default: getSetting(guildId, "webhookAutonomousLock") },
+                        { label: "Düzenleme Takibi", value: "webhookMessageEditMonitor", description: "Düzenlenen webhook mesajlarını tekrar filtreler.", default: getSetting(guildId, "webhookMessageEditMonitor") },
+                        { label: "Şüpheli Link/IP Engeli", value: "webhookIpBanList", description: "Phishing ve IP Logger linklerini engeller.", default: getSetting(guildId, "webhookIpBanList") },
+                        { label: "Zararlı Ek Koruması", value: "webhookAttachmentGuard", description: "Zararlı dosyaları (.exe, .scr) ve aşırı ekleri engeller.", default: getSetting(guildId, "webhookAttachmentGuard") },
+                        { label: "Karakter Sınırı", value: "webhookContentLengthLimit", description: "Wall-of-text ve çoklu satır spamlerini engeller.", default: getSetting(guildId, "webhookContentLengthLimit") },
+                        { label: "Embed İstismar Engeli", value: "webhookEmbedSpamGuard", description: "Aşırı zengin içerik/embed spamlerini engeller.", default: getSetting(guildId, "webhookEmbedSpamGuard") },
+                        { label: "Başlık Koruması", value: "webhookThreadPostGuard", description: "Alt forum başlıklarında webhook kullanımını engeller.", default: getSetting(guildId, "webhookThreadPostGuard") },
+                        { label: "Rol Etiket Engeli", value: "webhookRoleMentionGuard", description: "Yetkili ve staff rollerini etiketlemesini engeller.", default: getSetting(guildId, "webhookRoleMentionGuard") }
+                    ]);
+
                 const selectOther = new StringSelectMenuBuilder()
                     .setCustomId("toggle_server_other")
                     .setPlaceholder("⚙️ Diğer Sistem Korumalarını Seçin (Çoklu Seçim)")
                     .setMinValues(0)
-                    .setMaxValues(4)
+                    .setMaxValues(3)
                     .addOptions([
-                        { label: "Webhook Koruması", value: "antiWebhookCreate", description: "Webhook açılınca siler & engeller.", default: getSetting(guildId, "antiWebhookCreate") },
                         { label: "Anti-Bot Ekleme", value: "antiBotAdd", description: "İzinsiz botları atar & ekleyeni engeller.", default: getSetting(guildId, "antiBotAdd") },
                         { label: "Sunucu Ayarları Koruması", value: "antiGuildUpdate", description: "Sunucu ayarlarını geri yükler.", default: getSetting(guildId, "antiGuildUpdate") },
                         { label: "Sunucu Budama (Prune) Engeli", value: "antiPrune", description: "Toplu üye budamalarını engeller.", default: getSetting(guildId, "antiPrune") }
@@ -748,6 +827,7 @@ ${divider}
 
                 rows.push(new ActionRowBuilder().addComponents(selectChannels));
                 rows.push(new ActionRowBuilder().addComponents(selectRoles));
+                rows.push(new ActionRowBuilder().addComponents(selectWebhooks));
                 rows.push(new ActionRowBuilder().addComponents(selectOther));
             } else if (activePage === "chat") {
                 const selectChat = new StringSelectMenuBuilder()
@@ -929,10 +1009,29 @@ ${divider}
                     embeds: [generateEmbed()],
                     components: generateComponents()
                 });
+            } else if (i.customId === "toggle_webhooks") {
+                const settings = global.guardSettings.get(guildId) || {};
+                const keys = [
+                    "antiWebhookCreate", "antiWebhookDelete", "antiWebhookUpdate",
+                    "webhookSpamEngel", "webhookTokenLeakGuard", "webhookNameFilter",
+                    "webhookChannelLock", "webhookAvatarLock", "webhookLimitPerChannel",
+                    "webhookWhitelistOnly", "webhookImpersonationGuard", "webhookLinkEngel",
+                    "webhookKufurEngel", "webhookEveryoneEngel", "webhookAutonomousLock",
+                    "webhookMessageEditMonitor", "webhookIpBanList", "webhookAttachmentGuard",
+                    "webhookContentLengthLimit", "webhookEmbedSpamGuard", "webhookThreadPostGuard",
+                    "webhookRoleMentionGuard"
+                ];
+                keys.forEach(k => settings[k] = i.values.includes(k));
+                global.guardSettings.set(guildId, settings);
+                await updateSetting(guildId, "guard_settings", settings);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
             } else if (i.customId === "toggle_server_other") {
                 const settings = global.guardSettings.get(guildId) || {};
                 const keys = [
-                    "antiWebhookCreate", "antiBotAdd", "antiGuildUpdate", "antiPrune"
+                    "antiBotAdd", "antiGuildUpdate", "antiPrune"
                 ];
                 keys.forEach(k => settings[k] = i.values.includes(k));
                 global.guardSettings.set(guildId, settings);
