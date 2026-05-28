@@ -405,26 +405,48 @@ function isFeatureEnabled(guildId, featureKey) {
     if (getSetting(guildId, "autonomousMode")) {
         const threat = global.guildThreatLevels.get(guildId) || 0;
 
-        // Level 3 (Attack/Raid): > 70
+        // Level 3 (Attack/Raid - Kritik Tehdit): > 70
+        // Bot tamamen kilit moduna geçer, sert eylemler ve kısıtlamalar başlatır.
         if (threat >= 70) {
-            if ([
-                "raidGuard", "buttonVerification", "antiChannelCreate", "antiRoleCreate",
-                "linkBlockAll", "linkBlockInvites", "everyoneHereEngel", "autoQuarantine"
-            ].includes(featureKey)) {
+            const level3Features = [
+                // Anti-Raid & Giriş Karantinası
+                "raidGuard", "buttonVerification", "autoQuarantine",
+                
+                // Sunucu Bütünlüğü (Kanal, Rol, Webhook ve Bot Kilitleri)
+                "antiChannelCreate", "antiChannelDelete", "antiRoleCreate", "antiRoleDelete",
+                "antiWebhookCreate", "antiWebhookDelete", "antiWebhookUpdate", "webhookSpamEngel", "webhookAutonomousLock",
+                "antiBotAdd", "antiBotLockdown", "antiPrune", "antiPruneLockdownOnPrune", "antiGuildUpdate",
+                
+                // Sohbet, Link & Spam (Katı Kilit ve Cezalar)
+                "linkBlockAll", "linkBlockInvites", "kufurBlockAll", "everyoneHereEngel",
+                "spamBlockAll", "spamDuplicateLimit", "spamMaxMessages", "spamMaxEmojis", "spamMaxMentions", "spamMinTimeBetweenMessages",
+                "spamActionDelete", "spamActionWarn", "spamActionMute", "spamActionKick"
+            ];
+            
+            if (level3Features.includes(featureKey)) {
                 return true;
             }
         }
 
-        // Level 2 (Suspicious Activity): > 35
+        // Level 2 (Suspicious Activity - Şüpheli Hareket): > 35
+        // Bot hafif spam ve sohbet istismarlarını durdurmak için önlemler alır.
         if (threat >= 35) {
-            if ([
-                "linkBlockAll", "linkBlockInvites", "kufurBlockAll", "argoEngel",
-                "emojiSpamEngel", "mentionSpamEngel"
-            ].includes(featureKey)) {
+            const level2Features = [
+                // İçerik Korumaları
+                "linkBlockAll", "linkBlockInvites", "kufurBlockAll", "argoEngel", "everyoneHereEngel",
+                
+                // Yeni Spam Korumaları (Eski emoji/mention engellerinin yerine)
+                "spamBlockAll", "spamMaxEmojis", "spamMaxMentions", "spamDuplicateLimit", 
+                "spamActionDelete", "spamActionWarn"
+            ];
+            
+            if (level2Features.includes(featureKey)) {
                 return true;
             }
         }
     }
+    
+    // Eğer Otonom mod devrede değilse veya eşiklere ulaşılmadıysa normal ayarı döndür.
     return getSetting(guildId, featureKey);
 }
 
