@@ -239,6 +239,8 @@ module.exports = {
 
   async _kanalAc(interaction, tur) {
 
+    await interaction.deferReply({ ephemeral: true });
+
     const guild = interaction.guild;
     const user  = interaction.user;
     const guildId = guild.id;
@@ -373,7 +375,7 @@ module.exports = {
       });
     }
 
-    await interaction.reply({
+    await interaction.editReply({
       content:
         `✅ Ticket oluşturuldu → <#${kanal.id}>`,
       ephemeral: true,
@@ -466,6 +468,8 @@ module.exports = {
 
   async handleKapat(interaction) {
 
+    await interaction.deferReply();
+
     const kanal = interaction.channel;
     const guildId = interaction.guild.id;
     const ticketLogKanal = global.ticketLogKanals.get(guildId);
@@ -505,7 +509,7 @@ module.exports = {
       )
       .setTimestamp();
 
-    await interaction.reply({
+    await interaction.editReply({
       embeds: [embed]
     });
 
