@@ -137,7 +137,7 @@ module.exports = (client) => {
         await actionStaffLog(message, reason, details || "Otomatik tespit");
 
         // Increase threat
-        increaseThreat(guildId, 15);
+        increaseThreat(guildId, 15, reason, message.guild);
     }
 
     // ════════════════════════════════════════════
@@ -364,10 +364,10 @@ module.exports = (client) => {
                     .setTimestamp();
 
                 if (isFeatureEnabled(guildId, "spamActionStaffLog")) {
-                    sendGuardLog(reaction.message.guild, embed);
-                }
+    sendGuardLog(reaction.message.guild, embed);
+}
 
-                increaseThreat(guildId, 5);
+increaseThreat(guildId, 5, "Hızlı Reaksiyon Spamı", reaction.message.guild);
             }
         } catch(e) { /* ignore */ }
     });
