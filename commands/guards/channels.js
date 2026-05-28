@@ -1,10 +1,11 @@
-const { AuditLogEvent } = require("discord.js");
+const { AuditLogEvent, ChannelType } = require("discord.js");
 const { 
     isFeatureEnabled, 
     getAuditLogEntry, 
     punishAdmin, 
     increaseThreat, 
-    isWhitelisted 
+    isWhitelisted,
+    getSetting
 } = require("../guard.js");
 
 module.exports = (client) => {
@@ -13,10 +14,24 @@ module.exports = (client) => {
         if (!channel.guild) return;
         const guildId = channel.guild.id;
         if (!global.guardDurums.get(guildId)) return;
-        if (!isFeatureEnabled(guildId, "antiChannelCreate")) return;
+
+        let shouldRevert = false;
+        let reason = "İzinsiz Kanal Oluşturma";
+
+        if (isFeatureEnabled(guildId, "antiChannelCreate")) {
+            shouldRevert = true;
+        }
+
+        // Anti Channel Clone Detection
+        if (isFeatureEnabled(guildId, "antiChannelClone") && channel.name.endsWith("-copy")) {
+            shouldRevert = true;
+            reason = "Kanal Klonlama Engeli";
+        }
+
+        if (!shouldRevert) return;
 
         // Non-blocking action
-        const deletePromise = channel.delete("Guard | İzinsiz Kanal Oluşturma").catch(() => {});
+        const deletePromise = channel.delete("Guard | " + reason).catch(() => {});
 
         (async () => {
             const entry = await getAuditLogEntry(channel.guild, AuditLogEvent.ChannelCreate);
@@ -24,9 +39,9 @@ module.exports = (client) => {
             const executor = entry.executor;
             if (isWhitelisted(channel.guild, executor.id, "channel")) return;
 
-            increaseThreat(guildId, 20, `Kanal oluşturuldu: ${channel.name}`, channel.guild);
+            increaseThreat(guildId, 20, `${reason}: ${channel.name}`, channel.guild);
             await deletePromise;
-            await punishAdmin(channel.guild, executor, "İzinsiz Kanal Oluşturma", guildId);
+            await punishAdmin(channel.guild, executor, reason, guildId);
         })();
     });
 
@@ -35,7 +50,21 @@ module.exports = (client) => {
         if (!channel.guild) return;
         const guildId = channel.guild.id;
         if (!global.guardDurums.get(guildId)) return;
-        if (!isFeatureEnabled(guildId, "antiChannelDelete")) return;
+
+        let shouldRestore = false;
+        let reason = "İzinsiz Kanal Silme";
+
+        if (isFeatureEnabled(guildId, "antiChannelDelete")) {
+            shouldRestore = true;
+        }
+
+        // Category Delete Protection
+        if (channel.type === ChannelType.GuildCategory && isFeatureEnabled(guildId, "antiCategoryDelete")) {
+            shouldRestore = true;
+            reason = "Kategori Silme Engeli";
+        }
+
+        if (!shouldRestore) return;
 
         (async () => {
             const entry = await getAuditLogEntry(channel.guild, AuditLogEvent.ChannelDelete);
@@ -43,12 +72,12 @@ module.exports = (client) => {
             const executor = entry.executor;
             if (isWhitelisted(channel.guild, executor.id, "channel")) return;
 
-            increaseThreat(guildId, 25, `Kanal silindi: ${channel.name}`, channel.guild);
+            increaseThreat(guildId, 25, `${reason}: ${channel.name}`, channel.guild);
 
-            punishAdmin(channel.guild, executor, "İzinsiz Kanal Silme", guildId);
+            punishAdmin(channel.guild, executor, reason, guildId);
 
             // Restore channel (Preserving Category and Overwrites)
-            await channel.guild.channels.create({
+            const restored = await channel.guild.channels.create({
                 name: channel.name,
                 type: channel.type,
                 parent: channel.parentId,
@@ -63,7 +92,15 @@ module.exports = (client) => {
                     allow: o.allow.toArray(),
                     deny: o.deny.toArray()
                 }))
-            }).catch(() => {});
+            }).catch(() => null);
+
+            // Re-parent orphaned channels if a category was deleted
+            if (channel.type === ChannelType.GuildCategory && restored) {
+                const orphanedChannels = channel.guild.channels.cache.filter(c => c.parentId === channel.id);
+                for (const [id, orphan] of orphanedChannels) {
+                    await orphan.setParent(restored.id, { lockPermissions: false }).catch(() => {});
+                }
+            }
         })();
     });
 
@@ -72,7 +109,6 @@ module.exports = (client) => {
         if (!newChannel.guild) return;
         const guildId = newChannel.guild.id;
         if (!global.guardDurums.get(guildId)) return;
-        if (!isFeatureEnabled(guildId, "antiChannelUpdate")) return;
 
         (async () => {
             const entry = await getAuditLogEntry(newChannel.guild, AuditLogEvent.ChannelUpdate);
@@ -80,9 +116,60 @@ module.exports = (client) => {
             const executor = entry.executor;
             if (isWhitelisted(newChannel.guild, executor.id, "channel")) return;
 
-            increaseThreat(guildId, 15, `Kanal güncellendi: ${newChannel.name}`, newChannel.guild);
+            let shouldRevert = false;
+            let reason = "Kanal Güncelleme";
 
-            punishAdmin(newChannel.guild, executor, "İzinsiz Kanal Güncelleme", guildId);
+            if (isFeatureEnabled(guildId, "antiChannelUpdate")) {
+                shouldRevert = true;
+            }
+
+            // Anti Overwrite Clear
+            if (isFeatureEnabled(guildId, "antiChannelOverwriteClear") && oldChannel.permissionOverwrites.cache.size > 0 && newChannel.permissionOverwrites.cache.size === 0) {
+                shouldRevert = true;
+                reason = "İzin Sıfırlama Engeli";
+            }
+
+            // Anti Slowmode Change
+            if (isFeatureEnabled(guildId, "antiChannelSlowmodeChange") && oldChannel.rateLimitPerUser !== newChannel.rateLimitPerUser) {
+                shouldRevert = true;
+                reason = "Yavaş Mod Değişim Koruması";
+            }
+
+            // Anti NSFW Disable
+            if (isFeatureEnabled(guildId, "antiNSFWDisable") && oldChannel.nsfw && !newChannel.nsfw) {
+                shouldRevert = true;
+                reason = "NSFW Kapatma Koruması";
+            }
+
+            // Anti Name Spam
+            if (isFeatureEnabled(guildId, "antiChannelNameSpam") && oldChannel.name !== newChannel.name) {
+                shouldRevert = true;
+                reason = "Kanal Adı Değişikliği";
+            }
+
+            // Anti Voice Bitrate
+            if (isFeatureEnabled(guildId, "antiVoiceBitrateSpam") && oldChannel.bitrate !== newChannel.bitrate) {
+                shouldRevert = true;
+                reason = "Ses Kanalı Bitrate Koruması";
+            }
+
+            // Anti Voice Limit
+            if (isFeatureEnabled(guildId, "antiVoiceLimitChange") && oldChannel.userLimit !== newChannel.userLimit) {
+                shouldRevert = true;
+                reason = "Ses Kanalı Üye Limiti Koruması";
+            }
+
+            // Stage Channel Spam
+            if (isFeatureEnabled(guildId, "antiStageChannelSpam") && newChannel.type === ChannelType.GuildStageVoice) {
+                shouldRevert = true;
+                reason = "Kürsü Kanalı İstismarı Engeli";
+            }
+
+            if (!shouldRevert) return;
+
+            increaseThreat(guildId, 15, `${reason}: ${newChannel.name}`, newChannel.guild);
+
+            punishAdmin(newChannel.guild, executor, reason, guildId);
 
             await newChannel.edit({
                 name: oldChannel.name,
