@@ -118,6 +118,35 @@ const defaultSettings = {
     antiBotIntegrityLogs: false,
     antiIntegrationCreate: false,
     antiPrune: false,
+    antiGuildNameUpdate: false,
+    antiGuildIconUpdate: false,
+    antiGuildBannerUpdate: false,
+    antiGuildSplashUpdate: false,
+    antiGuildVerificationLevelUpdate: false,
+    antiGuildContentFilterUpdate: false,
+    antiGuildWidgetUpdate: false,
+    antiGuildSystemChannelUpdate: false,
+    antiGuildRulesChannelUpdate: false,
+    antiGuildUpdatesChannelUpdate: false,
+    antiGuildMfaLevelUpdate: false,
+    antiGuildVanityUrlUpdate: false,
+    antiGuildFeatureRevertLock: false,
+    antiGuildActionOwnerAlert: false,
+
+    antiPruneBlockAll: false,
+    antiPruneLimitDays: false,
+    antiPruneMinRoles: false,
+    antiPruneActionBanExecutor: false,
+    antiPruneActionKickExecutor: false,
+    antiPruneActionStripRoles: false,
+    antiPruneLockdownOnPrune: false,
+    antiPruneThreatMax: false,
+    antiPruneOwnerNotification: false,
+    antiPruneLogStaff: false,
+    antiPruneRoleRecoveryTracker: false,
+    antiPruneTimeLimit: false,
+    antiPruneAuditDoubleCheck: false,
+    antiPruneIntegrityQuarantine: false,
 
     // Category 2: Chat & Content Security
     linkBlockAll: false,
@@ -269,6 +298,14 @@ const booleanKeys = [
     "antiBotBlockPublicBots", "antiBotScanCommandNameSpam", "antiBotAuditLogCompare", "antiBotAutonomousBypass",
     "antiBotAdminRoleAlert", "antiBotBlockTokenLeaks", "antiBotChannelRestriction", "antiBotIntegrityLogs",
     "antiIntegrationCreate", "antiPrune",
+    "antiGuildNameUpdate", "antiGuildIconUpdate", "antiGuildBannerUpdate", "antiGuildSplashUpdate",
+    "antiGuildVerificationLevelUpdate", "antiGuildContentFilterUpdate", "antiGuildWidgetUpdate", "antiGuildSystemChannelUpdate",
+    "antiGuildRulesChannelUpdate", "antiGuildUpdatesChannelUpdate", "antiGuildMfaLevelUpdate", "antiGuildVanityUrlUpdate",
+    "antiGuildFeatureRevertLock", "antiGuildActionOwnerAlert",
+    "antiPruneBlockAll", "antiPruneLimitDays", "antiPruneMinRoles", "antiPruneActionBanExecutor",
+    "antiPruneActionKickExecutor", "antiPruneActionStripRoles", "antiPruneLockdownOnPrune", "antiPruneThreatMax",
+    "antiPruneOwnerNotification", "antiPruneLogStaff", "antiPruneRoleRecoveryTracker", "antiPruneTimeLimit",
+    "antiPruneAuditDoubleCheck", "antiPruneIntegrityQuarantine",
     "linkBlockAll", "linkBlockInvites", "linkBlockHttpsOnly", "linkBlockHttpOnly",
     "linkBlockIPLinks", "linkBlockSubdomains", "linkBlockShorteners", "linkBlockPhishing",
     "linkBlockIpLoggers", "linkBlockAdultContent", "linkBlockDownloads", "linkBlockMalware",
@@ -707,9 +744,9 @@ ${divider}
 • **Entegrasyon Rolü Silme** :: ${statusEmoji("antiIntegrationRoleDelete")}
 
 **« DİĞER SİSTEM KORUMALARI »**
-• **Anti Bot Ekleme**        :: ${statusEmoji("antiBotAdd")} \`[/guard -> Anti-Bot Koruması]\`
-• **Sunucu Ayarları Koruması**:: ${statusEmoji("antiGuildUpdate")}
-• **Sunucu Budama (Prune)**  :: ${statusEmoji("antiPrune")}
+• **Anti-Bot Koruması**      :: \`[/guard -> Anti-Bot Koruması (20 Özellik)]\`
+• **Sunucu Ayarları Koruması**:: \`[/guard -> Sunucu Ayarları (15 Özellik)]\`
+• **Prune / Budama Koruması**:: \`[/guard -> Budama Koruması (15 Özellik)]\`
 
 **« WEBHOOK KORUMALARI (22 ÖZELLİK) »**
 • **Webhook Oluşturma**      :: ${statusEmoji("antiWebhookCreate")}
@@ -903,6 +940,68 @@ ${divider}
 *İstediğiniz anti-bot korumasını veya denetim davranışını yapılandırmak için aşağıdaki seçim menüsünü kullanın.*`);
             }
 
+            if (activePage === "guild") {
+                return new EmbedBuilder()
+                    .setColor(0x2B2D31)
+                    .setTitle("🖥️ Sunucu Ayarları Koruması (15 Özellik)")
+                    .setDescription(`
+${divider}
+**« TEMEL GÖRSEL KİLİTLERİ »**
+• **Genel Engel**            :: ${statusEmoji("antiGuildUpdate")}
+• **Sunucu İsmi Koruması**    :: ${statusEmoji("antiGuildNameUpdate")}
+• **Sunucu İkon Koruması**    :: ${statusEmoji("antiGuildIconUpdate")}
+• **Banner Resmi Koruması**   :: ${statusEmoji("antiGuildBannerUpdate")}
+• **Giriş Resmi Koruması**    :: ${statusEmoji("antiGuildSplashUpdate")}
+
+**« GÜVENLİK VE DENETİM DÜZEYLERİ »**
+• **Doğrulama Düzeyi Koruması**:: ${statusEmoji("antiGuildVerificationLevelUpdate")}
+• **Medya Filtresi Koruması** :: ${statusEmoji("antiGuildContentFilterUpdate")}
+• **Sunucu Widget Koruması**  :: ${statusEmoji("antiGuildWidgetUpdate")}
+• **MFA İki Faktör Kilidi**   :: ${statusEmoji("antiGuildMfaLevelUpdate")}
+
+**« KANALLAR VE ÖZEL URL KORUMALARI »**
+• **Sistem Kanalı Koruması**  :: ${statusEmoji("antiGuildSystemChannelUpdate")}
+• **Kurallar Kanalı Koruması**:: ${statusEmoji("antiGuildRulesChannelUpdate")}
+• **Güncellemeler Kanalı**    :: ${statusEmoji("antiGuildUpdatesChannelUpdate")}
+• **Özel Davet URL Koruması** :: ${statusEmoji("antiGuildVanityUrlUpdate")} \`[Vanity Hijacking Engeli]\`
+
+**« KİLİTLEME VE BİLDİRİMLER »**
+• **Çoklu Değişim Kilidi**    :: ${statusEmoji("antiGuildFeatureRevertLock")} \`[Maks 3 Eylem / 5 Sn]\`
+• **Detaylı Sahip Bildirimi** :: ${statusEmoji("antiGuildActionOwnerAlert")} \`[Sahibe DM Gönderir]\`
+${divider}
+*Sunucu ayarlarını korumak ve izinsiz değişiklikleri geri döndürmek için aşağıdaki seçim menüsünü kullanın.*`);
+            }
+
+            if (activePage === "prune") {
+                return new EmbedBuilder()
+                    .setColor(0x2B2D31)
+                    .setTitle(" Budama & Prune Koruması (15 Özellik)")
+                    .setDescription(`
+${divider}
+**« SİSTEM KİLİTLERİ VE FİLTRELER »**
+• **Genel Engel**            :: ${statusEmoji("antiPrune")}
+• **Prune İşlemi Bloklama**   :: ${statusEmoji("antiPruneBlockAll")}
+• **Budama Gün Sınırı**       :: ${statusEmoji("antiPruneLimitDays")} \`[Maks 30 Gün]\`
+• **Budama Rol Filtresi**     :: ${statusEmoji("antiPruneMinRoles")} \`[Rol Seçimi Zorunlu]\`
+• **Süre Kısıtlaması**        :: ${statusEmoji("antiPruneTimeLimit")} \`[Gece Saldırı Koruması]\`
+
+**« DENETİM VE KİLİT SİSTEMLERİ »**
+• **Sunucu Kanalları Kilidi** :: ${statusEmoji("antiPruneLockdownOnPrune")}
+• **Tehdit Derecesi Karantina**:: ${statusEmoji("antiPruneThreatMax")} \`[Tehdit Seviyesi %100]\`
+• **Karantina Alt Yetkililer**:: ${statusEmoji("antiPruneIntegrityQuarantine")} \`[Yetkilileri Dondurur]\`
+• **Çift Denetim Modu**       :: ${statusEmoji("antiPruneAuditDoubleCheck")}
+• **Rol Silme Bypass Taraması**:: ${statusEmoji("antiPruneRoleRecoveryTracker")}
+
+**« CEZALANDIRMA VE BİLDİRİMLER »**
+• **Ekleyeni Sunucudan At**    :: ${statusEmoji("antiPruneActionKickExecutor")}
+• **Ekleyeni Sunucudan Banla** :: ${statusEmoji("antiPruneActionBanExecutor")}
+• **Rolleri Temizleme Modu**  :: ${statusEmoji("antiPruneActionStripRoles")}
+• **Detaylı Sahip Bildirimi** :: ${statusEmoji("antiPruneOwnerNotification")} \`[Sahibe DM Gönderir]\`
+• **Gelişmiş Rapor Günlüğü**  :: ${statusEmoji("antiPruneLogStaff")}
+${divider}
+*Mass prune (budama) saldırılarını engellemek ve izinsiz tetikleyen yöneticileri engellemek için aşağıdaki seçim menüsünü kullanın.*`);
+            }
+
             if (activePage === "raid") {
                 const limitDays = getSetting(guildId, "accountAgeLimit");
                 const limitRejoins = getSetting(guildId, "raidLimit");
@@ -995,6 +1094,8 @@ ${divider}
                     .addOptions([
                         { label: "🛡️ Ana Sayfa / Genel Durum", value: "page_main", description: "Genel sunucu ve otonom koruma durumu.", default: activePage === "main" },
                         { label: "🖥️ Sunucu Bütünlüğü Korumaları", value: "page_server", description: "Kanal, rol ve webhook korumaları.", default: activePage === "server" },
+                        { label: "🖥️ Sunucu Ayarları (15 Özellik)", value: "page_guild", description: "Sunucu ismi, resmi, ban/vanity ayarları.", default: activePage === "guild" },
+                        { label: " Prune / Budama (15 Özellik)", value: "page_prune", description: "Toplu üye budama ve engelleme limitleri.", default: activePage === "prune" },
                         { label: "💬 Sohbet & İçerik Korumaları", value: "page_chat", description: "Küfür, link ve spam engelleri.", default: activePage === "chat" },
                         { label: "🔗 Link Engel Koruması (40 Özellik)", value: "page_links", description: "Link türleri, muafiyetler ve cezalar.", default: activePage === "links" },
                         { label: "🤬 Küfür Engel Koruması (40 Özellik)", value: "page_kufur", description: "Küfür, hakaret ve bypass engelleri.", default: activePage === "kufur" },
@@ -1261,6 +1362,54 @@ ${divider}
                         { label: "İstikrar Günlüğü", value: "antiBotIntegrityLogs", description: "Botun ilk 24 saatteki hareketlerini takip eder.", default: getSetting(guildId, "antiBotIntegrityLogs") }
                     ]);
                 rows.push(new ActionRowBuilder().addComponents(selectAntiBot));
+            } else if (activePage === "guild") {
+                const selectGuild = new StringSelectMenuBuilder()
+                    .setCustomId("toggle_guild_settings")
+                    .setPlaceholder("🖥️ Sunucu Ayarları Korumalarını Seçin")
+                    .setMinValues(0)
+                    .setMaxValues(15)
+                    .addOptions([
+                        { label: "Genel Engel", value: "antiGuildUpdate", description: "Ayarların değiştirilmesini engeller.", default: getSetting(guildId, "antiGuildUpdate") },
+                        { label: "Sunucu İsmi Koruması", value: "antiGuildNameUpdate", description: "İsim değişikliklerini eskiye döndürür.", default: getSetting(guildId, "antiGuildNameUpdate") },
+                        { label: "Sunucu İkon Koruması", value: "antiGuildIconUpdate", description: "Profil ikon değişikliklerini geri alır.", default: getSetting(guildId, "antiGuildIconUpdate") },
+                        { label: "Banner Resmi Koruması", value: "antiGuildBannerUpdate", description: "Banner resminin değiştirilmesini geri alır.", default: getSetting(guildId, "antiGuildBannerUpdate") },
+                        { label: "Splash Resmi Koruması", value: "antiGuildSplashUpdate", description: "Davet arka plan resmini geri yükler.", default: getSetting(guildId, "antiGuildSplashUpdate") },
+                        { label: "Doğrulama Seviyesi", value: "antiGuildVerificationLevelUpdate", description: "Doğrulama düzeyi değişimlerini engeller.", default: getSetting(guildId, "antiGuildVerificationLevelUpdate") },
+                        { label: "Medya İçerik Filtresi", value: "antiGuildContentFilterUpdate", description: "Aşırı görsel tarayıcı değişimini engeller.", default: getSetting(guildId, "antiGuildContentFilterUpdate") },
+                        { label: "Widget Koruması", value: "antiGuildWidgetUpdate", description: "Sunucu widget değişimlerini geri alır.", default: getSetting(guildId, "antiGuildWidgetUpdate") },
+                        { label: "Sistem Kanalı Koruması", value: "antiGuildSystemChannelUpdate", description: "Sistem kanalı değişimini engeller.", default: getSetting(guildId, "antiGuildSystemChannelUpdate") },
+                        { label: "Kurallar Kanalı Koruması", value: "antiGuildRulesChannelUpdate", description: "Kurallar kanalı değişimini geri alır.", default: getSetting(guildId, "antiGuildRulesChannelUpdate") },
+                        { label: "Topluluk Güncelleme Kanalı", value: "antiGuildUpdatesChannelUpdate", description: "Community updates kanalı değişimini engeller.", default: getSetting(guildId, "antiGuildUpdatesChannelUpdate") },
+                        { label: "MFA Yetki Kilidi", value: "antiGuildMfaLevelUpdate", description: "İki faktörlü kimlik doğrulama değişimlerini engeller.", default: getSetting(guildId, "antiGuildMfaLevelUpdate") },
+                        { label: "Özel URL (Vanity) Koruması", value: "antiGuildVanityUrlUpdate", description: "Custom URL çalınmalarını anında geri alır.", default: getSetting(guildId, "antiGuildVanityUrlUpdate") },
+                        { label: "Çoklu Eylem Kilidi", value: "antiGuildFeatureRevertLock", description: "Hızlı yapılan spam değişimlerde kilit atar.", default: getSetting(guildId, "antiGuildFeatureRevertLock") },
+                        { label: "Sahip DM Bildirimi", value: "antiGuildActionOwnerAlert", description: "Değişikliklerin diff raporunu sahibe DM atar.", default: getSetting(guildId, "antiGuildActionOwnerAlert") }
+                    ]);
+                rows.push(new ActionRowBuilder().addComponents(selectGuild));
+            } else if (activePage === "prune") {
+                const selectPrune = new StringSelectMenuBuilder()
+                    .setCustomId("toggle_prune_settings")
+                    .setPlaceholder(" Budama (Prune) Korumalarını Seçin")
+                    .setMinValues(0)
+                    .setMaxValues(15)
+                    .addOptions([
+                        { label: "Genel Engel", value: "antiPrune", description: "Budama işlemlerini durdurur.", default: getSetting(guildId, "antiPrune") },
+                        { label: "Budama İşlemi Engeli", value: "antiPruneBlockAll", description: "Her türlü budama işlemini tamamen yasaklar.", default: getSetting(guildId, "antiPruneBlockAll") },
+                        { label: "Budama Gün Sınırı", value: "antiPruneLimitDays", description: "30 günden eski budamaları engeller.", default: getSetting(guildId, "antiPruneLimitDays") },
+                        { label: "Budama Rol Sınırı", value: "antiPruneMinRoles", description: "Rol seçimi yapılmayan genel budamaları engeller.", default: getSetting(guildId, "antiPruneMinRoles") },
+                        { label: "Saat Sınırı Koruması", value: "antiPruneTimeLimit", description: "Şüpheli gece saatlerinde budamayı engeller.", default: getSetting(guildId, "antiPruneTimeLimit") },
+                        { label: "Yetki Kilidi (Kanal)", value: "antiPruneLockdownOnPrune", description: "Budama anında tüm kanalları kilitler.", default: getSetting(guildId, "antiPruneLockdownOnPrune") },
+                        { label: "Karantina Tehdidi", value: "antiPruneThreatMax", description: "Budama anında tehdit seviyesini %100 yapar.", default: getSetting(guildId, "antiPruneThreatMax") },
+                        { label: "Aktif Yetkili Karantinası", value: "antiPruneIntegrityQuarantine", description: "Saldırı anında diğer yetkilileri dondurur.", default: getSetting(guildId, "antiPruneIntegrityQuarantine") },
+                        { label: "Çift Audit Kontrolü", value: "antiPruneAuditDoubleCheck", description: "Gecikmeli denetim kaydı bypasslarını önler.", default: getSetting(guildId, "antiPruneAuditDoubleCheck") },
+                        { label: "Rol Silme Taraması", value: "antiPruneRoleRecoveryTracker", description: "Budama öncesi kasıtlı rol silmelerini algılar.", default: getSetting(guildId, "antiPruneRoleRecoveryTracker") },
+                        { label: "Yetkiliyi At (Kick)", value: "antiPruneActionKickExecutor", description: "Budama başlatan yöneticiyi atar.", default: getSetting(guildId, "antiPruneActionKickExecutor") },
+                        { label: "Yetkiliyi Yasakla (Ban)", value: "antiPruneActionBanExecutor", description: "Budama başlatan yöneticiyi banlar.", default: getSetting(guildId, "antiPruneActionBanExecutor") },
+                        { label: "Rolleri Temizleme", value: "antiPruneActionStripRoles", description: "Budama başlatanın yetkili rollerini sıfırlar.", default: getSetting(guildId, "antiPruneActionStripRoles") },
+                        { label: "Sahip DM Bildirimi", value: "antiPruneOwnerNotification", description: "Budama detaylarını sunucu sahibine DM atar.", default: getSetting(guildId, "antiPruneOwnerNotification") },
+                        { label: "Gelişmiş Rapor Günlüğü", value: "antiPruneLogStaff", description: "Budama verilerini yetkili loguna raporlar.", default: getSetting(guildId, "antiPruneLogStaff") }
+                    ]);
+                rows.push(new ActionRowBuilder().addComponents(selectPrune));
             } else if (activePage === "raid") {
                 const selectRaidBools = new StringSelectMenuBuilder()
                     .setCustomId("toggle_raid_bools")
@@ -1546,6 +1695,36 @@ ${divider}
                     embeds: [generateEmbed()],
                     components: generateComponents()
                 });
+            } else if (i.customId === "toggle_guild_settings") {
+                const settings = global.guardSettings.get(guildId) || {};
+                const keys = [
+                    "antiGuildUpdate", "antiGuildNameUpdate", "antiGuildIconUpdate", "antiGuildBannerUpdate", "antiGuildSplashUpdate",
+                    "antiGuildVerificationLevelUpdate", "antiGuildContentFilterUpdate", "antiGuildWidgetUpdate", "antiGuildSystemChannelUpdate",
+                    "antiGuildRulesChannelUpdate", "antiGuildUpdatesChannelUpdate", "antiGuildMfaLevelUpdate", "antiGuildVanityUrlUpdate",
+                    "antiGuildFeatureRevertLock", "antiGuildActionOwnerAlert"
+                ];
+                keys.forEach(k => settings[k] = i.values.includes(k));
+                global.guardSettings.set(guildId, settings);
+                await updateSetting(guildId, "guard_settings", settings);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "toggle_prune_settings") {
+                const settings = global.guardSettings.get(guildId) || {};
+                const keys = [
+                    "antiPrune", "antiPruneBlockAll", "antiPruneLimitDays", "antiPruneMinRoles", "antiPruneTimeLimit",
+                    "antiPruneLockdownOnPrune", "antiPruneThreatMax", "antiPruneIntegrityQuarantine", "antiPruneAuditDoubleCheck",
+                    "antiPruneRoleRecoveryTracker", "antiPruneActionKickExecutor", "antiPruneActionBanExecutor", "antiPruneActionStripRoles",
+                    "antiPruneOwnerNotification", "antiPruneLogStaff"
+                ];
+                keys.forEach(k => settings[k] = i.values.includes(k));
+                global.guardSettings.set(guildId, settings);
+                await updateSetting(guildId, "guard_settings", settings);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
             } else if (i.customId === "toggle_raid_bools") {
                 const settings = global.guardSettings.get(guildId) || {};
                 const keys = [
@@ -1791,6 +1970,7 @@ ${divider}
         require("./guards/joins.js")(client);
         require("./guards/limits.js")(client);
         require("./guards/chat.js")(client);
+        require("./guards/prune.js")(client);
     }
 };
 
