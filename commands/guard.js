@@ -280,8 +280,46 @@ const defaultSettings = {
     defaultAvatarTrackSpam: false,
     defaultAvatarAutoStrict: false,
     raidGuard: false,
+    raidBlockAll: false,
     raidLimit: 5, // joins
     raidTime: 10, // seconds
+    raidActionKick: false,
+    raidActionBan: false,
+    raidActionQuarantine: false,
+    raidActionTimeout: false,
+    raidLockdownChannels: false,
+    raidLockdownVoice: false,
+    raidPauseInvites: false,
+    raidRevertVanity: false,
+    raidExtremeThreatLevel: false,
+    raidIntegrityFreeze: false,
+    raidDisableIntegrations: false,
+    raidDetectSimilarNames: false,
+    raidDetectCreationDate: false,
+    raidDetectDefaultAvatar: false,
+    raidDetectProfileBadges: false,
+    raidDetectPatternJoins: false,
+    raidDetectInviteSpam: false,
+    raidDetectSelfBots: false,
+    raidDetectVPNorProxy: false,
+    raidBypassVerifiedBots: false,
+    raidBypassPartnerInvites: false,
+    raidBypassOwnerFriends: false,
+    raidBypassAgeThreshold: false,
+    raidRequireCaptcha: false,
+    raidRequireButton: false,
+    raidRequireMathVerify: false,
+    raidVerificationLog: false,
+    raidLogStaff: false,
+    raidAlertOwnerDM: false,
+    raidAlertStaffPing: false,
+    raidPublicNotice: false,
+    raidAuditCompare: false,
+    raidAutoCleanup: false,
+    raidAutoUnlock: false,
+    raidMuteNewRoles: false,
+    raidDecayMultiplier: false,
+    raidAutoBackupSettings: false,
     usernameRegexGuard: false,
     autoQuarantine: false,
     buttonVerification: false,
@@ -377,7 +415,15 @@ const booleanKeys = [
     "defaultAvatarGuard", "defaultAvatarActionKick", "defaultAvatarActionBan", "defaultAvatarActionQuarantine",
     "defaultAvatarActionTimeout", "defaultAvatarLogStaff", "defaultAvatarDMNotify", "defaultAvatarBypassWhitelisted",
     "defaultAvatarTrackSpam", "defaultAvatarAutoStrict",
-    "raidGuard", "usernameRegexGuard",
+    "raidGuard", "raidBlockAll", "raidActionKick", "raidActionBan", "raidActionQuarantine", "raidActionTimeout",
+    "raidLockdownChannels", "raidLockdownVoice", "raidPauseInvites", "raidRevertVanity", "raidExtremeThreatLevel",
+    "raidIntegrityFreeze", "raidDisableIntegrations", "raidDetectSimilarNames", "raidDetectCreationDate",
+    "raidDetectDefaultAvatar", "raidDetectProfileBadges", "raidDetectPatternJoins", "raidDetectInviteSpam",
+    "raidDetectSelfBots", "raidDetectVPNorProxy", "raidBypassVerifiedBots", "raidBypassPartnerInvites",
+    "raidBypassOwnerFriends", "raidBypassAgeThreshold", "raidRequireCaptcha", "raidRequireButton",
+    "raidRequireMathVerify", "raidVerificationLog", "raidLogStaff", "raidAlertOwnerDM", "raidAlertStaffPing",
+    "raidPublicNotice", "raidAuditCompare", "raidAutoCleanup", "raidAutoUnlock", "raidMuteNewRoles",
+    "raidDecayMultiplier", "raidAutoBackupSettings", "usernameRegexGuard",
     "buttonVerification", "autoQuarantine"
 ];
 
@@ -1143,7 +1189,6 @@ ${divider}
 • **Otonom Katı Mod**         :: ${statusEmoji("defaultAvatarAutoStrict")}
 
 **« DİĞER GİRİŞ KORUMALARI »**
-• **Anti-Raid Giriş Koruması**  :: ${statusEmoji("raidGuard")} \`(Sınır: ${limitRejoins} Giriş / ${limitTime} Sn)\`
 • **Reklamlı İsim Koruması**    :: ${statusEmoji("usernameRegexGuard")}
 
 **« DOĞRULAMA & KARANTİNA »**
@@ -1212,6 +1257,73 @@ ${specialWlStr}
 ${divider}
 *Log kanallarını, doğrulama rollerini ve whitelist yetkilendirmelerini yapılandırmak için aşağıdaki seçim menüsünü kullanın.*`);
             }
+
+            if (activePage === "antiraid") {
+                const limitRejoins = getSetting(guildId, "raidLimit");
+                const limitTime = getSetting(guildId, "raidTime");
+                return new EmbedBuilder()
+                    .setColor(0x2B2D31)
+                    .setTitle("👥 Anti-Raid Güvenlik Koruması (40 Özellik)")
+                    .setDescription(`
+${divider}
+**« GENEL VE LİMİT AYARLARI »**
+• **Genel Engel Şalteri** :: ${statusEmoji("raidBlockAll")}
+• **Raid Limit Sınırı** :: \`${limitRejoins} Giriş\`
+• **Raid Zaman Aralığı** :: \`${limitTime} Saniye\`
+
+**« ALGILAMA & ANALİZ METRİKLERİ »**
+• **Benzer İsim Algılama** :: ${statusEmoji("raidDetectSimilarNames")}
+• **Hesap Yaş Taraması** :: ${statusEmoji("raidDetectCreationDate")} \`<24 Saat\`
+• **Avatarsız Oran Tespiti** :: ${statusEmoji("raidDetectDefaultAvatar")}
+• **Profil Rozet Kontrolü** :: ${statusEmoji("raidDetectProfileBadges")}
+• **Düzenli Giriş (Script)** :: ${statusEmoji("raidDetectPatternJoins")}
+• **Davet Kodu Hücumu** :: ${statusEmoji("raidDetectInviteSpam")}
+• **Self-Bot Tespiti** :: ${statusEmoji("raidDetectSelfBots")}
+• **Şüpheli Proxy / VPN** :: ${statusEmoji("raidDetectVPNorProxy")}
+
+**« KİLİTLEME VE SUNUCU KORUMALARI »**
+• **Metin Kanalları Kilidi** :: ${statusEmoji("raidLockdownChannels")}
+• **Ses Kanalları Kilidi** :: ${statusEmoji("raidLockdownVoice")}
+• **Sunucu Davetlerini Durdur**:: ${statusEmoji("raidPauseInvites")}
+• **Özel URL Kapatma** :: ${statusEmoji("raidRevertVanity")}
+• **Kritik Tehdit (%100)** :: ${statusEmoji("raidExtremeThreatLevel")}
+• **Yönetici Rol Dondurma** :: ${statusEmoji("raidIntegrityFreeze")}
+• **Entegrasyonları Kapat** :: ${statusEmoji("raidDisableIntegrations")}
+
+**« UYGULANAN CEZA & KISITLAMALAR »**
+• **Sunucudan Atma (Kick)** :: ${statusEmoji("raidActionKick")}
+• **Sunucudan Yasaklama (Ban)**:: ${statusEmoji("raidActionBan")}
+• **Karantina Rolü Verme** :: ${statusEmoji("raidActionQuarantine")}
+• **Susturma Cezası (Timeout)**:: ${statusEmoji("raidActionTimeout")} \`[24 Saat]\`
+
+**« DOĞRULAMA KAPILARI (GATEKEEPING) »**
+• **Web/DM Captcha Testi** :: ${statusEmoji("raidRequireCaptcha")}
+• **Butonlu Doğrulama** :: ${statusEmoji("raidRequireButton")}
+• **Matematiksel DM Testi** :: ${statusEmoji("raidRequireMathVerify")}
+• **Doğrulama Kayıt Defteri** :: ${statusEmoji("raidVerificationLog")}
+
+**« MUAFİYET VE İSTİSNALAR »**
+• **Onaylı Bot Muafiyeti** :: ${statusEmoji("raidBypassVerifiedBots")}
+• **Partner Davet Muafiyeti** :: ${statusEmoji("raidBypassPartnerInvites")}
+• **Güvenli Liste Muafiyeti** :: ${statusEmoji("raidBypassOwnerFriends")}
+• **Eski Hesap Muafiyeti** :: ${statusEmoji("raidBypassAgeThreshold")} \`[>90 Gün]\`
+
+**« RAPORLAMA VE UYARILAR »**
+• **Yetkili Log Kanalı** :: ${statusEmoji("raidLogStaff")}
+• **Sahibe DM Bildirimi** :: ${statusEmoji("raidAlertOwnerDM")}
+• **Moderatör Rol Pingleme** :: ${statusEmoji("raidAlertStaffPing")}
+• **Lockdown Duyurusu** :: ${statusEmoji("raidPublicNotice")}
+• **Audit Log Çift Denetim** :: ${statusEmoji("raidAuditCompare")}
+
+**« İYİLEŞTİRME VE RECOVERY »**
+• **Otomatik Temizlik** :: ${statusEmoji("raidAutoCleanup")}
+• **Otomatik Kilit Açma** :: ${statusEmoji("raidAutoUnlock")} \`[30 Dakika]\`
+• **Oto-Rol Assignment Dondur**:: ${statusEmoji("raidMuteNewRoles")}
+• **Hızlı Tehdit Azalışı** :: ${statusEmoji("raidDecayMultiplier")}
+• **Permission Yedek/Kurtarma**:: ${statusEmoji("raidAutoBackupSettings")}
+${divider}
+*Anti-Raid özelliklerini yönetmek ve limitleri özelleştirmek için aşağıdaki çoklu seçim menülerini kullanın.*`);
+            }
         };
 
         const generateComponents = () => {
@@ -1230,6 +1342,7 @@ ${divider}
                         { label: "💬 Spam Engel Koruması (20 Özellik)", value: "page_spam", description: "Mesaj hızı, tekrarlı mesaj, emoji ve harf engeli.", default: activePage === "spam" },
                         { label: "🤖 Anti-Bot Koruması (20 Özellik)", value: "page_antibot", description: "Bot engelleme, izin sınırları ve denetim.", default: activePage === "antibot" },
                         { label: "👥 Giriş Güvenliği & Raid", value: "page_raid", description: "Hesap yaşı, anti-raid ve karantina.", default: activePage === "raid" },
+                        { label: "👥 Anti-Raid Koruması (40 Özellik)", value: "page_antiraid", description: "Saldırı anında kilitler, cezalar ve doğrulama.", default: activePage === "antiraid" },
                         { label: "⚙️ Yönetici Hız Limitleri", value: "page_limits", description: "Yöneticilerin eylem eşik sınırları.", default: activePage === "limits" },
                         { label: "📄 Sistem Ayarları & Whitelist", value: "page_logs", description: "Log kanalı, roller ve whitelist.", default: activePage === "logs" }
                     ])
@@ -1608,9 +1721,8 @@ ${divider}
                     .setCustomId("toggle_raid_bools")
                     .setPlaceholder("👥 Diğer Giriş Korumaları")
                     .setMinValues(0)
-                    .setMaxValues(4)
+                    .setMaxValues(3)
                     .addOptions([
-                        { label: "Anti-Raid Koruması", value: "raidGuard", description: "Saldırı anında girişleri engeller.", default: getSetting(guildId, "raidGuard") },
                         { label: "Reklamlı İsim Koruması", value: "usernameRegexGuard", description: "İsminde link olan hesapları atar.", default: getSetting(guildId, "usernameRegexGuard") },
                         { label: "Butonlu Doğrulama Sistemi", value: "buttonVerification", description: "Yeni üyeleri butonla doğrulatır.", default: getSetting(guildId, "buttonVerification") },
                         { label: "Otomatik Karantina", value: "autoQuarantine", description: "Yeni üyeleri direkt karantinaya alır.", default: getSetting(guildId, "autoQuarantine") }
@@ -1628,6 +1740,72 @@ ${divider}
                 rows.push(new ActionRowBuilder().addComponents(selectAccountAge));
                 rows.push(new ActionRowBuilder().addComponents(selectDefaultAvatar));
                 rows.push(new ActionRowBuilder().addComponents(selectRaidBools));
+                rows.push(new ActionRowBuilder().addComponents(selectRaidLimits));
+            } else if (activePage === "antiraid") {
+                const selectAntiRaid1 = new StringSelectMenuBuilder()
+                    .setCustomId("toggle_antiraid_1")
+                    .setPlaceholder("🔒 Anti-Raid Kilitler ve Cezalar (Menü 1)")
+                    .setMinValues(0)
+                    .setMaxValues(20)
+                    .addOptions([
+                        { label: "Genel Engel Şalteri", value: "raidBlockAll", description: "Anti-Raid modülünü aktif eder.", default: getSetting(guildId, "raidBlockAll") },
+                        { label: "Sunucudan At (Kick)", value: "raidActionKick", description: "Saldırı anında yeni girenleri sunucudan atar.", default: getSetting(guildId, "raidActionKick") },
+                        { label: "Sunucudan Yasakla (Ban)", value: "raidActionBan", description: "Saldırı anında yeni girenleri banlar.", default: getSetting(guildId, "raidActionBan") },
+                        { label: "Karantinaya Al", value: "raidActionQuarantine", description: "Saldırı anında yeni girenleri karantinaya alır.", default: getSetting(guildId, "raidActionQuarantine") },
+                        { label: "Sustur (Timeout - 24s)", value: "raidActionTimeout", description: "Saldırı anında yeni girenleri 24 saat susturur.", default: getSetting(guildId, "raidActionTimeout") },
+                        { label: "Kanalları Kilitle (Metin)", value: "raidLockdownChannels", description: "Raid anında tüm metin kanallarını yoruma kapatır.", default: getSetting(guildId, "raidLockdownChannels") },
+                        { label: "Kanalları Kilitle (Ses)", value: "raidLockdownVoice", description: "Raid anında tüm ses kanallarına girişi kapatır.", default: getSetting(guildId, "raidLockdownVoice") },
+                        { label: "Davetleri Durdur (Pause)", value: "raidPauseInvites", description: "Raid anında tüm davet linklerini askıya alır.", default: getSetting(guildId, "raidPauseInvites") },
+                        { label: "Özel URL (Vanity) Kapat", value: "raidRevertVanity", description: "Raid anında özel url davetini geçici kapatır.", default: getSetting(guildId, "raidRevertVanity") },
+                        { label: "Kritik Tehdit Seviyesi", value: "raidExtremeThreatLevel", description: "Raid anında tehdit seviyesini otonom %100 yapar.", default: getSetting(guildId, "raidExtremeThreatLevel") },
+                        { label: "Yönetici Rol Dondurma", value: "raidIntegrityFreeze", description: "Raid anında yetkili rol değişikliklerini engeller.", default: getSetting(guildId, "raidIntegrityFreeze") },
+                        { label: "Entegrasyonları Kapat", value: "raidDisableIntegrations", description: "Widget ve entegrasyon girişlerini askıya alır.", default: getSetting(guildId, "raidDisableIntegrations") },
+                        { label: "Butonla Doğrulama Sistemi", value: "raidRequireButton", description: "Raid anında yeni gelenleri butonla doğrulatır.", default: getSetting(guildId, "raidRequireButton") },
+                        { label: "Web/DM Captcha Testi", value: "raidRequireCaptcha", description: "Raid anında yeni gelenlere Captcha linki atar.", default: getSetting(guildId, "raidRequireCaptcha") },
+                        { label: "Matematiksel DM Testi", value: "raidRequireMathVerify", description: "Raid anında yeni gelenlere DM'de matematik sorusu atar.", default: getSetting(guildId, "raidRequireMathVerify") },
+                        { label: "Doğrulama Günlüğü", value: "raidVerificationLog", description: "Başarılı/başarısız doğrulama denemelerini loglar.", default: getSetting(guildId, "raidVerificationLog") },
+                        { label: "Otomatik Kilit Açma", value: "raidAutoUnlock", description: "Raid bittikten 30 dakika sonra kilitleri otomatik açar.", default: getSetting(guildId, "raidAutoUnlock") },
+                        { label: "Otomatik Temizlik", value: "raidAutoCleanup", description: "Raid bittiğinde raidde giren tüm hesapları temizler.", default: getSetting(guildId, "raidAutoCleanup") },
+                        { label: "Oto-Rol assignment Dondur", value: "raidMuteNewRoles", description: "Raid anında yeni girenlere oto rol verilmesini engeller.", default: getSetting(guildId, "raidMuteNewRoles") },
+                        { label: "Permission Yedek/Kurtarma", value: "raidAutoBackupSettings", description: "Kilit öncesi kanal yetkilerini yedekler ve kurtarır.", default: getSetting(guildId, "raidAutoBackupSettings") }
+                    ]);
+
+                const selectAntiRaid2 = new StringSelectMenuBuilder()
+                    .setCustomId("toggle_antiraid_2")
+                    .setPlaceholder("🔍 Anti-Raid Algılama ve Muafiyetler (Menü 2)")
+                    .setMinValues(0)
+                    .setMaxValues(18)
+                    .addOptions([
+                        { label: "Benzer İsim Algılama", value: "raidDetectSimilarNames", description: "Benzer isimli bot hesap girişlerini algılar.", default: getSetting(guildId, "raidDetectSimilarNames") },
+                        { label: "Hesap Yaş Taraması", value: "raidDetectCreationDate", description: "Hesap yaşı 24 saatten küçük olanları tarar.", default: getSetting(guildId, "raidDetectCreationDate") },
+                        { label: "Avatarsız Oran Tespiti", value: "raidDetectDefaultAvatar", description: "Girenlerin çoğunluğu avatarsız ise algılar.", default: getSetting(guildId, "raidDetectDefaultAvatar") },
+                        { label: "Profil Rozet Kontrolü", value: "raidDetectProfileBadges", description: "Hiçbir rozeti/bağlantısı olmayan hesapları tarar.", default: getSetting(guildId, "raidDetectProfileBadges") },
+                        { label: "Düzenli Giriş Tespiti", value: "raidDetectPatternJoins", description: "Tam saniyelik aralıklarla giren botları algılar.", default: getSetting(guildId, "raidDetectPatternJoins") },
+                        { label: "Davet Kodu Hücumu", value: "raidDetectInviteSpam", description: "Aynı davet koduyla aşırı girişi algılar.", default: getSetting(guildId, "raidDetectInviteSpam") },
+                        { label: "Self-Bot Algılama", value: "raidDetectSelfBots", description: "Self-bot kullanım modellerini algılar.", default: getSetting(guildId, "raidDetectSelfBots") },
+                        { label: "Şüpheli Proxy / VPN", value: "raidDetectVPNorProxy", description: "VPN veya Proxy IP katılım modellerini algılar.", default: getSetting(guildId, "raidDetectVPNorProxy") },
+                        { label: "Onaylı Bot Muafiyeti", value: "raidBypassVerifiedBots", description: "Doğrulanmış resmi Discord botlarını es geçer.", default: getSetting(guildId, "raidBypassVerifiedBots") },
+                        { label: "Partner Davet Muafiyeti", value: "raidBypassPartnerInvites", description: "Discord partner/keşfet davetlerini es geçer.", default: getSetting(guildId, "raidBypassPartnerInvites") },
+                        { label: "Güvenli Liste Muafiyeti", value: "raidBypassOwnerFriends", description: "Whitelist veya sahip arkadaşlarını es geçer.", default: getSetting(guildId, "raidBypassOwnerFriends") },
+                        { label: "Eski Hesap Muafiyeti", value: "raidBypassAgeThreshold", description: "Hesabı 90 günden eski olanları korumadan muaf tutar.", default: getSetting(guildId, "raidBypassAgeThreshold") },
+                        { label: "Yetkili Rapor Günlüğü", value: "raidLogStaff", description: "Anti-raid loglarını yetkili kanalına yazar.", default: getSetting(guildId, "raidLogStaff") },
+                        { label: "Sahibe DM Bildirimi", value: "raidAlertOwnerDM", description: "Saldırı anında kurucuya özel mesaj atar.", default: getSetting(guildId, "raidAlertOwnerDM") },
+                        { label: "Moderatör Rol Pingleme", value: "raidAlertStaffPing", description: "Raid anında moderatörleri etiketler.", default: getSetting(guildId, "raidAlertStaffPing") },
+                        { label: "Lockdown Duyurusu", value: "raidPublicNotice", description: "Sunucu kilitlendiğinde genel kanala uyarı atar.", default: getSetting(guildId, "raidPublicNotice") },
+                        { label: "Audit Log Çift Denetim", value: "raidAuditCompare", description: "Gecikmeli audit loglarını çift kontrol eder.", default: getSetting(guildId, "raidAuditCompare") },
+                        { label: "Hızlı Tehdit Azalışı", value: "raidDecayMultiplier", description: "Raid bittiğinde tehdit seviyesini hızlıca düşürür.", default: getSetting(guildId, "raidDecayMultiplier") }
+                    ]);
+
+                const selectRaidLimits = new StringSelectMenuBuilder()
+                    .setCustomId("adjust_raid_numbers")
+                    .setPlaceholder("✍️ Anti-Raid Limit Değerlerini Ayarla")
+                    .addOptions([
+                        { label: "Raid Giriş Sınırı (Kişi Sayısı)", value: "custom_raid" },
+                        { label: "Raid Zaman Dilimi (Saniye Sınırı)", value: "custom_raid_time" }
+                    ]);
+
+                rows.push(new ActionRowBuilder().addComponents(selectAntiRaid1));
+                rows.push(new ActionRowBuilder().addComponents(selectAntiRaid2));
                 rows.push(new ActionRowBuilder().addComponents(selectRaidLimits));
             } else if (activePage === "limits") {
                 const selectLimits = new StringSelectMenuBuilder()
@@ -1845,7 +2023,14 @@ ${divider}
                     "spamActionDelete", "spamActionWarn", "spamActionMute", "spamBypassChannels", "spamAllowStaff",
                     
                     // Anti-Raid / Giriş
-                    "raidGuard", "accountAgeGuard",
+                    "raidGuard", "raidBlockAll", "raidActionKick", "raidLockdownChannels",
+                    "raidPauseInvites", "raidExtremeThreatLevel", "raidDetectSimilarNames",
+                    "raidDetectCreationDate", "raidDetectDefaultAvatar", "raidDetectPatternJoins",
+                    "raidDetectInviteSpam", "raidBypassVerifiedBots", "raidBypassOwnerFriends",
+                    "raidBypassAgeThreshold", "raidRequireButton", "raidLogStaff",
+                    "raidAlertOwnerDM", "raidAlertStaffPing", "raidPublicNotice",
+                    "raidAutoUnlock", "raidMuteNewRoles", "raidDecayMultiplier",
+                    "accountAgeGuard",
                     "defaultAvatarGuard", "defaultAvatarActionKick", "defaultAvatarLogStaff", 
                     "defaultAvatarDMNotify", "defaultAvatarBypassWhitelisted", "defaultAvatarTrackSpam", 
                     "defaultAvatarAutoStrict"
@@ -2030,6 +2215,38 @@ ${divider}
                     "defaultAvatarGuard", "defaultAvatarActionKick", "defaultAvatarActionBan", "defaultAvatarActionQuarantine",
                     "defaultAvatarActionTimeout", "defaultAvatarLogStaff", "defaultAvatarDMNotify", "defaultAvatarBypassWhitelisted",
                     "defaultAvatarTrackSpam", "defaultAvatarAutoStrict"
+                ];
+                keys.forEach(k => settings[k] = i.values.includes(k));
+                global.guardSettings.set(guildId, settings);
+                await updateSetting(guildId, "guard_settings", settings);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "toggle_antiraid_1") {
+                const settings = global.guardSettings.get(guildId) || {};
+                const keys = [
+                    "raidBlockAll", "raidActionKick", "raidActionBan", "raidActionQuarantine", "raidActionTimeout",
+                    "raidLockdownChannels", "raidLockdownVoice", "raidPauseInvites", "raidRevertVanity",
+                    "raidExtremeThreatLevel", "raidIntegrityFreeze", "raidDisableIntegrations", "raidRequireButton",
+                    "raidRequireCaptcha", "raidRequireMathVerify", "raidVerificationLog", "raidAutoUnlock",
+                    "raidAutoCleanup", "raidMuteNewRoles", "raidAutoBackupSettings"
+                ];
+                keys.forEach(k => settings[k] = i.values.includes(k));
+                global.guardSettings.set(guildId, settings);
+                await updateSetting(guildId, "guard_settings", settings);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "toggle_antiraid_2") {
+                const settings = global.guardSettings.get(guildId) || {};
+                const keys = [
+                    "raidDetectSimilarNames", "raidDetectCreationDate", "raidDetectDefaultAvatar", "raidDetectProfileBadges",
+                    "raidDetectPatternJoins", "raidDetectInviteSpam", "raidDetectSelfBots", "raidDetectVPNorProxy",
+                    "raidBypassVerifiedBots", "raidBypassPartnerInvites", "raidBypassOwnerFriends", "raidBypassAgeThreshold",
+                    "raidLogStaff", "raidAlertOwnerDM", "raidAlertStaffPing", "raidPublicNotice",
+                    "raidAuditCompare", "raidDecayMultiplier"
                 ];
                 keys.forEach(k => settings[k] = i.values.includes(k));
                 global.guardSettings.set(guildId, settings);
