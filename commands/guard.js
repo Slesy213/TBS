@@ -258,10 +258,17 @@ const defaultSettings = {
     mediaSpamEngel: false,
     selfBotEngel: false,
 
-
-    // Category 3: Anti-Raid & Verification
-    accountAgeGuard: false,
-    accountAgeLimit: 3, // days
+    accountAgeBlockAll: false,
+    accountAgeActionKick: false,
+    accountAgeActionBan: false,
+    accountAgeActionQuarantine: false,
+    accountAgeActionTimeout: false,
+    accountAgeLogStaff: false,
+    accountAgeDMNotify: false,
+    accountAgeBypassInvites: false,
+    accountAgeTrackAltAccounts: false,
+    accountAgeAutoStrict: false,
+    accountAgeLimit: 7, // days
     defaultAvatarGuard: false,
     raidGuard: false,
     raidLimit: 5, // joins
@@ -279,6 +286,8 @@ const defaultSettings = {
     roleDeleteLimit: 2,
     roleGiveLimit: 3,
     limitTime: 5, // minutes
+
+    
 
     // Category 5: Logs
     logChannelId: null,
@@ -353,7 +362,9 @@ const booleanKeys = [
     "argoEngel", "capsEngel",
     "emojiSpamEngel", "mentionSpamEngel", "everyoneHereEngel", "mediaSpamEngel",
     "selfBotEngel",
-    "accountAgeGuard", "defaultAvatarGuard", "raidGuard", "usernameRegexGuard",
+    "accountAgeBlockAll", "accountAgeActionKick", "accountAgeActionBan", "accountAgeActionQuarantine", 
+    "accountAgeActionTimeout", "accountAgeLogStaff", "accountAgeDMNotify", "accountAgeBypassInvites", 
+    "accountAgeTrackAltAccounts", "accountAgeAutoStrict", "defaultAvatarGuard", "raidGuard", "usernameRegexGuard",
     "buttonVerification", "autoQuarantine"
 ];
 
@@ -369,6 +380,7 @@ function getSetting(guildId, key) {
     if (key === "kufurBlockAll" && settings.kufurBlockAll === undefined && settings.kufurEngel !== undefined) {
         settings.kufurBlockAll = settings.kufurEngel;
     }
+    if (key === "accountAgeBlockAll" && settings.accountAgeBlockAll === undefined && settings.accountAgeGuard !== undefined) { settings.accountAgeBlockAll = settings.accountAgeGuard; }
     return settings[key] !== undefined ? settings[key] : defaultSettings[key];
 }
 
@@ -665,6 +677,7 @@ module.exports = {
 
     async execute(interaction) {
 
+        // --- EN ÖNEMLİ KISIM: İŞLEME SÜRESİNİ UZAT ---
         await interaction.deferReply({ ephemeral: true });
 
         const islem = interaction.options.getString("işlem");
@@ -675,39 +688,39 @@ module.exports = {
         if (islem === "ac") {
             global.guardDurums.set(guildId, true);
             await updateSetting(guildId, "guard_durum", true);
-            return interaction.reply({ content: "🛡️ Guard sistemi aktif edildi." });
+            return interaction.editReply({ content: "🛡️ Guard sistemi aktif edildi." });
         }
 
         if (islem === "kapat") {
             global.guardDurums.set(guildId, false);
             await updateSetting(guildId, "guard_durum", false);
-            return interaction.reply({ content: "❌ Guard sistemi kapatıldı." });
+            return interaction.editReply({ content: "❌ Guard sistemi kapatıldı." });
         }
 
         if (islem === "guvenli-ekle") {
-            if (!kullanici) return interaction.reply({ content: "❌ Kullanıcı belirt.", ephemeral: true });
+            if (!kullanici) return interaction.editReply({ content: "❌ Kullanıcı belirt." });
             let list = global.guvenliListes.get(guildId) || [];
-            if (list.includes(kullanici.id)) return interaction.reply({ content: "⚠️ Zaten güvenli listede.", ephemeral: true });
+            if (list.includes(kullanici.id)) return interaction.editReply({ content: "⚠️ Zaten güvenli listede." });
             list.push(kullanici.id);
             global.guvenliListes.set(guildId, list);
             await updateSetting(guildId, "guvenli_liste", list);
-            return interaction.reply({ content: `✅ ${kullanici.tag} güvenli listeye eklendi.` });
+            return interaction.editReply({ content: `✅ ${kullanici.tag} güvenli listeye eklendi.` });
         }
 
         if (islem === "guvenli-cikar") {
-            if (!kullanici) return interaction.reply({ content: "❌ Kullanıcı belirt.", ephemeral: true });
+            if (!kullanici) return interaction.editReply({ content: "❌ Kullanıcı belirt." });
             let list = global.guvenliListes.get(guildId) || [];
             list = list.filter(id => id !== kullanici.id);
             global.guvenliListes.set(guildId, list);
             await updateSetting(guildId, "guvenli_liste", list);
-            return interaction.reply({ content: `✅ ${kullanici.tag} güvenli listeden çıkarıldı.` });
+            return interaction.editReply({ content: `✅ ${kullanici.tag} güvenli listeden çıkarıldı.` });
         }
 
         if (islem === "liste") {
             const list = global.guvenliListes.get(guildId) || [];
-            if (list.length <= 0) return interaction.reply({ content: "📄 Güvenli liste boş." });
+            if (list.length <= 0) return interaction.editReply({ content: "📄 Güvenli liste boş." });
             const listStr = list.map(id => `<@${id}>`).join("\n");
-            return interaction.reply({ content: `🛡️ Güvenli Liste:\n\n${listStr}` });
+            return interaction.editReply({ content: `🛡️ Güvenli Liste:\n\n${listStr}` });
         }
 
         // ============================================
@@ -741,16 +754,16 @@ module.exports = {
 ${divider}
 **« SİSTEM DURUMU »**
 • **Ana Koruma Modu** :: ${mainStatus}
-• **Otonom Koruma**  :: ${autoStatus}
+• **Otonom Koruma** :: ${autoStatus}
 
 **« TEHDİT SEVİYESİ »**
-• **Sunucu Durumu**  :: ${threatColor}
+• **Sunucu Durumu** :: ${threatColor}
 • **Tehdit Göstergesi**:: \`[${bar}] %${threatVal}\`
 
 **« SUNUCU DETAYLARI »**
-• **Toplam Üye**     :: \`${interaction.guild.memberCount}\`
-• **Toplam Kanal**    :: \`${interaction.guild.channels.cache.size}\`
-• **Toplam Rol**      :: \`${interaction.guild.roles.cache.size}\`
+• **Toplam Üye** :: \`${interaction.guild.memberCount}\`
+• **Toplam Kanal** :: \`${interaction.guild.channels.cache.size}\`
+• **Toplam Rol** :: \`${interaction.guild.roles.cache.size}\`
 ${divider}
 *Farklı koruma kategorilerini yönetmek veya whitelist işlemlerini gerçekleştirmek için aşağıdaki menüleri ve butonları kullanın.*`)
                     .setTimestamp()
@@ -764,62 +777,62 @@ ${divider}
                     .setDescription(`
 ${divider}
 **« KANAL KORUMALARI »**
-• **Kanal Oluşturma**        :: ${statusEmoji("antiChannelCreate")}
-• **Kanal Silme**            :: ${statusEmoji("antiChannelDelete")} \`[Kategori/İzin Kurtarmalı]\`
-• **Kanal Güncelleme**       :: ${statusEmoji("antiChannelUpdate")} \`[Eskiye Döndürmeli]\`
-• **İzin Sıfırlama Engeli**  :: ${statusEmoji("antiChannelOverwriteClear")}
-• **Kanal Klonlama Engeli**  :: ${statusEmoji("antiChannelClone")}
-• **Kategori Silme Engeli**  :: ${statusEmoji("antiCategoryDelete")}
-• **Yavaş Mod Koruması**     :: ${statusEmoji("antiChannelSlowmodeChange")}
-• **NSFW Kapatma Engeli**     :: ${statusEmoji("antiNSFWDisable")}
-• **Kanal Adı Koruması**     :: ${statusEmoji("antiChannelNameSpam")}
-• **Bitrate Koruması**       :: ${statusEmoji("antiVoiceBitrateSpam")}
+• **Kanal Oluşturma** :: ${statusEmoji("antiChannelCreate")}
+• **Kanal Silme** :: ${statusEmoji("antiChannelDelete")} \`[Kategori/İzin Kurtarmalı]\`
+• **Kanal Güncelleme** :: ${statusEmoji("antiChannelUpdate")} \`[Eskiye Döndürmeli]\`
+• **İzin Sıfırlama Engeli** :: ${statusEmoji("antiChannelOverwriteClear")}
+• **Kanal Klonlama Engeli** :: ${statusEmoji("antiChannelClone")}
+• **Kategori Silme Engeli** :: ${statusEmoji("antiCategoryDelete")}
+• **Yavaş Mod Koruması** :: ${statusEmoji("antiChannelSlowmodeChange")}
+• **NSFW Kapatma Engeli** :: ${statusEmoji("antiNSFWDisable")}
+• **Kanal Adı Koruması** :: ${statusEmoji("antiChannelNameSpam")}
+• **Bitrate Koruması** :: ${statusEmoji("antiVoiceBitrateSpam")}
 • **Kanal Üye Sınırı Koruması**:: ${statusEmoji("antiVoiceLimitChange")}
-• **Kürsü Kanalı Engeli**    :: ${statusEmoji("antiStageChannelSpam")}
+• **Kürsü Kanalı Engeli** :: ${statusEmoji("antiStageChannelSpam")}
 
 **« ROL KORUMALARI »**
-• **Rol Oluşturma**          :: ${statusEmoji("antiRoleCreate")}
-• **Rol Silme**              :: ${statusEmoji("antiRoleDelete")} \`[Üye Rollerini İade Etmeli]\`
-• **Rol Güncelleme**         :: ${statusEmoji("antiRoleUpdate")} \`[Yetki Sınırlandırmalı]\`
-• **Everyone Yetki Engeli**  :: ${statusEmoji("antiEveryoneAdminGive")}
-• **Renk Değişim Engeli**    :: ${statusEmoji("antiRoleColorChange")}
-• **Rol Adı Koruması**       :: ${statusEmoji("antiRoleNameSpam")}
-• **Hoist Kapatma Engeli**   :: ${statusEmoji("antiRoleHoistDisable")}
+• **Rol Oluşturma** :: ${statusEmoji("antiRoleCreate")}
+• **Rol Silme** :: ${statusEmoji("antiRoleDelete")} \`[Üye Rollerini İade Etmeli]\`
+• **Rol Güncelleme** :: ${statusEmoji("antiRoleUpdate")} \`[Yetki Sınırlandırmalı]\`
+• **Everyone Yetki Engeli** :: ${statusEmoji("antiEveryoneAdminGive")}
+• **Renk Değişim Engeli** :: ${statusEmoji("antiRoleColorChange")}
+• **Rol Adı Koruması** :: ${statusEmoji("antiRoleNameSpam")}
+• **Hoist Kapatma Engeli** :: ${statusEmoji("antiRoleHoistDisable")}
 • **Etiketlenebilme Engeli** :: ${statusEmoji("antiRoleMentionableEnable")}
-• **Bot Rolü Düzenleme**     :: ${statusEmoji("antiBotRoleModify")}
-• **Hiyerarşi Değişikliği**  :: ${statusEmoji("antiRolePositionChange")}
+• **Bot Rolü Düzenleme** :: ${statusEmoji("antiBotRoleModify")}
+• **Hiyerarşi Değişikliği** :: ${statusEmoji("antiRolePositionChange")}
 • **Yetkili Rol Verme Sınırı**:: ${statusEmoji("antiAdminRoleGiveLimit")}
-• **Kayıt Rol İstismarı**    :: ${statusEmoji("antiOnboardingRoleSpam")}
+• **Kayıt Rol İstismarı** :: ${statusEmoji("antiOnboardingRoleSpam")}
 • **Entegrasyon Rolü Silme** :: ${statusEmoji("antiIntegrationRoleDelete")}
 
 **« DİĞER SİSTEM KORUMALARI »**
-• **Anti-Bot Koruması**      :: \`[/guard -> Anti-Bot Koruması (20 Özellik)]\`
+• **Anti-Bot Koruması** :: \`[/guard -> Anti-Bot Koruması (20 Özellik)]\`
 • **Sunucu Ayarları Koruması**:: \`[/guard -> Sunucu Ayarları (15 Özellik)]\`
 • **Prune / Budama Koruması**:: \`[/guard -> Budama Koruması (15 Özellik)]\`
 
 **« WEBHOOK KORUMALARI (22 ÖZELLİK) »**
-• **Webhook Oluşturma**      :: ${statusEmoji("antiWebhookCreate")}
-• **Webhook Güncelleme**      :: ${statusEmoji("antiWebhookUpdate")}
-• **Webhook Silme**           :: ${statusEmoji("antiWebhookDelete")}
-• **Mesaj Spami Engeli**      :: ${statusEmoji("webhookSpamEngel")}
-• **Token Sızıntı Koruması**  :: ${statusEmoji("webhookTokenLeakGuard")}
-• **İsim Filtresi**           :: ${statusEmoji("webhookNameFilter")}
-• **Kanal Kilidi**            :: ${statusEmoji("webhookChannelLock")}
-• **Avatar Kilidi**           :: ${statusEmoji("webhookAvatarLock")}
-• **Kanal Başı Limit**        :: ${statusEmoji("webhookLimitPerChannel")}
-• **Yalnızca Güvenli Liste**  :: ${statusEmoji("webhookWhitelistOnly")}
+• **Webhook Oluşturma** :: ${statusEmoji("antiWebhookCreate")}
+• **Webhook Güncelleme** :: ${statusEmoji("antiWebhookUpdate")}
+• **Webhook Silme** :: ${statusEmoji("antiWebhookDelete")}
+• **Mesaj Spami Engeli** :: ${statusEmoji("webhookSpamEngel")}
+• **Token Sızıntı Koruması** :: ${statusEmoji("webhookTokenLeakGuard")}
+• **İsim Filtresi** :: ${statusEmoji("webhookNameFilter")}
+• **Kanal Kilidi** :: ${statusEmoji("webhookChannelLock")}
+• **Avatar Kilidi** :: ${statusEmoji("webhookAvatarLock")}
+• **Kanal Başı Limit** :: ${statusEmoji("webhookLimitPerChannel")}
+• **Yalnızca Güvenli Liste** :: ${statusEmoji("webhookWhitelistOnly")}
 • **Taklit (İmmitasyon) Engeli**:: ${statusEmoji("webhookImpersonationGuard")}
-• **Link Engeli**             :: ${statusEmoji("webhookLinkEngel")}
-• **Küfür Engeli**            :: ${statusEmoji("webhookKufurEngel")}
-• **Everyone Engeli**         :: ${statusEmoji("webhookEveryoneEngel")}
-• **Otonom Kilit**            :: ${statusEmoji("webhookAutonomousLock")}
-• **Düzenleme Takibi**        :: ${statusEmoji("webhookMessageEditMonitor")}
-• **Şüpheli Link/IP Engeli**   :: ${statusEmoji("webhookIpBanList")}
-• **Zararlı Ek Koruması**     :: ${statusEmoji("webhookAttachmentGuard")}
-• **Karakter Sınırı**         :: ${statusEmoji("webhookContentLengthLimit")}
-• **Embed İstismar Engeli**   :: ${statusEmoji("webhookEmbedSpamGuard")}
-• **Başlık Koruması**         :: ${statusEmoji("webhookThreadPostGuard")}
-• **Rol Etiket Engeli**       :: ${statusEmoji("webhookRoleMentionGuard")}
+• **Link Engeli** :: ${statusEmoji("webhookLinkEngel")}
+• **Küfür Engeli** :: ${statusEmoji("webhookKufurEngel")}
+• **Everyone Engeli** :: ${statusEmoji("webhookEveryoneEngel")}
+• **Otonom Kilit** :: ${statusEmoji("webhookAutonomousLock")}
+• **Düzenleme Takibi** :: ${statusEmoji("webhookMessageEditMonitor")}
+• **Şüpheli Link/IP Engeli** :: ${statusEmoji("webhookIpBanList")}
+• **Zararlı Ek Koruması** :: ${statusEmoji("webhookAttachmentGuard")}
+• **Karakter Sınırı** :: ${statusEmoji("webhookContentLengthLimit")}
+• **Embed İstismar Engeli** :: ${statusEmoji("webhookEmbedSpamGuard")}
+• **Başlık Koruması** :: ${statusEmoji("webhookThreadPostGuard")}
+• **Rol Etiket Engeli** :: ${statusEmoji("webhookRoleMentionGuard")}
 ${divider}
 *İstediğiniz koruma kategorisini yapılandırmak için aşağıdaki açılır menüleri kullanın.*`);
             }
@@ -834,11 +847,11 @@ ${divider}
 • **Argo Sözcük Engeli (Basit Motor)** :: ${statusEmoji("argoEngel")}
 
 **« BİÇİM FİLTRELERİ »**
-• **Büyük Harf (Caps Lock)**   :: ${statusEmoji("capsEngel")} \`[>%70 Oran]\`
+• **Büyük Harf (Caps Lock)** :: ${statusEmoji("capsEngel")} \`[>%70 Oran]\`
 
 **« İÇERİK KORUMALARI »**
-• **Mass Tag (@everyone)**     :: ${statusEmoji("everyoneHereEngel")}
-• **Medya Spami Engeli**       :: ${statusEmoji("mediaSpamEngel")}
+• **Mass Tag (@everyone)** :: ${statusEmoji("everyoneHereEngel")}
+• **Medya Spami Engeli** :: ${statusEmoji("mediaSpamEngel")}
 ${divider}
 *Emoji, etiket, tekrar, satır ve karakter sınırları artık **Spam Engel** modülünde yönetilmektedir. İstediğiniz sohbet filtresini açıp kapatmak için aşağıdaki menüyü kullanın.*`);
             }
@@ -850,48 +863,48 @@ ${divider}
                     .setDescription(`
 ${divider}
 **« LİNK ENGELLERİ (TÜRLER VE BLACKLIST) »**
-• **Genel Engel**            :: ${statusEmoji("linkBlockAll")}
-• **Davet Kodu Engeli**       :: ${statusEmoji("linkBlockInvites")}
-• **Https Bağlantı Engeli**   :: ${statusEmoji("linkBlockHttpsOnly")}
-• **Http Bağlantı Engeli**    :: ${statusEmoji("linkBlockHttpOnly")}
-• **IP Adresi Engeli**        :: ${statusEmoji("linkBlockIPLinks")}
+• **Genel Engel** :: ${statusEmoji("linkBlockAll")}
+• **Davet Kodu Engeli** :: ${statusEmoji("linkBlockInvites")}
+• **Https Bağlantı Engeli** :: ${statusEmoji("linkBlockHttpsOnly")}
+• **Http Bağlantı Engeli** :: ${statusEmoji("linkBlockHttpOnly")}
+• **IP Adresi Engeli** :: ${statusEmoji("linkBlockIPLinks")}
 • **Alt Alan Adı (Subdomain)**:: ${statusEmoji("linkBlockSubdomains")}
 • **Kısaltıcı Servis Engeli** :: ${statusEmoji("linkBlockShorteners")}
-• **Phishing (Oltalama)**     :: ${statusEmoji("linkBlockPhishing")}
-• **IP Logger Koruması**      :: ${statusEmoji("linkBlockIpLoggers")}
-• **Yetişkin İçerik Engeli**  :: ${statusEmoji("linkBlockAdultContent")}
-• **Dosya İndirme Engeli**    :: ${statusEmoji("linkBlockDownloads")}
+• **Phishing (Oltalama)** :: ${statusEmoji("linkBlockPhishing")}
+• **IP Logger Koruması** :: ${statusEmoji("linkBlockIpLoggers")}
+• **Yetişkin İçerik Engeli** :: ${statusEmoji("linkBlockAdultContent")}
+• **Dosya İndirme Engeli** :: ${statusEmoji("linkBlockDownloads")}
 • **Zararlı Yazılım (Malware)**:: ${statusEmoji("linkBlockMalware")}
-• **Sosyal Medya Engeli**     :: ${statusEmoji("linkBlockSocialMedia")}
-• **Video Siteleri Engeli**   :: ${statusEmoji("linkBlockVideoSites")}
-• **Kripto Siteleri Engeli**  :: ${statusEmoji("linkBlockCryptocurrency")}
-• **Dosya Paylaşım Engeli**   :: ${statusEmoji("linkBlockFileSharing")}
-• **Özel Blacklist Engeli**   :: ${statusEmoji("linkBlockCustomBlacklist")}
-• **Homoglif/Bypass Engeli**  :: ${statusEmoji("linkBlockBypassPatterns")}
-• **Ucuz/Şüpheli TLD Engeli**  :: ${statusEmoji("linkBlockNonStandardTLDs")}
-• **Kullanıcı Embed Linki**   :: ${statusEmoji("linkBlockRichEmbedUrls")}
+• **Sosyal Medya Engeli** :: ${statusEmoji("linkBlockSocialMedia")}
+• **Video Siteleri Engeli** :: ${statusEmoji("linkBlockVideoSites")}
+• **Kripto Siteleri Engeli** :: ${statusEmoji("linkBlockCryptocurrency")}
+• **Dosya Paylaşım Engeli** :: ${statusEmoji("linkBlockFileSharing")}
+• **Özel Blacklist Engeli** :: ${statusEmoji("linkBlockCustomBlacklist")}
+• **Homoglif/Bypass Engeli** :: ${statusEmoji("linkBlockBypassPatterns")}
+• **Ucuz/Şüpheli TLD Engeli** :: ${statusEmoji("linkBlockNonStandardTLDs")}
+• **Kullanıcı Embed Linki** :: ${statusEmoji("linkBlockRichEmbedUrls")}
 
 **« MUAFİYETLER, TARAMA VE CEZALANDIRMALAR »**
 • **Discord Resmi Muafiyeti** :: ${statusEmoji("linkAllowDiscordOfficial")}
-• **YouTube Muafiyeti**       :: ${statusEmoji("linkAllowYoutubeOfficial")}
-• **Spotify Muafiyeti**       :: ${statusEmoji("linkAllowSpotifyOfficial")}
-• **GitHub Muafiyeti**        :: ${statusEmoji("linkAllowGithubOfficial")}
-• **Google Muafiyeti**        :: ${statusEmoji("linkAllowGoogleOfficial")}
-• **Görsel Linki Muafiyeti**  :: ${statusEmoji("linkAllowImagesOnly")}
+• **YouTube Muafiyeti** :: ${statusEmoji("linkAllowYoutubeOfficial")}
+• **Spotify Muafiyeti** :: ${statusEmoji("linkAllowSpotifyOfficial")}
+• **GitHub Muafiyeti** :: ${statusEmoji("linkAllowGithubOfficial")}
+• **Google Muafiyeti** :: ${statusEmoji("linkAllowGoogleOfficial")}
+• **Görsel Linki Muafiyeti** :: ${statusEmoji("linkAllowImagesOnly")}
 • **Özel Whitelist Muafiyeti**:: ${statusEmoji("linkAllowCustomWhitelist")}
-• **Link Durum Kontrolü**     :: ${statusEmoji("linkScanStatusChecks")}
-• **Yönlendirme Sınırı**      :: ${statusEmoji("linkScanRedirectLimit")}
+• **Link Durum Kontrolü** :: ${statusEmoji("linkScanStatusChecks")}
+• **Yönlendirme Sınırı** :: ${statusEmoji("linkScanRedirectLimit")}
 • **Kısaltılmış Link Analizi** :: ${statusEmoji("linkScanContentMinimizer")}
 • **Rastgelelik (Caps) Oranı**:: ${statusEmoji("linkScanCapsRatio")}
-• **Karakter Sınırı Engeli**   :: ${statusEmoji("linkScanLengthLimit")}
-• **Kanal Muafiyetleri**      :: ${statusEmoji("linkScanChannelWhitelist")}
-• **Rol Muafiyetleri**        :: ${statusEmoji("linkScanRoleWhitelist")}
-• **Mesajı Silme Cezası**     :: ${statusEmoji("linkActionDelete")}
-• **Uyarı Gönderme Cezası**   :: ${statusEmoji("linkActionWarn")}
-• **Susturma Cezası**         :: ${statusEmoji("linkActionTimeout")}
-• **Sunucudan Atma Cezası**   :: ${statusEmoji("linkActionKick")}
-• **Sunucudan Yasaklama**     :: ${statusEmoji("linkActionBan")}
-• **Yetkili Log Bildirimi**   :: ${statusEmoji("linkActionStaffLog")}
+• **Karakter Sınırı Engeli** :: ${statusEmoji("linkScanLengthLimit")}
+• **Kanal Muafiyetleri** :: ${statusEmoji("linkScanChannelWhitelist")}
+• **Rol Muafiyetleri** :: ${statusEmoji("linkScanRoleWhitelist")}
+• **Mesajı Silme Cezası** :: ${statusEmoji("linkActionDelete")}
+• **Uyarı Gönderme Cezası** :: ${statusEmoji("linkActionWarn")}
+• **Susturma Cezası** :: ${statusEmoji("linkActionTimeout")}
+• **Sunucudan Atma Cezası** :: ${statusEmoji("linkActionKick")}
+• **Sunucudan Yasaklama** :: ${statusEmoji("linkActionBan")}
+• **Yetkili Log Bildirimi** :: ${statusEmoji("linkActionStaffLog")}
 ${divider}
 *İstediğiniz link engelleme filtresini veya tarama davranışını yapılandırmak için aşağıdaki açılır menüleri kullanın.*`);
             }
@@ -903,48 +916,48 @@ ${divider}
                     .setDescription(`
 ${divider}
 **« KÜFÜR FİLTRELERİ VE KATEGORİLER »**
-• **Genel Engel**            :: ${statusEmoji("kufurBlockAll")}
-• **Ailevi Hakaret Engeli**   :: ${statusEmoji("kufurBlockFamily")}
-• **Cinsel İçerik Engeli**    :: ${statusEmoji("kufurBlockSexual")}
-• **Dini Değerlere Küfür**    :: ${statusEmoji("kufurBlockReligious")}
-• **Irkçı Hakaret Engeli**    :: ${statusEmoji("kufurBlockRacist")}
-• **Siyasi Taciz Engeli**     :: ${statusEmoji("kufurBlockPolitical")}
+• **Genel Engel** :: ${statusEmoji("kufurBlockAll")}
+• **Ailevi Hakaret Engeli** :: ${statusEmoji("kufurBlockFamily")}
+• **Cinsel İçerik Engeli** :: ${statusEmoji("kufurBlockSexual")}
+• **Dini Değerlere Küfür** :: ${statusEmoji("kufurBlockReligious")}
+• **Irkçı Hakaret Engeli** :: ${statusEmoji("kufurBlockRacist")}
+• **Siyasi Taciz Engeli** :: ${statusEmoji("kufurBlockPolitical")}
 • **Argo Sözcük Engeli (Gelişmiş Motor)** :: ${statusEmoji("kufurBlockArgo")}
-• **Kısaltmalar Koruması**    :: ${statusEmoji("kufurBlockAbbreviations")}
+• **Kısaltmalar Koruması** :: ${statusEmoji("kufurBlockAbbreviations")}
 • **Cinsiyetçi Taciz Engeli** :: ${statusEmoji("kufurBlockHomophobic")}
-• **Hakaret Spami Engeli**    :: ${statusEmoji("kufurBlockSpamInsults")}
-• **Şiddet / Tehdit Engeli**  :: ${statusEmoji("kufurBlockThreats")}
+• **Hakaret Spami Engeli** :: ${statusEmoji("kufurBlockSpamInsults")}
+• **Şiddet / Tehdit Engeli** :: ${statusEmoji("kufurBlockThreats")}
 • **Yetkiliye Hakaret Engeli**:: ${statusEmoji("kufurBlockAdmins")}
-• **Yabancı Dil Küfürler**    :: ${statusEmoji("kufurBlockForeign")}
+• **Yabancı Dil Küfürler** :: ${statusEmoji("kufurBlockForeign")}
 • **Fonetik Karakter Engeli** :: ${statusEmoji("kufurBlockPhonetic")}
-• **Boşluklu Yazım Engeli**   :: ${statusEmoji("kufurBlockSpaced")}
-• **Homoglif/Bypass Engeli**  :: ${statusEmoji("kufurBlockHomoglyphs")}
-• **Özel Blacklist Engeli**   :: ${statusEmoji("kufurBlockCustomBlacklist")}
+• **Boşluklu Yazım Engeli** :: ${statusEmoji("kufurBlockSpaced")}
+• **Homoglif/Bypass Engeli** :: ${statusEmoji("kufurBlockHomoglyphs")}
+• **Özel Blacklist Engeli** :: ${statusEmoji("kufurBlockCustomBlacklist")}
 • **Uygunsuz Emoji İsimleri** :: ${statusEmoji("kufurBlockEmojis")}
 • **Kullanıcı İsmi Koruması** :: ${statusEmoji("kufurBlockNicknames")}
 • **Kullanıcı Embed Metinleri**:: ${statusEmoji("kufurBlockRichEmbedTexts")}
 
 **« MUAFİYETLER, TARAMA VE CEZALANDIRMALAR »**
-• **Kanal Muafiyetleri**      :: ${statusEmoji("kufurAllowWhitelistedChannels")}
-• **Yetkili Muafiyeti**       :: ${statusEmoji("kufurAllowStaff")}
-• **Hatalı Yazım Düzeltme**   :: ${statusEmoji("kufurAllowSelfCorrect")}
-• **Alıntı Küfür İzni**       :: ${statusEmoji("kufurAllowQuotes")}
-• **Özel Kelime Whitelisti**  :: ${statusEmoji("kufurAllowCustomWhitelist")}
-• **Rol Muafiyetleri**        :: ${statusEmoji("kufurAllowRoleWhitelist")}
+• **Kanal Muafiyetleri** :: ${statusEmoji("kufurAllowWhitelistedChannels")}
+• **Yetkili Muafiyeti** :: ${statusEmoji("kufurAllowStaff")}
+• **Hatalı Yazım Düzeltme** :: ${statusEmoji("kufurAllowSelfCorrect")}
+• **Alıntı Küfür İzni** :: ${statusEmoji("kufurAllowQuotes")}
+• **Özel Kelime Whitelisti** :: ${statusEmoji("kufurAllowCustomWhitelist")}
+• **Rol Muafiyetleri** :: ${statusEmoji("kufurAllowRoleWhitelist")}
 • **Otonom Susturma Bypassı** :: ${statusEmoji("kufurAllowAutonomousBypass")}
-• **Levensthein (Yakınlık)**  :: ${statusEmoji("kufurScanLevensthein")}
+• **Levensthein (Yakınlık)** :: ${statusEmoji("kufurScanLevensthein")}
 • **Gelişmiş Regex Taraması** :: ${statusEmoji("kufurScanRegexBypass")}
 • **Büyük Harfli Küfür Filtresi**:: ${statusEmoji("kufurScanCapsInsult")}
 • **Zalgo/Bozuk Harf Filtresi**:: ${statusEmoji("kufurScanZalgo")}
-• **Yoğunluk Sınırı Engeli**  :: ${statusEmoji("kufurScanLengthRatio")}
+• **Yoğunluk Sınırı Engeli** :: ${statusEmoji("kufurScanLengthRatio")}
 • **Spoiler İçerik Koruması** :: ${statusEmoji("kufurScanSpoilers")}
-• **Dosya Adı Koruması**      :: ${statusEmoji("kufurScanAttachments")}
-• **Mesajı Silme Cezası**     :: ${statusEmoji("kufurActionDelete")}
-• **Kullanıcıyı Uyarma**      :: ${statusEmoji("kufurActionWarn")}
-• **Susturma (Mute) Cezası**  :: ${statusEmoji("kufurActionMute")}
-• **Sunucudan Atma (Kick)**   :: ${statusEmoji("kufurActionKick")}
-• **Sunucudan Yasaklama**     :: ${statusEmoji("kufurActionBan")}
-• **Yetkili Log Bildirimi**   :: ${statusEmoji("kufurActionStaffLog")}
+• **Dosya Adı Koruması** :: ${statusEmoji("kufurScanAttachments")}
+• **Mesajı Silme Cezası** :: ${statusEmoji("kufurActionDelete")}
+• **Kullanıcıyı Uyarma** :: ${statusEmoji("kufurActionWarn")}
+• **Susturma (Mute) Cezası** :: ${statusEmoji("kufurActionMute")}
+• **Sunucudan Atma (Kick)** :: ${statusEmoji("kufurActionKick")}
+• **Sunucudan Yasaklama** :: ${statusEmoji("kufurActionBan")}
+• **Yetkili Log Bildirimi** :: ${statusEmoji("kufurActionStaffLog")}
 ${divider}
 *İstediğiniz küfür/hakaret filtresini veya tarama davranışını yapılandırmak için aşağıdaki açılır menüleri kullanın.*`);
             }
@@ -956,30 +969,30 @@ ${divider}
                     .setDescription(`
 ${divider}
 **« SİSTEM KİLİTLERİ VE FİLTRELER »**
-• **Genel Engel**            :: ${statusEmoji("antiBotAdd")}
-• **Yeni Bot Limit Sınırı**   :: ${statusEmoji("antiBotLimitAdd")} \`[Maks 1 Bot / Saat]\`
-• **Bot Onaylama İzni**      :: ${statusEmoji("antiBotRequireVerify")}
-• **Tam Karantina Kilidi**    :: ${statusEmoji("antiBotLockdown")}
+• **Genel Engel** :: ${statusEmoji("antiBotAdd")}
+• **Yeni Bot Limit Sınırı** :: ${statusEmoji("antiBotLimitAdd")} \`[Maks 1 Bot / Saat]\`
+• **Bot Onaylama İzni** :: ${statusEmoji("antiBotRequireVerify")}
+• **Tam Karantina Kilidi** :: ${statusEmoji("antiBotLockdown")}
 • **Doğrulanmamış Bot Engeli**:: ${statusEmoji("antiBotBlockUnverified")}
-• **Özel Bot Filtresi**       :: ${statusEmoji("antiBotBlockPublicBots")}
-• **Yeni Bot Yaş Sınırı**     :: ${statusEmoji("antiBotCheckCreationDate")} \`[Maks 15 Günlük]\`
-• **Şüpheli Komut Taraması**  :: ${statusEmoji("antiBotScanCommandNameSpam")}
+• **Özel Bot Filtresi** :: ${statusEmoji("antiBotBlockPublicBots")}
+• **Yeni Bot Yaş Sınırı** :: ${statusEmoji("antiBotCheckCreationDate")} \`[Maks 15 Günlük]\`
+• **Şüpheli Komut Taraması** :: ${statusEmoji("antiBotScanCommandNameSpam")}
 
 **« YETKİ VE ROL SINIRLANDIRMALARI »**
-• **Yetki Temizleme Modu**    :: ${statusEmoji("antiBotLimitPermissions")} \`[Yönetici İzni Siler]\`
-• **Rol Verme Engeli**        :: ${statusEmoji("antiBotRestrictRoles")} \`[Yetkili Rol Alamaz]\`
-• **Karantina Kanalı**        :: ${statusEmoji("antiBotQuarantine")}
+• **Yetki Temizleme Modu** :: ${statusEmoji("antiBotLimitPermissions")} \`[Yönetici İzni Siler]\`
+• **Rol Verme Engeli** :: ${statusEmoji("antiBotRestrictRoles")} \`[Yetkili Rol Alamaz]\`
+• **Karantina Kanalı** :: ${statusEmoji("antiBotQuarantine")}
 • **Sunucu Kanalları Kilidi** :: ${statusEmoji("antiBotChannelRestriction")} \`[Sadece Test Kanalı]\`
-• **Rol Verme Bildirimi**     :: ${statusEmoji("antiBotAdminRoleAlert")} \`[Sahibe DM Bildirimi]\`
-• **İstikrar Denetimi**       :: ${statusEmoji("antiBotIntegrityLogs")} \`[24 Saat Takip]\`
+• **Rol Verme Bildirimi** :: ${statusEmoji("antiBotAdminRoleAlert")} \`[Sahibe DM Bildirimi]\`
+• **İstikrar Denetimi** :: ${statusEmoji("antiBotIntegrityLogs")} \`[24 Saat Takip]\`
 
 **« DENETİM VE CEZALANDIRMALAR »**
-• **Ekleyeni Sunucudan At**    :: ${statusEmoji("antiBotActionKickAddExecutor")}
+• **Ekleyeni Sunucudan At** :: ${statusEmoji("antiBotActionKickAddExecutor")}
 • **Ekleyeni Sunucudan Banla** :: ${statusEmoji("antiBotActionBanAddExecutor")}
-• **Gelişmiş Detay Günlüğü**  :: ${statusEmoji("antiBotLogAddedDetails")}
-• **Çift Denetim Modu**       :: ${statusEmoji("antiBotAuditLogCompare")}
+• **Gelişmiş Detay Günlüğü** :: ${statusEmoji("antiBotLogAddedDetails")}
+• **Çift Denetim Modu** :: ${statusEmoji("antiBotAuditLogCompare")}
 • **Otonom Susturma Bypassı** :: ${statusEmoji("antiBotAutonomousBypass")}
-• **Token Sızıntı Koruması**  :: ${statusEmoji("antiBotBlockTokenLeaks")}
+• **Token Sızıntı Koruması** :: ${statusEmoji("antiBotBlockTokenLeaks")}
 ${divider}
 *İstediğiniz anti-bot korumasını veya denetim davranışını yapılandırmak için aşağıdaki seçim menüsünü kullanın.*`);
             }
@@ -991,26 +1004,26 @@ ${divider}
                     .setDescription(`
 ${divider}
 **« TEMEL GÖRSEL KİLİTLERİ »**
-• **Genel Engel**            :: ${statusEmoji("antiGuildUpdate")}
-• **Sunucu İsmi Koruması**    :: ${statusEmoji("antiGuildNameUpdate")}
-• **Sunucu İkon Koruması**    :: ${statusEmoji("antiGuildIconUpdate")}
-• **Banner Resmi Koruması**   :: ${statusEmoji("antiGuildBannerUpdate")}
-• **Giriş Resmi Koruması**    :: ${statusEmoji("antiGuildSplashUpdate")}
+• **Genel Engel** :: ${statusEmoji("antiGuildUpdate")}
+• **Sunucu İsmi Koruması** :: ${statusEmoji("antiGuildNameUpdate")}
+• **Sunucu İkon Koruması** :: ${statusEmoji("antiGuildIconUpdate")}
+• **Banner Resmi Koruması** :: ${statusEmoji("antiGuildBannerUpdate")}
+• **Giriş Resmi Koruması** :: ${statusEmoji("antiGuildSplashUpdate")}
 
 **« GÜVENLİK VE DENETİM DÜZEYLERİ »**
 • **Doğrulama Düzeyi Koruması**:: ${statusEmoji("antiGuildVerificationLevelUpdate")}
 • **Medya Filtresi Koruması** :: ${statusEmoji("antiGuildContentFilterUpdate")}
-• **Sunucu Widget Koruması**  :: ${statusEmoji("antiGuildWidgetUpdate")}
-• **MFA İki Faktör Kilidi**   :: ${statusEmoji("antiGuildMfaLevelUpdate")}
+• **Sunucu Widget Koruması** :: ${statusEmoji("antiGuildWidgetUpdate")}
+• **MFA İki Faktör Kilidi** :: ${statusEmoji("antiGuildMfaLevelUpdate")}
 
 **« KANALLAR VE ÖZEL URL KORUMALARI »**
-• **Sistem Kanalı Koruması**  :: ${statusEmoji("antiGuildSystemChannelUpdate")}
+• **Sistem Kanalı Koruması** :: ${statusEmoji("antiGuildSystemChannelUpdate")}
 • **Kurallar Kanalı Koruması**:: ${statusEmoji("antiGuildRulesChannelUpdate")}
-• **Güncellemeler Kanalı**    :: ${statusEmoji("antiGuildUpdatesChannelUpdate")}
+• **Güncellemeler Kanalı** :: ${statusEmoji("antiGuildUpdatesChannelUpdate")}
 • **Özel Davet URL Koruması** :: ${statusEmoji("antiGuildVanityUrlUpdate")} \`[Vanity Hijacking Engeli]\`
 
 **« KİLİTLEME VE BİLDİRİMLER »**
-• **Çoklu Değişim Kilidi**    :: ${statusEmoji("antiGuildFeatureRevertLock")} \`[Maks 3 Eylem / 5 Sn]\`
+• **Çoklu Değişim Kilidi** :: ${statusEmoji("antiGuildFeatureRevertLock")} \`[Maks 3 Eylem / 5 Sn]\`
 • **Detaylı Sahip Bildirimi** :: ${statusEmoji("antiGuildActionOwnerAlert")} \`[Sahibe DM Gönderir]\`
 ${divider}
 *Sunucu ayarlarını korumak ve izinsiz değişiklikleri geri döndürmek için aşağıdaki seçim menüsünü kullanın.*`);
@@ -1023,25 +1036,25 @@ ${divider}
                     .setDescription(`
 ${divider}
 **« SİSTEM KİLİTLERİ VE FİLTRELER »**
-• **Genel Engel**            :: ${statusEmoji("antiPrune")}
-• **Prune İşlemi Bloklama**   :: ${statusEmoji("antiPruneBlockAll")}
-• **Budama Gün Sınırı**       :: ${statusEmoji("antiPruneLimitDays")} \`[Maks 30 Gün]\`
-• **Budama Rol Filtresi**     :: ${statusEmoji("antiPruneMinRoles")} \`[Rol Seçimi Zorunlu]\`
-• **Süre Kısıtlaması**        :: ${statusEmoji("antiPruneTimeLimit")} \`[Gece Saldırı Koruması]\`
+• **Genel Engel** :: ${statusEmoji("antiPrune")}
+• **Prune İşlemi Bloklama** :: ${statusEmoji("antiPruneBlockAll")}
+• **Budama Gün Sınırı** :: ${statusEmoji("antiPruneLimitDays")} \`[Maks 30 Gün]\`
+• **Budama Rol Filtresi** :: ${statusEmoji("antiPruneMinRoles")} \`[Rol Seçimi Zorunlu]\`
+• **Süre Kısıtlaması** :: ${statusEmoji("antiPruneTimeLimit")} \`[Gece Saldırı Koruması]\`
 
 **« DENETİM VE KİLİT SİSTEMLERİ »**
 • **Sunucu Kanalları Kilidi** :: ${statusEmoji("antiPruneLockdownOnPrune")}
 • **Tehdit Derecesi Karantina**:: ${statusEmoji("antiPruneThreatMax")} \`[Tehdit Seviyesi %100]\`
 • **Karantina Alt Yetkililer**:: ${statusEmoji("antiPruneIntegrityQuarantine")} \`[Yetkilileri Dondurur]\`
-• **Çift Denetim Modu**       :: ${statusEmoji("antiPruneAuditDoubleCheck")}
+• **Çift Denetim Modu** :: ${statusEmoji("antiPruneAuditDoubleCheck")}
 • **Rol Silme Bypass Taraması**:: ${statusEmoji("antiPruneRoleRecoveryTracker")}
 
 **« CEZALANDIRMA VE BİLDİRİMLER »**
-• **Ekleyeni Sunucudan At**    :: ${statusEmoji("antiPruneActionKickExecutor")}
+• **Ekleyeni Sunucudan At** :: ${statusEmoji("antiPruneActionKickExecutor")}
 • **Ekleyeni Sunucudan Banla** :: ${statusEmoji("antiPruneActionBanExecutor")}
-• **Rolleri Temizleme Modu**  :: ${statusEmoji("antiPruneActionStripRoles")}
+• **Rolleri Temizleme Modu** :: ${statusEmoji("antiPruneActionStripRoles")}
 • **Detaylı Sahip Bildirimi** :: ${statusEmoji("antiPruneOwnerNotification")} \`[Sahibe DM Gönderir]\`
-• **Gelişmiş Rapor Günlüğü**  :: ${statusEmoji("antiPruneLogStaff")}
+• **Gelişmiş Rapor Günlüğü** :: ${statusEmoji("antiPruneLogStaff")}
 ${divider}
 *Mass prune (budama) saldırılarını engellemek ve izinsiz tetikleyen yöneticileri engellemek için aşağıdaki seçim menüsünü kullanın.*`);
             }
@@ -1053,32 +1066,32 @@ ${divider}
                     .setDescription(`
 ${divider}
 **« SİSTEM KONTROLLERİ VE SINIRLARI »**
-• **Genel Engel**            :: ${statusEmoji("spamBlockAll")}
+• **Genel Engel** :: ${statusEmoji("spamBlockAll")}
 • **Tekrarlanan Mesaj Engeli** :: ${statusEmoji("spamDuplicateLimit")} \`[Maks 15 Sn]\`
-• **Mesaj Hız Sınırı**        :: ${statusEmoji("spamMaxMessages")} \`[Maks 5 Mesaj / 3 Sn]\`
-• **Min Mesaj Aralığı**       :: ${statusEmoji("spamMinTimeBetweenMessages")} \`[500 Ms Bekleme]\`
+• **Mesaj Hız Sınırı** :: ${statusEmoji("spamMaxMessages")} \`[Maks 5 Mesaj / 3 Sn]\`
+• **Min Mesaj Aralığı** :: ${statusEmoji("spamMinTimeBetweenMessages")} \`[500 Ms Bekleme]\`
 • **Süre Kısıtlaması (React)**:: ${statusEmoji("spamFastReact")} \`[Maks 5 Reaksiyon / 3 Sn]\`
 
 **« BİÇİM VE METRİK FİLTRELERİ »**
-• **Büyük Harf Koruması**    :: ${statusEmoji("spamCapsPercentage")} \`[>%70 Oran]\`
-• **Emoji Yoğunluk Sınırı**   :: ${statusEmoji("spamMaxEmojis")} \`[Maks 5 Emoji]\`
-• **Etiket Yoğunluk Sınırı**  :: ${statusEmoji("spamMaxMentions")} \`[Maks 4 Etiket]\`
-• **Rol Etiket Kısıtlaması**  :: ${statusEmoji("spamRoleMentions")} \`[Maks 2 Rol]\`
-• **Satır Sınırı Koruması**   :: ${statusEmoji("spamMaxLines")} \`[Maks 5 Satır]\`
-• **Karakter Uzunluk Sınırı**  :: ${statusEmoji("spamMaxLength")} \`[Maks 800 Karakter]\`
-• **Çoklu Link Filtresi**     :: ${statusEmoji("spamLinkCount")} \`[Maks 2 Link]\`
+• **Büyük Harf Koruması** :: ${statusEmoji("spamCapsPercentage")} \`[>%70 Oran]\`
+• **Emoji Yoğunluk Sınırı** :: ${statusEmoji("spamMaxEmojis")} \`[Maks 5 Emoji]\`
+• **Etiket Yoğunluk Sınırı** :: ${statusEmoji("spamMaxMentions")} \`[Maks 4 Etiket]\`
+• **Rol Etiket Kısıtlaması** :: ${statusEmoji("spamRoleMentions")} \`[Maks 2 Rol]\`
+• **Satır Sınırı Koruması** :: ${statusEmoji("spamMaxLines")} \`[Maks 5 Satır]\`
+• **Karakter Uzunluk Sınırı** :: ${statusEmoji("spamMaxLength")} \`[Maks 800 Karakter]\`
+• **Çoklu Link Filtresi** :: ${statusEmoji("spamLinkCount")} \`[Maks 2 Link]\`
 
 **« YAPTIRIMLAR VE CEZALANDIRMALAR »**
-• **Mesajı Silme Cezası**     :: ${statusEmoji("spamActionDelete")}
-• **Uyarı Gönderme Cezası**   :: ${statusEmoji("spamActionWarn")}
-• **Susturma (Mute) Cezası**  :: ${statusEmoji("spamActionMute")} \`[5 Dakika Susturur]\`
-• **Sunucudan Atma (Kick)**   :: ${statusEmoji("spamActionKick")}
+• **Mesajı Silme Cezası** :: ${statusEmoji("spamActionDelete")}
+• **Uyarı Gönderme Cezası** :: ${statusEmoji("spamActionWarn")}
+• **Susturma (Mute) Cezası** :: ${statusEmoji("spamActionMute")} \`[5 Dakika Susturur]\`
+• **Sunucudan Atma (Kick)** :: ${statusEmoji("spamActionKick")}
 • **Sunucudan Yasaklama (Ban)** :: ${statusEmoji("spamActionBan")} \`[Mass Raid Koruması]\`
-• **Yetkili Rapor Bildirimi**  :: ${statusEmoji("spamActionStaffLog")}
+• **Yetkili Rapor Bildirimi** :: ${statusEmoji("spamActionStaffLog")}
 
 **« MUAFİYETLER VE BÖLGELER »**
-• **Yetkili Muafiyeti**       :: ${statusEmoji("spamAllowStaff")}
-• **Kanal Muafiyetleri**      :: ${statusEmoji("spamBypassChannels")}
+• **Yetkili Muafiyeti** :: ${statusEmoji("spamAllowStaff")}
+• **Kanal Muafiyetleri** :: ${statusEmoji("spamBypassChannels")}
 ${divider}
 *Spam saldırılarını engellemek ve sohbet akışını korumak için aşağıdaki seçim menüsünü kullanın.*`);
             }
@@ -1092,17 +1105,28 @@ ${divider}
                     .setTitle("👥 Giriş Güvenliği & Raid Koruması")
                     .setDescription(`
 ${divider}
-**« HESAP VE GİRİŞ KORUMALARI »**
-• **Yeni Hesap Koruması**      :: ${statusEmoji("accountAgeGuard")} \`(Sınır: ${limitDays} Gün)\`
+**« YENİ HESAP KORUMASI (10 ÖZELLİK) »**
+• **Genel Engel Ana Şalteri** :: ${statusEmoji("accountAgeBlockAll")} \`(Sınır: ${limitDays} Gün)\`
+• **Sunucudan Atma (Kick)**   :: ${statusEmoji("accountAgeActionKick")}
+• **Sunucudan Yasaklama (Ban)**:: ${statusEmoji("accountAgeActionBan")}
+• **Karantina Rolü Verme**    :: ${statusEmoji("accountAgeActionQuarantine")}
+• **Susturma (Timeout)**      :: ${statusEmoji("accountAgeActionTimeout")}
+• **Yetkili Log Bildirimi**   :: ${statusEmoji("accountAgeLogStaff")}
+• **Kullanıcıya DM Bildirimi**:: ${statusEmoji("accountAgeDMNotify")}
+• **Özel Davet (Bypass) İzni**:: ${statusEmoji("accountAgeBypassInvites")}
+• **Alt Hesap (Multi) Tespiti**:: ${statusEmoji("accountAgeTrackAltAccounts")}
+• **Otonom Katı Mod**         :: ${statusEmoji("accountAgeAutoStrict")}
+
+**« DİĞER GİRİŞ KORUMALARI »**
 • **Varsayılan Avatar Koruması**:: ${statusEmoji("defaultAvatarGuard")}
 • **Anti-Raid Giriş Koruması**  :: ${statusEmoji("raidGuard")} \`(Sınır: ${limitRejoins} Giriş / ${limitTime} Sn)\`
 • **Reklamlı İsim Koruması**    :: ${statusEmoji("usernameRegexGuard")}
 
 **« DOĞRULAMA & KARANTİNA »**
-• **Butonlu Doğrulama**        :: ${statusEmoji("buttonVerification")}
+• **Butonlu Doğrulama**         :: ${statusEmoji("buttonVerification")}
 • **Otomatik Karantina**        :: ${statusEmoji("autoQuarantine")}
 ${divider}
-*Doğrulama ve Karantina rollerini ayarlamak, yaş veya giriş limitlerini özelleştirmek için aşağıdaki seçim menüsünü kullanın.*`);
+*İstediğiniz kategorideki korumaları ve limitleri özelleştirmek için aşağıdaki menüleri kullanın.*`);
             }
 
             if (activePage === "limits") {
@@ -1115,11 +1139,11 @@ ${divider}
 Bir yöneticinin belirlenen zaman dilimi (\`${limitTime} Dakika\`) içinde yapabileceği maksimum eylem limitleri. Limit aşıldığında yetkili banlanır ve tüm rolleri alınır.
 
 **« İŞLEM EŞİKLERİ »**
-• **Banlama Sınırı**           :: \`${getSetting(guildId, "banLimit")} Adet\`
-• **Kullanıcı Atma (Kick)**    :: \`${getSetting(guildId, "kickLimit")} Adet\`
-• **Kanal Silme Sınırı**       :: \`${getSetting(guildId, "channelDeleteLimit")} Adet\`
-• **Rol Silme Sınırı**         :: \`${getSetting(guildId, "roleDeleteLimit")} Adet\`
-• **Rol Verme Sınırı**         :: \`${getSetting(guildId, "roleGiveLimit")} Adet\`
+• **Banlama Sınırı** :: \`${getSetting(guildId, "banLimit")} Adet\`
+• **Kullanıcı Atma (Kick)** :: \`${getSetting(guildId, "kickLimit")} Adet\`
+• **Kanal Silme Sınırı** :: \`${getSetting(guildId, "channelDeleteLimit")} Adet\`
+• **Rol Silme Sınırı** :: \`${getSetting(guildId, "roleDeleteLimit")} Adet\`
+• **Rol Verme Sınırı** :: \`${getSetting(guildId, "roleGiveLimit")} Adet\`
 ${divider}
 *Zaman aralıklarını ve adet sınırlarını özelleştirmek için aşağıdaki seçim menüsünü kullanın.*`);
             }
@@ -1152,9 +1176,9 @@ ${divider}
                     .setDescription(`
 ${divider}
 **« SİSTEM KANALLARI & ROLLERİ »**
-• **Log Kanalı**               :: ${logCh}
-• **Doğrulama Rolü**           :: ${verifyRol}
-• **Karantina Rolü**           :: ${quarantineRol}
+• **Log Kanalı** :: ${logCh}
+• **Doğrulama Rolü** :: ${verifyRol}
+• **Karantina Rolü** :: ${quarantineRol}
 
 **« TAM GÜVENLİ LİSTE (FULL BYPASS) »**
 ${fullWl}
@@ -1167,7 +1191,6 @@ ${divider}
         };
 
         const generateComponents = () => {
-            // Navigation dropdown (Row 1) - Shown on all pages
             const rowNav = new ActionRowBuilder().addComponents(
                 new StringSelectMenuBuilder()
                     .setCustomId("select_page")
@@ -1521,19 +1544,37 @@ ${divider}
                     ]);
                 rows.push(new ActionRowBuilder().addComponents(selectSpam));
             } else if (activePage === "raid") {
+                const selectAccountAge = new StringSelectMenuBuilder()
+                    .setCustomId("toggle_account_age")
+                    .setPlaceholder("🆕 Yeni Hesap Koruması (10 Özellik)")
+                    .setMinValues(0)
+                    .setMaxValues(10)
+                    .addOptions([
+                        { label: "Genel Engel Şalteri", value: "accountAgeBlockAll", description: "Yeni hesap koruma sistemini aktif eder.", default: getSetting(guildId, "accountAgeBlockAll") },
+                        { label: "Sunucudan At (Kick)", value: "accountAgeActionKick", description: "Giren yeni hesabı sunucudan atar.", default: getSetting(guildId, "accountAgeActionKick") },
+                        { label: "Sunucudan Yasakla (Ban)", value: "accountAgeActionBan", description: "Giren yeni hesabı kalıcı yasaklar.", default: getSetting(guildId, "accountAgeActionBan") },
+                        { label: "Karantinaya Al", value: "accountAgeActionQuarantine", description: "Yeni hesaba karantina rolü verir.", default: getSetting(guildId, "accountAgeActionQuarantine") },
+                        { label: "Sustur (Timeout)", value: "accountAgeActionTimeout", description: "Yeni hesabı 1 saatliğine susturur.", default: getSetting(guildId, "accountAgeActionTimeout") },
+                        { label: "Yetkili Log Bildirimi", value: "accountAgeLogStaff", description: "İşlemleri log kanalına raporlar.", default: getSetting(guildId, "accountAgeLogStaff") },
+                        { label: "Kullanıcıya DM At", value: "accountAgeDMNotify", description: "Ceza alan üyeye özel mesajla sebebini iletir.", default: getSetting(guildId, "accountAgeDMNotify") },
+                        { label: "Özel Davet İzni (Bypass)", value: "accountAgeBypassInvites", description: "Sunucu davet kodlarıyla girenleri es geçer.", default: getSetting(guildId, "accountAgeBypassInvites") },
+                        { label: "Alt Hesap (Multi) Tespiti", value: "accountAgeTrackAltAccounts", description: "Peş peşe giren yeni hesapları mimler.", default: getSetting(guildId, "accountAgeTrackAltAccounts") },
+                        { label: "Otonom Katı Mod", value: "accountAgeAutoStrict", description: "Raid anında sınır yaşını otomatik 2 katına çıkarır.", default: getSetting(guildId, "accountAgeAutoStrict") }
+                    ]);
+
                 const selectRaidBools = new StringSelectMenuBuilder()
                     .setCustomId("toggle_raid_bools")
-                    .setPlaceholder("👥 Giriş Güvenliklerini Seçin (Çoklu Seçim)")
+                    .setPlaceholder("👥 Diğer Giriş Korumaları")
                     .setMinValues(0)
-                    .setMaxValues(6)
+                    .setMaxValues(5)
                     .addOptions([
-                        { label: "Yeni Hesap Koruması", value: "accountAgeGuard", description: "Yeni açılmış hesapları sunucudan atar.", default: getSetting(guildId, "accountAgeGuard") },
                         { label: "Varsayılan Avatar Koruması", value: "defaultAvatarGuard", description: "Profil resmi olmayan hesapları atar.", default: getSetting(guildId, "defaultAvatarGuard") },
                         { label: "Anti-Raid Koruması", value: "raidGuard", description: "Saldırı anında girişleri engeller.", default: getSetting(guildId, "raidGuard") },
                         { label: "Reklamlı İsim Koruması", value: "usernameRegexGuard", description: "İsminde link olan hesapları atar.", default: getSetting(guildId, "usernameRegexGuard") },
                         { label: "Butonlu Doğrulama Sistemi", value: "buttonVerification", description: "Yeni üyeleri butonla doğrulatır.", default: getSetting(guildId, "buttonVerification") },
                         { label: "Otomatik Karantina", value: "autoQuarantine", description: "Yeni üyeleri direkt karantinaya alır.", default: getSetting(guildId, "autoQuarantine") }
                     ]);
+
                 const selectRaidLimits = new StringSelectMenuBuilder()
                     .setCustomId("adjust_raid_numbers")
                     .setPlaceholder("✍️ Sayısal limitleri ayarlayın")
@@ -1542,6 +1583,8 @@ ${divider}
                         { label: "Raid Giriş Sınırını Belirle (Kişi)", value: "custom_raid" },
                         { label: "Raid Zaman Dilimini Belirle (Saniye)", value: "custom_raid_time" }
                     ]);
+
+                rows.push(new ActionRowBuilder().addComponents(selectAccountAge));
                 rows.push(new ActionRowBuilder().addComponents(selectRaidBools));
                 rows.push(new ActionRowBuilder().addComponents(selectRaidLimits));
             } else if (activePage === "limits") {
@@ -1577,8 +1620,7 @@ ${divider}
 
         const response = await interaction.editReply({
             embeds: [generateEmbed()],
-            components: generateComponents(),
-            ephemeral: true
+            components: generateComponents()
         });
 
         const collector = response.createMessageComponentCollector({
@@ -1626,13 +1668,13 @@ ${divider}
                     components: generateComponents()
                 });
             } else if (i.customId === "action_toggle_main") {
-    const currentState = global.guardDurums.get(guildId) || false;
-    global.guardDurums.set(guildId, !currentState);
-    await updateSetting(guildId, "guard_durum", !currentState);
-    await interaction.editReply({
-        embeds: [generateEmbed()],
-        components: generateComponents()
-    });
+                const currentState = global.guardDurums.get(guildId) || false;
+                global.guardDurums.set(guildId, !currentState);
+                await updateSetting(guildId, "guard_durum", !currentState);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
             } else if (i.customId === "action_autonom") {
                 const current = getSetting(guildId, "autonomousMode");
                 await setSetting(guildId, "autonomousMode", !current);
@@ -1927,8 +1969,9 @@ ${divider}
             } else if (i.customId === "toggle_raid_bools") {
                 const settings = global.guardSettings.get(guildId) || {};
                 const keys = [
-                    "accountAgeGuard", "defaultAvatarGuard", "raidGuard", "usernameRegexGuard",
-                    "buttonVerification", "autoQuarantine"
+                    "accountAgeBlockAll", "accountAgeActionKick", "accountAgeActionBan", "accountAgeActionQuarantine", 
+                    "accountAgeActionTimeout", "accountAgeLogStaff", "accountAgeDMNotify", "accountAgeBypassInvites", 
+                    "accountAgeTrackAltAccounts", "accountAgeAutoStrict"
                 ];
                 keys.forEach(k => settings[k] = i.values.includes(k));
                 global.guardSettings.set(guildId, settings);
@@ -2068,9 +2111,7 @@ ${divider}
                                 new EmbedBuilder()
                                     .setColor(0x2B2D31)
                                     .setTitle(`🛡️ Özel Güvenlik Yetkilendirmesi`)
-                                    .setDescription(`
-Şu an yetkilendirmesi düzenlenen üye: <@${targetId}> (\`${targetId}\`)
-İstediğiniz kategori yetkisini açmak veya kapatmak için aşağıdaki butonları kullanın.`)
+                                    .setDescription(`Şu an yetkilendirmesi düzenlenen üye: <@${targetId}> (\`${targetId}\`)\nİstediğiniz kategori yetkisini açmak veya kapatmak için aşağıdaki butonları kullanın.`)
                             ],
                             components: [rowPerms]
                         });
@@ -2146,10 +2187,11 @@ ${divider}
             return interaction.reply({ content: "❌ Geçersiz sayı girdiniz! Lütfen pozitif bir tam sayı girin.", ephemeral: true });
         }
 
+        // --- EN ÖNEMLİ KISIM: MODALI BEKLETMEYE AL YANIT YERİNE EDİTREPLY KULLAN ---
         await interaction.deferReply({ ephemeral: true });
 
         await setSetting(guildId, key, val);
-        await interaction.reply({ content: `✅ Değer başarıyla güncellendi! Yeni değer: **${val}**`, ephemeral: true });
+        await interaction.editReply({ content: `✅ Değer başarıyla güncellendi! Yeni değer: **${val}**` });
     },
 
     // ============================================
