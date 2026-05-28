@@ -3,7 +3,8 @@ const {
     EmbedBuilder,
     ActionRowBuilder,
     ButtonBuilder,
-    ButtonStyle
+    ButtonStyle,
+    PermissionFlagsBits
 } = require('discord.js');
 
 function parseTime(time) {
@@ -16,23 +17,35 @@ function parseTime(time) {
     const unit = match[2];
 
     switch (unit) {
+
         case 's':
             return value * 1000;
+
         case 'm':
             return value * 60 * 1000;
+
         case 'h':
             return value * 60 * 60 * 1000;
+
         case 'd':
             return value * 24 * 60 * 60 * 1000;
+
         default:
             return null;
     }
 }
 
 module.exports = {
+
     data: new SlashCommandBuilder()
+
         .setName('çekiliş')
         .setDescription('Profesyonel çekiliş sistemi')
+
+        // SADECE YETKİLİLER KULLANABİLİR
+        .setDefaultMemberPermissions(
+            PermissionFlagsBits.ManageGuild
+        )
 
         .addStringOption(option =>
             option
@@ -64,9 +77,28 @@ module.exports = {
 
     async execute(interaction) {
 
-        const odul = interaction.options.getString('ödül');
-        const sureText = interaction.options.getString('süre');
-        const kazananSayi = interaction.options.getInteger('kazanan');
+        // EXTRA GÜVENLİK
+        if (
+            !interaction.member.permissions.has(
+                PermissionFlagsBits.ManageGuild
+            )
+        ) {
+            return interaction.reply({
+                content:
+                    '❌ Bu komutu kullanamazsın!',
+                ephemeral: true
+            });
+        }
+
+        const odul =
+            interaction.options.getString('ödül');
+
+        const sureText =
+            interaction.options.getString('süre');
+
+        const kazananSayi =
+            interaction.options.getInteger('kazanan');
+
         const aciklama =
             interaction.options.getString('açıklama') ||
             'Açıklama belirtilmedi.';
@@ -74,9 +106,12 @@ module.exports = {
         const sure = parseTime(sureText);
 
         if (!sure) {
+
             return interaction.reply({
+
                 content:
                     '❌ Geçerli süre gir!\nÖrnek: 10m, 2h, 1d',
+
                 ephemeral: true
             });
         }
@@ -84,13 +119,19 @@ module.exports = {
         const katilanlar = [];
 
         const embed = new EmbedBuilder()
+
             .setColor('Gold')
+
             .setTitle('🎉 Yeni Çekiliş!')
+
             .setThumbnail(
-                interaction.guild.iconURL({ dynamic: true })
+                interaction.guild.iconURL({
+                    dynamic: true
+                })
             )
+
             .setDescription(
-                `🎁 **Ödül:** ${odul}
+`🎁 **Ödül:** ${odul}
 
 📝 **Açıklama:** ${aciklama}
 
@@ -100,24 +141,35 @@ module.exports = {
 
 🎟️ Katılmak için aşağıdaki butona bas!`
             )
+
             .setFooter({
-                text: `Başlatan: ${interaction.user.username}`
+                text:
+                    `Başlatan: ${interaction.user.username}`
             })
+
             .setTimestamp();
 
         const button = new ButtonBuilder()
+
             .setCustomId('cekilis_katil')
+
             .setLabel('Katıl 🎟️')
+
             .setStyle(ButtonStyle.Success);
 
-        const row = new ActionRowBuilder()
-            .addComponents(button);
+        const row =
+            new ActionRowBuilder()
+                .addComponents(button);
 
-        const mesaj = await interaction.reply({
-            embeds: [embed],
-            components: [row],
-            fetchReply: true
-        });
+        const mesaj =
+            await interaction.reply({
+
+                embeds: [embed],
+
+                components: [row],
+
+                fetchReply: true
+            });
 
         const collector =
             mesaj.createMessageComponentCollector({
@@ -127,9 +179,12 @@ module.exports = {
         collector.on('collect', async i => {
 
             if (katilanlar.includes(i.user.id)) {
+
                 return i.reply({
+
                     content:
                         '❌ Zaten çekilişe katıldın!',
+
                     ephemeral: true
                 });
             }
@@ -137,8 +192,10 @@ module.exports = {
             katilanlar.push(i.user.id);
 
             i.reply({
+
                 content:
                     '✅ Çekilişe başarıyla katıldın!',
+
                 ephemeral: true
             });
         });
@@ -150,7 +207,9 @@ module.exports = {
             });
 
             if (katilanlar.length === 0) {
+
                 return interaction.followUp({
+
                     content:
                         '❌ Çekilişe kimse katılmadı.'
                 });
@@ -159,8 +218,11 @@ module.exports = {
             const kazananlar = [];
 
             while (
+
                 kazananlar.length < kazananSayi &&
+
                 kazananlar.length < katilanlar.length
+
             ) {
 
                 const randomUser =
@@ -174,15 +236,22 @@ module.exports = {
                 if (
                     !kazananlar.includes(randomUser)
                 ) {
+
                     kazananlar.push(randomUser);
                 }
             }
 
-            const sonucEmbed = new EmbedBuilder()
-                .setColor('Green')
-                .setTitle('🎉 Çekiliş Sonuçlandı!')
-                .setDescription(
-                    `🎁 **Ödül:** ${odul}
+            const sonucEmbed =
+                new EmbedBuilder()
+
+                    .setColor('Green')
+
+                    .setTitle(
+                        '🎉 Çekiliş Sonuçlandı!'
+                    )
+
+                    .setDescription(
+`🎁 **Ödül:** ${odul}
 
 🏆 **Kazanan(lar):**
 ${kazananlar
@@ -190,8 +259,9 @@ ${kazananlar
     .join('\n')}
 
 👥 Katılan Kişi Sayısı: ${katilanlar.length}`
-                )
-                .setTimestamp();
+                    )
+
+                    .setTimestamp();
 
             interaction.followUp({
                 embeds: [sonucEmbed]
