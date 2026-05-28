@@ -270,6 +270,15 @@ const defaultSettings = {
     accountAgeAutoStrict: false,
     accountAgeLimit: 7, // days
     defaultAvatarGuard: false,
+    defaultAvatarActionKick: false,
+    defaultAvatarActionBan: false,
+    defaultAvatarActionQuarantine: false,
+    defaultAvatarActionTimeout: false,
+    defaultAvatarLogStaff: false,
+    defaultAvatarDMNotify: false,
+    defaultAvatarBypassWhitelisted: false,
+    defaultAvatarTrackSpam: false,
+    defaultAvatarAutoStrict: false,
     raidGuard: false,
     raidLimit: 5, // joins
     raidTime: 10, // seconds
@@ -364,7 +373,11 @@ const booleanKeys = [
     "selfBotEngel",
     "accountAgeBlockAll", "accountAgeActionKick", "accountAgeActionBan", "accountAgeActionQuarantine", 
     "accountAgeActionTimeout", "accountAgeLogStaff", "accountAgeDMNotify", "accountAgeBypassInvites", 
-    "accountAgeTrackAltAccounts", "accountAgeAutoStrict", "defaultAvatarGuard", "raidGuard", "usernameRegexGuard",
+    "accountAgeTrackAltAccounts", "accountAgeAutoStrict", 
+    "defaultAvatarGuard", "defaultAvatarActionKick", "defaultAvatarActionBan", "defaultAvatarActionQuarantine",
+    "defaultAvatarActionTimeout", "defaultAvatarLogStaff", "defaultAvatarDMNotify", "defaultAvatarBypassWhitelisted",
+    "defaultAvatarTrackSpam", "defaultAvatarAutoStrict",
+    "raidGuard", "usernameRegexGuard",
     "buttonVerification", "autoQuarantine"
 ];
 
@@ -422,7 +435,7 @@ function isFeatureEnabled(guildId, featureKey) {
         if (threat >= 70) {
             const level3Features = [
                 // Anti-Raid & Giriş Karantinası
-                "raidGuard", "buttonVerification", "autoQuarantine",
+                "raidGuard", "buttonVerification", "autoQuarantine", "defaultAvatarGuard",
                 
                 // Sunucu Bütünlüğü (Kanal, Rol, Webhook ve Bot Kilitleri)
                 "antiChannelCreate", "antiChannelDelete", "antiRoleCreate", "antiRoleDelete",
@@ -1117,8 +1130,19 @@ ${divider}
 • **Alt Hesap (Multi) Tespiti**:: ${statusEmoji("accountAgeTrackAltAccounts")}
 • **Otonom Katı Mod**         :: ${statusEmoji("accountAgeAutoStrict")}
 
+**« VARSAYILAN AVATAR KORUMASI (10 ÖZELLİK) »**
+• **Genel Engel Şalteri** :: ${statusEmoji("defaultAvatarGuard")}
+• **Sunucudan At (Kick)**   :: ${statusEmoji("defaultAvatarActionKick")}
+• **Sunucudan Yasakla (Ban)**:: ${statusEmoji("defaultAvatarActionBan")}
+• **Karantina Rolü Verme**    :: ${statusEmoji("defaultAvatarActionQuarantine")}
+• **Susturma (Timeout)**      :: ${statusEmoji("defaultAvatarActionTimeout")}
+• **Yetkili Log Bildirimi**   :: ${statusEmoji("defaultAvatarLogStaff")}
+• **Kullanıcıya DM Bildirimi**:: ${statusEmoji("defaultAvatarDMNotify")}
+• **Güvenli Liste Muafiyeti** :: ${statusEmoji("defaultAvatarBypassWhitelisted")}
+• **Seri Giriş (Raid) Tespiti**:: ${statusEmoji("defaultAvatarTrackSpam")}
+• **Otonom Katı Mod**         :: ${statusEmoji("defaultAvatarAutoStrict")}
+
 **« DİĞER GİRİŞ KORUMALARI »**
-• **Varsayılan Avatar Koruması**:: ${statusEmoji("defaultAvatarGuard")}
 • **Anti-Raid Giriş Koruması**  :: ${statusEmoji("raidGuard")} \`(Sınır: ${limitRejoins} Giriş / ${limitTime} Sn)\`
 • **Reklamlı İsim Koruması**    :: ${statusEmoji("usernameRegexGuard")}
 
@@ -1562,13 +1586,30 @@ ${divider}
                         { label: "Otonom Katı Mod", value: "accountAgeAutoStrict", description: "Raid anında sınır yaşını otomatik 2 katına çıkarır.", default: getSetting(guildId, "accountAgeAutoStrict") }
                     ]);
 
+                const selectDefaultAvatar = new StringSelectMenuBuilder()
+                    .setCustomId("toggle_default_avatar")
+                    .setPlaceholder("🖼️ Varsayılan Avatar Koruması (10 Özellik)")
+                    .setMinValues(0)
+                    .setMaxValues(10)
+                    .addOptions([
+                        { label: "Genel Engel Şalteri", value: "defaultAvatarGuard", description: "Avatarı olmayan hesap korumasını aktif eder.", default: getSetting(guildId, "defaultAvatarGuard") },
+                        { label: "Sunucudan At (Kick)", value: "defaultAvatarActionKick", description: "Avatarı olmayan hesabı sunucudan atar.", default: getSetting(guildId, "defaultAvatarActionKick") },
+                        { label: "Sunucudan Yasakla (Ban)", value: "defaultAvatarActionBan", description: "Avatarı olmayan hesabı sunucudan yasaklar.", default: getSetting(guildId, "defaultAvatarActionBan") },
+                        { label: "Karantinaya Al", value: "defaultAvatarActionQuarantine", description: "Avatarı olmayan hesaba karantina rolü verir.", default: getSetting(guildId, "defaultAvatarActionQuarantine") },
+                        { label: "Sustur (Timeout)", value: "defaultAvatarActionTimeout", description: "Avatarı olmayan hesabı 1 saatliğine susturur.", default: getSetting(guildId, "defaultAvatarActionTimeout") },
+                        { label: "Yetkili Log Bildirimi", value: "defaultAvatarLogStaff", description: "İşlemleri log kanalına raporlar.", default: getSetting(guildId, "defaultAvatarLogStaff") },
+                        { label: "Kullanıcıya DM Bildirimi", value: "defaultAvatarDMNotify", description: "Kısıtlanan üyeye özel mesajla sebebini iletir.", default: getSetting(guildId, "defaultAvatarDMNotify") },
+                        { label: "Güvenli Liste Muafiyeti", value: "defaultAvatarBypassWhitelisted", description: "Güvenli listede olan üyeleri es geçer.", default: getSetting(guildId, "defaultAvatarBypassWhitelisted") },
+                        { label: "Seri Giriş (Raid) Tespiti", value: "defaultAvatarTrackSpam", description: "Peş peşe giren avatarsız hesapları takip edip önlem alır.", default: getSetting(guildId, "defaultAvatarTrackSpam") },
+                        { label: "Otonom Katı Mod", value: "defaultAvatarAutoStrict", description: "Raid anında cezalandırmayı otomatik en katı moda çeker.", default: getSetting(guildId, "defaultAvatarAutoStrict") }
+                    ]);
+
                 const selectRaidBools = new StringSelectMenuBuilder()
                     .setCustomId("toggle_raid_bools")
                     .setPlaceholder("👥 Diğer Giriş Korumaları")
                     .setMinValues(0)
-                    .setMaxValues(5)
+                    .setMaxValues(4)
                     .addOptions([
-                        { label: "Varsayılan Avatar Koruması", value: "defaultAvatarGuard", description: "Profil resmi olmayan hesapları atar.", default: getSetting(guildId, "defaultAvatarGuard") },
                         { label: "Anti-Raid Koruması", value: "raidGuard", description: "Saldırı anında girişleri engeller.", default: getSetting(guildId, "raidGuard") },
                         { label: "Reklamlı İsim Koruması", value: "usernameRegexGuard", description: "İsminde link olan hesapları atar.", default: getSetting(guildId, "usernameRegexGuard") },
                         { label: "Butonlu Doğrulama Sistemi", value: "buttonVerification", description: "Yeni üyeleri butonla doğrulatır.", default: getSetting(guildId, "buttonVerification") },
@@ -1585,6 +1626,7 @@ ${divider}
                     ]);
 
                 rows.push(new ActionRowBuilder().addComponents(selectAccountAge));
+                rows.push(new ActionRowBuilder().addComponents(selectDefaultAvatar));
                 rows.push(new ActionRowBuilder().addComponents(selectRaidBools));
                 rows.push(new ActionRowBuilder().addComponents(selectRaidLimits));
             } else if (activePage === "limits") {
@@ -1803,7 +1845,10 @@ ${divider}
                     "spamActionDelete", "spamActionWarn", "spamActionMute", "spamBypassChannels", "spamAllowStaff",
                     
                     // Anti-Raid / Giriş
-                    "raidGuard", "accountAgeGuard"
+                    "raidGuard", "accountAgeGuard",
+                    "defaultAvatarGuard", "defaultAvatarActionKick", "defaultAvatarLogStaff", 
+                    "defaultAvatarDMNotify", "defaultAvatarBypassWhitelisted", "defaultAvatarTrackSpam", 
+                    "defaultAvatarAutoStrict"
                 ];
 
                 // Belirlediğimiz önerilen ayarları aktif edelim
@@ -1969,8 +2014,22 @@ ${divider}
             } else if (i.customId === "toggle_raid_bools") {
                 const settings = global.guardSettings.get(guildId) || {};
                 const keys = [
-                    "defaultAvatarGuard", "raidGuard", "usernameRegexGuard",
+                    "raidGuard", "usernameRegexGuard",
                     "buttonVerification", "autoQuarantine"
+                ];
+                keys.forEach(k => settings[k] = i.values.includes(k));
+                global.guardSettings.set(guildId, settings);
+                await updateSetting(guildId, "guard_settings", settings);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "toggle_default_avatar") {
+                const settings = global.guardSettings.get(guildId) || {};
+                const keys = [
+                    "defaultAvatarGuard", "defaultAvatarActionKick", "defaultAvatarActionBan", "defaultAvatarActionQuarantine",
+                    "defaultAvatarActionTimeout", "defaultAvatarLogStaff", "defaultAvatarDMNotify", "defaultAvatarBypassWhitelisted",
+                    "defaultAvatarTrackSpam", "defaultAvatarAutoStrict"
                 ];
                 keys.forEach(k => settings[k] = i.values.includes(k));
                 global.guardSettings.set(guildId, settings);
