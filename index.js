@@ -438,6 +438,13 @@ client.on('interactionCreate', async interaction => {
         }
       }
 
+      if (interaction.customId.startsWith('modal_limit_')) {
+        const command = client.commands.get('guard');
+        if (command?.handleLimitModal) {
+          return await command.handleLimitModal(interaction);
+        }
+      }
+
     } catch (e) {
 
       console.error(e);
