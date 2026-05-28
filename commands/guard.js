@@ -1202,7 +1202,7 @@ ${divider}
 • **Otonom Katı Mod**         :: ${statusEmoji("defaultAvatarAutoStrict")}
 
 **« REKLAMLI İSİM KORUMASI (10 ÖZELLİK) »**
-• **Genel Engel Şalteri**     :: ${statusEmoji("usernameGuard")} \`[Legacy: ${statusEmoji("usernameRegexGuard")}]\`
+• **Genel Engel Şalteri**     :: ${statusEmoji("usernameGuard")} [Legacy: ${statusEmoji("usernameRegexGuard")}]
 • **Sunucudan At (Kick)**     :: ${statusEmoji("usernameActionKick")}
 • **Sunucudan Yasakla (Ban)**  :: ${statusEmoji("usernameActionBan")}
 • **Karantina Rolü Verme**     :: ${statusEmoji("usernameActionQuarantine")}
@@ -2281,6 +2281,20 @@ ${divider}
                     "accountAgeBlockAll", "accountAgeActionKick", "accountAgeActionBan", "accountAgeActionQuarantine", 
                     "accountAgeActionTimeout", "accountAgeLogStaff", "accountAgeDMNotify", "accountAgeBypassInvites", 
                     "accountAgeTrackAltAccounts", "accountAgeAutoStrict"
+                ];
+                keys.forEach(k => settings[k] = i.values.includes(k));
+                global.guardSettings.set(guildId, settings);
+                await updateSetting(guildId, "guard_settings", settings);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "toggle_username_and_verify") {
+                const settings = global.guardSettings.get(guildId) || {};
+                const keys = [
+                    "usernameGuard", "usernameActionKick", "usernameActionBan", "usernameActionQuarantine",
+                    "usernameActionTimeout", "usernameActionNickChange", "usernameDetectLink", "usernameDetectWords",
+                    "usernameBypassWhitelisted", "usernameMonitorNickChange", "buttonVerification", "autoQuarantine"
                 ];
                 keys.forEach(k => settings[k] = i.values.includes(k));
                 global.guardSettings.set(guildId, settings);
