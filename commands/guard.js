@@ -103,6 +103,46 @@ const defaultSettings = {
     // Category 2: Chat & Content Security
     linkEngel: false,
     inviteEngel: false,
+    linkBlockAll: false,
+    linkBlockInvites: false,
+    linkBlockHttpsOnly: false,
+    linkBlockHttpOnly: false,
+    linkBlockIPLinks: false,
+    linkBlockSubdomains: false,
+    linkBlockShorteners: false,
+    linkBlockPhishing: false,
+    linkBlockIpLoggers: false,
+    linkBlockAdultContent: false,
+    linkBlockDownloads: false,
+    linkBlockMalware: false,
+    linkBlockSocialMedia: false,
+    linkBlockVideoSites: false,
+    linkBlockCryptocurrency: false,
+    linkBlockFileSharing: false,
+    linkBlockCustomBlacklist: false,
+    linkBlockBypassPatterns: false,
+    linkBlockNonStandardTLDs: false,
+    linkBlockRichEmbedUrls: false,
+    linkAllowDiscordOfficial: false,
+    linkAllowYoutubeOfficial: false,
+    linkAllowSpotifyOfficial: false,
+    linkAllowGithubOfficial: false,
+    linkAllowGoogleOfficial: false,
+    linkAllowImagesOnly: false,
+    linkAllowCustomWhitelist: false,
+    linkScanStatusChecks: false,
+    linkScanRedirectLimit: false,
+    linkScanContentMinimizer: false,
+    linkScanCapsRatio: false,
+    linkScanLengthLimit: false,
+    linkScanChannelWhitelist: false,
+    linkScanRoleWhitelist: false,
+    linkActionDelete: false,
+    linkActionWarn: false,
+    linkActionTimeout: false,
+    linkActionKick: false,
+    linkActionBan: false,
+    linkActionStaffLog: false,
     kufurEngel: false,
     argoEngel: false,
     capsEngel: false,
@@ -168,7 +208,18 @@ const booleanKeys = [
     "antiEmojiCreate", "antiEmojiDelete", "antiEmojiUpdate",
     "antiStickerCreate", "antiStickerDelete", "antiStickerUpdate",
     "antiGuildUpdate", "antiBotAdd", "antiIntegrationCreate", "antiPrune",
-    "linkEngel", "inviteEngel", "kufurEngel", "argoEngel", "capsEngel",
+    "linkEngel", "inviteEngel",
+    "linkBlockAll", "linkBlockInvites", "linkBlockHttpsOnly", "linkBlockHttpOnly",
+    "linkBlockIPLinks", "linkBlockSubdomains", "linkBlockShorteners", "linkBlockPhishing",
+    "linkBlockIpLoggers", "linkBlockAdultContent", "linkBlockDownloads", "linkBlockMalware",
+    "linkBlockSocialMedia", "linkBlockVideoSites", "linkBlockCryptocurrency", "linkBlockFileSharing",
+    "linkBlockCustomBlacklist", "linkBlockBypassPatterns", "linkBlockNonStandardTLDs", "linkBlockRichEmbedUrls",
+    "linkAllowDiscordOfficial", "linkAllowYoutubeOfficial", "linkAllowSpotifyOfficial", "linkAllowGithubOfficial",
+    "linkAllowGoogleOfficial", "linkAllowImagesOnly", "linkAllowCustomWhitelist", "linkScanStatusChecks",
+    "linkScanRedirectLimit", "linkScanContentMinimizer", "linkScanCapsRatio", "linkScanLengthLimit",
+    "linkScanChannelWhitelist", "linkScanRoleWhitelist", "linkActionDelete", "linkActionWarn",
+    "linkActionTimeout", "linkActionKick", "linkActionBan", "linkActionStaffLog",
+    "kufurEngel", "argoEngel", "capsEngel",
     "emojiSpamEngel", "mentionSpamEngel", "everyoneHereEngel", "mediaSpamEngel",
     "selfBotEngel", "duplicateEngel", "lineLimitEngel", "lengthLimitEngel",
     "accountAgeGuard", "defaultAvatarGuard", "raidGuard", "usernameRegexGuard",
@@ -634,6 +685,59 @@ ${divider}
 *İstediğiniz sohbet filtresini açıp kapatmak veya düzenlemek için aşağıdaki seçim menüsünü kullanın.*`);
             }
 
+            if (activePage === "links") {
+                return new EmbedBuilder()
+                    .setColor(0x2B2D31)
+                    .setTitle("🔗 Link Engel Koruması (40 Özellik)")
+                    .setDescription(`
+${divider}
+**« LİNK ENGELLERİ (TÜRLER VE BLACKLIST) »**
+• **Genel Engel**            :: ${statusEmoji("linkBlockAll")}
+• **Davet Kodu Engeli**       :: ${statusEmoji("linkBlockInvites")}
+• **Https Bağlantı Engeli**   :: ${statusEmoji("linkBlockHttpsOnly")}
+• **Http Bağlantı Engeli**    :: ${statusEmoji("linkBlockHttpOnly")}
+• **IP Adresi Engeli**        :: ${statusEmoji("linkBlockIPLinks")}
+• **Alt Alan Adı (Subdomain)**:: ${statusEmoji("linkBlockSubdomains")}
+• **Kısaltıcı Servis Engeli** :: ${statusEmoji("linkBlockShorteners")}
+• **Phishing (Oltalama)**     :: ${statusEmoji("linkBlockPhishing")}
+• **IP Logger Koruması**      :: ${statusEmoji("linkBlockIpLoggers")}
+• **Yetişkin İçerik Engeli**  :: ${statusEmoji("linkBlockAdultContent")}
+• **Dosya İndirme Engeli**    :: ${statusEmoji("linkBlockDownloads")}
+• **Zararlı Yazılım (Malware)**:: ${statusEmoji("linkBlockMalware")}
+• **Sosyal Medya Engeli**     :: ${statusEmoji("linkBlockSocialMedia")}
+• **Video Siteleri Engeli**   :: ${statusEmoji("linkBlockVideoSites")}
+• **Kripto Siteleri Engeli**  :: ${statusEmoji("linkBlockCryptocurrency")}
+• **Dosya Paylaşım Engeli**   :: ${statusEmoji("linkBlockFileSharing")}
+• **Özel Blacklist Engeli**   :: ${statusEmoji("linkBlockCustomBlacklist")}
+• **Homoglif/Bypass Engeli**  :: ${statusEmoji("linkBlockBypassPatterns")}
+• **Ucuz/Şüpheli TLD Engeli**  :: ${statusEmoji("linkBlockNonStandardTLDs")}
+• **Kullanıcı Embed Linki**   :: ${statusEmoji("linkBlockRichEmbedUrls")}
+
+**« MUAFİYETLER, TARAMA VE CEZALANDIRMALAR »**
+• **Discord Resmi Muafiyeti** :: ${statusEmoji("linkAllowDiscordOfficial")}
+• **YouTube Muafiyeti**       :: ${statusEmoji("linkAllowYoutubeOfficial")}
+• **Spotify Muafiyeti**       :: ${statusEmoji("linkAllowSpotifyOfficial")}
+• **GitHub Muafiyeti**        :: ${statusEmoji("linkAllowGithubOfficial")}
+• **Google Muafiyeti**        :: ${statusEmoji("linkAllowGoogleOfficial")}
+• **Görsel Linki Muafiyeti**  :: ${statusEmoji("linkAllowImagesOnly")}
+• **Özel Whitelist Muafiyeti**:: ${statusEmoji("linkAllowCustomWhitelist")}
+• **Link Durum Kontrolü**     :: ${statusEmoji("linkScanStatusChecks")}
+• **Yönlendirme Sınırı**      :: ${statusEmoji("linkScanRedirectLimit")}
+• **Kısaltılmış Link Analizi** :: ${statusEmoji("linkScanContentMinimizer")}
+• **Rastgelelik (Caps) Oranı**:: ${statusEmoji("linkScanCapsRatio")}
+• **Karakter Sınırı Engeli**   :: ${statusEmoji("linkScanLengthLimit")}
+• **Kanal Muafiyetleri**      :: ${statusEmoji("linkScanChannelWhitelist")}
+• **Rol Muafiyetleri**        :: ${statusEmoji("linkScanRoleWhitelist")}
+• **Mesajı Silme Cezası**     :: ${statusEmoji("linkActionDelete")}
+• **Uyarı Gönderme Cezası**   :: ${statusEmoji("linkActionWarn")}
+• **Susturma Cezası**         :: ${statusEmoji("linkActionTimeout")}
+• **Sunucudan Atma Cezası**   :: ${statusEmoji("linkActionKick")}
+• **Sunucudan Yasaklama**     :: ${statusEmoji("linkActionBan")}
+• **Yetkili Log Bildirimi**   :: ${statusEmoji("linkActionStaffLog")}
+${divider}
+*İstediğiniz link engelleme filtresini veya tarama davranışını yapılandırmak için aşağıdaki açılır menüleri kullanın.*`);
+            }
+
             if (activePage === "raid") {
                 const limitDays = getSetting(guildId, "accountAgeLimit");
                 const limitRejoins = getSetting(guildId, "raidLimit");
@@ -727,6 +831,7 @@ ${divider}
                         { label: "🛡️ Ana Sayfa / Genel Durum", value: "page_main", description: "Genel sunucu ve otonom koruma durumu.", default: activePage === "main" },
                         { label: "🖥️ Sunucu Bütünlüğü Korumaları", value: "page_server", description: "Kanal, rol ve webhook korumaları.", default: activePage === "server" },
                         { label: "💬 Sohbet & İçerik Korumaları", value: "page_chat", description: "Küfür, link ve spam engelleri.", default: activePage === "chat" },
+                        { label: "🔗 Link Engel Koruması (40 Özellik)", value: "page_links", description: "Link türleri, muafiyetler ve cezalar.", default: activePage === "links" },
                         { label: "👥 Giriş Güvenliği & Raid", value: "page_raid", description: "Hesap yaşı, anti-raid ve karantina.", default: activePage === "raid" },
                         { label: "⚙️ Yönetici Hız Limitleri", value: "page_limits", description: "Yöneticilerin eylem eşik sınırları.", default: activePage === "limits" },
                         { label: "📄 Sistem Ayarları & Whitelist", value: "page_logs", description: "Log kanalı, roller ve whitelist.", default: activePage === "logs" }
@@ -848,6 +953,64 @@ ${divider}
                         { label: "Tekrarlanan Mesaj Engeli", value: "duplicateEngel", description: "Aynı mesajların gönderimini engeller.", default: getSetting(guildId, "duplicateEngel") }
                     ]);
                 rows.push(new ActionRowBuilder().addComponents(selectChat));
+            } else if (activePage === "links") {
+                const selectLinks1 = new StringSelectMenuBuilder()
+                    .setCustomId("toggle_links_1")
+                    .setPlaceholder("🔗 Link Türleri & Engelleri (Menü 1)")
+                    .setMinValues(0)
+                    .setMaxValues(20)
+                    .addOptions([
+                        { label: "Genel Engel", value: "linkBlockAll", description: "Tüm linkleri tamamen engeller.", default: getSetting(guildId, "linkBlockAll") },
+                        { label: "Davet Kodu Engeli", value: "linkBlockInvites", description: "Discord davet kodlarını engeller.", default: getSetting(guildId, "linkBlockInvites") },
+                        { label: "Https Bağlantı Engeli", value: "linkBlockHttpsOnly", description: "Güvenli https bağlantılarını engeller.", default: getSetting(guildId, "linkBlockHttpsOnly") },
+                        { label: "Http Bağlantı Engeli", value: "linkBlockHttpOnly", description: "Güvensiz http bağlantılarını engeller.", default: getSetting(guildId, "linkBlockHttpOnly") },
+                        { label: "IP Adresi Engeli", value: "linkBlockIPLinks", description: "Doğrudan IP linklerini engeller.", default: getSetting(guildId, "linkBlockIPLinks") },
+                        { label: "Alt Alan Adı Engeli", value: "linkBlockSubdomains", description: "Subdomain içeren linkleri engeller.", default: getSetting(guildId, "linkBlockSubdomains") },
+                        { label: "Kısaltıcı Servis Engeli", value: "linkBlockShorteners", description: "Kısaltılmış linkleri engeller.", default: getSetting(guildId, "linkBlockShorteners") },
+                        { label: "Phishing Engeli", value: "linkBlockPhishing", description: "Oltalama/Sahte site bağlantılarını engeller.", default: getSetting(guildId, "linkBlockPhishing") },
+                        { label: "IP Logger Koruması", value: "linkBlockIpLoggers", description: "Bilgi çalıcı ip loggers sitelerini engeller.", default: getSetting(guildId, "linkBlockIpLoggers") },
+                        { label: "Yetişkin İçerik Engeli", value: "linkBlockAdultContent", description: "Nsfw/Yetişkin içerikli siteleri engeller.", default: getSetting(guildId, "linkBlockAdultContent") },
+                        { label: "Dosya İndirme Engeli", value: "linkBlockDownloads", description: "Doğrudan indirme bağlantılarını (.exe, .zip) engeller.", default: getSetting(guildId, "linkBlockDownloads") },
+                        { label: "Zararlı Yazılım Engeli", value: "linkBlockMalware", description: "Zararlı yazılım indirme sitelerini engeller.", default: getSetting(guildId, "linkBlockMalware") },
+                        { label: "Sosyal Medya Engeli", value: "linkBlockSocialMedia", description: "Sosyal ağ platform linklerini engeller.", default: getSetting(guildId, "linkBlockSocialMedia") },
+                        { label: "Video Siteleri Engeli", value: "linkBlockVideoSites", description: "Youtube vb. video linklerini engeller.", default: getSetting(guildId, "linkBlockVideoSites") },
+                        { label: "Kripto Siteleri Engeli", value: "linkBlockCryptocurrency", description: "Kripto borsa/satış linklerini engeller.", default: getSetting(guildId, "linkBlockCryptocurrency") },
+                        { label: "Dosya Paylaşım Engeli", value: "linkBlockFileSharing", description: "Google Drive, Mega vb. paylaşım linklerini engeller.", default: getSetting(guildId, "linkBlockFileSharing") },
+                        { label: "Özel Blacklist Engeli", value: "linkBlockCustomBlacklist", description: "Sunucu kara listesindeki domainleri engeller.", default: getSetting(guildId, "linkBlockCustomBlacklist") },
+                        { label: "Homoglif/Bypass Engeli", value: "linkBlockBypassPatterns", description: "Gizleme/boşluklu link yazımlarını engeller.", default: getSetting(guildId, "linkBlockBypassPatterns") },
+                        { label: "Ucuz/Şüpheli TLD Engeli", value: "linkBlockNonStandardTLDs", description: ".xyz, .club vb. TLD'leri engeller.", default: getSetting(guildId, "linkBlockNonStandardTLDs") },
+                        { label: "Kullanıcı Embed Linki", value: "linkBlockRichEmbedUrls", description: "Zengin içerikli embed linklerini engeller.", default: getSetting(guildId, "linkBlockRichEmbedUrls") }
+                    ]);
+
+                const selectLinks2 = new StringSelectMenuBuilder()
+                    .setCustomId("toggle_links_2")
+                    .setPlaceholder("⚙️ Muafiyetler, Tarama ve Cezalar (Menü 2)")
+                    .setMinValues(0)
+                    .setMaxValues(20)
+                    .addOptions([
+                        { label: "Discord Resmi Muafiyeti", value: "linkAllowDiscordOfficial", description: "Discord resmi linklerine izin verir.", default: getSetting(guildId, "linkAllowDiscordOfficial") },
+                        { label: "YouTube Muafiyeti", value: "linkAllowYoutubeOfficial", description: "YouTube linklerine izin verir.", default: getSetting(guildId, "linkAllowYoutubeOfficial") },
+                        { label: "Spotify Muafiyeti", value: "linkAllowSpotifyOfficial", description: "Spotify müzik linklerine izin verir.", default: getSetting(guildId, "linkAllowSpotifyOfficial") },
+                        { label: "GitHub Muafiyeti", value: "linkAllowGithubOfficial", description: "GitHub proje linklerine izin verir.", default: getSetting(guildId, "linkAllowGithubOfficial") },
+                        { label: "Google Muafiyeti", value: "linkAllowGoogleOfficial", description: "Google servislerine ait linklere izin verir.", default: getSetting(guildId, "linkAllowGoogleOfficial") },
+                        { label: "Görsel Linki Muafiyeti", value: "linkAllowImagesOnly", description: "Sadece görsel uzantılı linklere izin verir.", default: getSetting(guildId, "linkAllowImagesOnly") },
+                        { label: "Özel Whitelist Muafiyeti", value: "linkAllowCustomWhitelist", description: "Sunucu whitelistindeki domainlere izin verir.", default: getSetting(guildId, "linkAllowCustomWhitelist") },
+                        { label: "Link Durum Kontrolü", value: "linkScanStatusChecks", description: "Bozuk veya hata döndüren linkleri engeller.", default: getSetting(guildId, "linkScanStatusChecks") },
+                        { label: "Yönlendirme Sınırı", value: "linkScanRedirectLimit", description: "Çoklu yönlendirme yapan linkleri engeller.", default: getSetting(guildId, "linkScanRedirectLimit") },
+                        { label: "Kısaltılmış Link Analizi", value: "linkScanContentMinimizer", description: "Kısaltılmış linkleri açıp analiz eder.", default: getSetting(guildId, "linkScanContentMinimizer") },
+                        { label: "Rastgelelik (Caps) Oranı", value: "linkScanCapsRatio", description: "Caps/Rastgele kodlu linkleri engeller.", default: getSetting(guildId, "linkScanCapsRatio") },
+                        { label: "Karakter Sınırı Engeli", value: "linkScanLengthLimit", description: "Aşırı uzun (100+ karakter) linkleri engeller.", default: getSetting(guildId, "linkScanLengthLimit") },
+                        { label: "Kanal Muafiyetleri", value: "linkScanChannelWhitelist", description: "İzin verilen kanallarda filtreleri devre dışı bırakır.", default: getSetting(guildId, "linkScanChannelWhitelist") },
+                        { label: "Rol Muafiyetleri", value: "linkScanRoleWhitelist", description: "İzin verilen rollerde filtreleri devre dışı bırakır.", default: getSetting(guildId, "linkScanRoleWhitelist") },
+                        { label: "Mesajı Silme Cezası", value: "linkActionDelete", description: "Kural ihlalinde mesajı otomatik siler.", default: getSetting(guildId, "linkActionDelete") },
+                        { label: "Uyarı Gönderme Cezası", value: "linkActionWarn", description: "Kural ihlalinde kullanıcıyı uyarır.", default: getSetting(guildId, "linkActionWarn") },
+                        { label: "Susturma Cezası", value: "linkActionTimeout", description: "Kural ihlalinde susturma cezası uygular.", default: getSetting(guildId, "linkActionTimeout") },
+                        { label: "Sunucudan Atma Cezası", value: "linkActionKick", description: "Kural ihlalinde sunucudan atar.", default: getSetting(guildId, "linkActionKick") },
+                        { label: "Sunucudan Yasaklama", value: "linkActionBan", description: "Phishing/Logger ihlalinde direkt banlar.", default: getSetting(guildId, "linkActionBan") },
+                        { label: "Yetkili Log Bildirimi", value: "linkActionStaffLog", description: "İhlal raporlarını yetkili kanalına gönderir.", default: getSetting(guildId, "linkActionStaffLog") }
+                    ]);
+                rows.push(new ActionRowBuilder().addComponents(selectLinks1));
+                rows.push(new ActionRowBuilder().addComponents(selectLinks2));
             } else if (activePage === "raid") {
                 const selectRaidBools = new StringSelectMenuBuilder()
                     .setCustomId("toggle_raid_bools")
@@ -1046,6 +1209,38 @@ ${divider}
                     "linkEngel", "inviteEngel", "kufurEngel", "argoEngel", "capsEngel",
                     "emojiSpamEngel", "mentionSpamEngel", "everyoneHereEngel", "mediaSpamEngel",
                     "duplicateEngel"
+                ];
+                keys.forEach(k => settings[k] = i.values.includes(k));
+                global.guardSettings.set(guildId, settings);
+                await updateSetting(guildId, "guard_settings", settings);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "toggle_links_1") {
+                const settings = global.guardSettings.get(guildId) || {};
+                const keys = [
+                    "linkBlockAll", "linkBlockInvites", "linkBlockHttpsOnly", "linkBlockHttpOnly",
+                    "linkBlockIPLinks", "linkBlockSubdomains", "linkBlockShorteners", "linkBlockPhishing",
+                    "linkBlockIpLoggers", "linkBlockAdultContent", "linkBlockDownloads", "linkBlockMalware",
+                    "linkBlockSocialMedia", "linkBlockVideoSites", "linkBlockCryptocurrency", "linkBlockFileSharing",
+                    "linkBlockCustomBlacklist", "linkBlockBypassPatterns", "linkBlockNonStandardTLDs", "linkBlockRichEmbedUrls"
+                ];
+                keys.forEach(k => settings[k] = i.values.includes(k));
+                global.guardSettings.set(guildId, settings);
+                await updateSetting(guildId, "guard_settings", settings);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "toggle_links_2") {
+                const settings = global.guardSettings.get(guildId) || {};
+                const keys = [
+                    "linkAllowDiscordOfficial", "linkAllowYoutubeOfficial", "linkAllowSpotifyOfficial", "linkAllowGithubOfficial",
+                    "linkAllowGoogleOfficial", "linkAllowImagesOnly", "linkAllowCustomWhitelist", "linkScanStatusChecks",
+                    "linkScanRedirectLimit", "linkScanContentMinimizer", "linkScanCapsRatio", "linkScanLengthLimit",
+                    "linkScanChannelWhitelist", "linkScanRoleWhitelist", "linkActionDelete", "linkActionWarn",
+                    "linkActionTimeout", "linkActionKick", "linkActionBan", "linkActionStaffLog"
                 ];
                 keys.forEach(k => settings[k] = i.values.includes(k));
                 global.guardSettings.set(guildId, settings);
