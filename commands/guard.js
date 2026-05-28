@@ -163,6 +163,40 @@ function increaseThreat(guildId, points, reason, guild) {
         sendGuardLog(guild, { id: "SYSTEM", tag: "Otonom Koruma" }, null, `Şüpheli Aktivite: ${reason} (Tehdit: %${threat})`, "Orta Seviye Korumalar Devrede", guildId);
     } else if (oldThreat < 70 && threat >= 70) {
         sendGuardLog(guild, { id: "SYSTEM", tag: "Otonom Koruma" }, null, `Saldırı/Raid Girişimi: ${reason} (Tehdit: %${threat})`, "Üst Seviye Karantina Korumaları Devrede", guildId);
+        sendOwnerAlert(guild, `⚠️ **Sunucunuz Tehdit Altında!**\nSaldırı/Raid algılandı ve Tehdit Seviyesi kritik **%${threat}** değerine ulaştı! Butonlu doğrulama, karantina ve kanal korumaları otonom olarak devreye sokuldu.`, guildId);
+    }
+}
+
+// Get Audit Log Entry with Retries (Ensures correct log retrieval under latency)
+async function getAuditLogEntry(guild, actionType, retries = 3, delayMs = 500) {
+    for (let i = 0; i < retries; i++) {
+        const logs = await guild.fetchAuditLogs({ type: actionType, limit: 1 }).catch(() => null);
+        if (logs) {
+            const entry = logs.entries.first();
+            if (entry && (Date.now() - entry.createdTimestamp) < 8000) {
+                return entry;
+            }
+        }
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+    return null;
+}
+
+// Alert Guild Owner via DM
+async function sendOwnerAlert(guild, content, guildId) {
+    try {
+        const ownerId = guild.ownerId;
+        const owner = await guild.members.fetch(ownerId).catch(() => null);
+        if (owner) {
+            const embed = new EmbedBuilder()
+                .setColor(0xED4245)
+                .setTitle("🚨 Slesy Guard | Sunucu Sahibi Bildirimi")
+                .setDescription(content)
+                .setTimestamp();
+            await owner.send({ embeds: [embed] }).catch(() => {});
+        }
+    } catch (e) {
+        console.error("Owner alert DM failed:", e);
     }
 }
 
@@ -191,16 +225,35 @@ async function sendGuardLog(guild, executor, target, action, punishment, guildId
 }
 
 async function punishAdmin(guild, user, reason, guildId) {
-    await sendGuardLog(guild, user, null, reason, "Yetkileri Alındı & Yasaklandı", guildId);
-
+    const me = guild.members.me;
     const member = await guild.members.fetch(user.id).catch(() => null);
     if (!member) return;
 
-    // Strip roles
-    await member.roles.set([]).catch(() => {});
+    // Hierarchy check: ensure the bot can modify the target admin
+    if (me.roles.highest.position <= member.roles.highest.position) {
+        await sendGuardLog(guild, { id: "SYSTEM", tag: "Koruma Hatası" }, user, `${reason} - Rol hiyerarşisi engeli!`, "Ceza Uygulanamadı", guildId);
+        await sendOwnerAlert(guild, `⚠️ **Ceza Uygulanamadı (Rol Hiyerarşisi):** ${user.tag} (\`${user.id}\`) adlı yönetici "${reason}" nedeniyle cezalandırılmak istendi fakat en yüksek rolü botunkinden daha üstün olduğu için işlem yapılamadı! Lütfen botun rolünü en üste taşıyın.`, guildId);
+        return;
+    }
 
-    // Ban
+    if (!me.permissions.has(PermissionFlagsBits.BanMembers)) {
+        await sendGuardLog(guild, { id: "SYSTEM", tag: "Koruma Hatası" }, user, `${reason} - Botun banlama yetkisi eksik!`, "Ceza Uygulanamadı", guildId);
+        await sendOwnerAlert(guild, `⚠️ **Ceza Uygulanamadı (Yetki Eksikliği):** Botun "Üyeleri Yasakla" yetkisi olmadığı için ${user.tag} kullanıcısı banlanamadı!`, guildId);
+        return;
+    }
+
+    await sendGuardLog(guild, user, null, reason, "Yetkileri Alındı & Yasaklandı", guildId);
+
+    // Strip roles asynchronously
+    if (me.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        await member.roles.set([]).catch(() => {});
+    }
+
+    // Ban member
     await member.ban({ reason: `Guard | ${reason}` }).catch(() => {});
+
+    // DM alert to Owner
+    await sendOwnerAlert(guild, `🚨 **Yönetici Cezalandırıldı:** Sunucuda bir güvenlik ihlali algılandı ve yetkili uzaklaştırıldı.\n\n**Yetkili:** ${user.tag} (\`${user.id}\`)\n**Sebep:** ${reason}`, guildId);
 }
 
 function checkRateLimit(guildId, adminId, limitKey, limitMax, limitMinutes) {
@@ -325,18 +378,9 @@ module.exports = {
         let activePage = "main";
 
         const generateEmbed = () => {
-            const ansiStatus = (key) => isFeatureEnabled(guildId, key) 
-                ? "\u001b[1;32m✔ AKTİF\u001b[0m" 
-                : "\u001b[1;31m✖ PASİF\u001b[0m";
-
-            const mainStatus = global.guardDurums.get(guildId) 
-                ? "\u001b[1;32mAKTİF\u001b[0m" 
-                : "\u001b[1;31mDEVRE DIŞI\u001b[0m";
-
-            const autoStatus = getSetting(guildId, "autonomousMode") 
-                ? "\u001b[1;32mAKTİF\u001b[0m" 
-                : "\u001b[1;31mPASİF\u001b[0m";
-
+            const statusEmoji = (key) => isFeatureEnabled(guildId, key) ? "🟢" : "🔴";
+            const mainStatus = global.guardDurums.get(guildId) ? "🟢 **AKTİF**" : "🔴 **DEVRE DIŞI**";
+            const autoStatus = getSetting(guildId, "autonomousMode") ? "🟢 **AKTİF**" : "🔴 **PASİF**";
             const threatVal = global.guildThreatLevels.get(guildId) || 0;
             
             let bar = "";
@@ -345,72 +389,75 @@ module.exports = {
                 bar += i < blocks ? "█" : "░";
             }
 
-            let threatColor = "\u001b[1;32mGÜVENLİ\u001b[0m";
-            if (threatVal >= 70) threatColor = "\u001b[1;31mKRİTİK / RAID SALDIRISI\u001b[0m";
-            else if (threatVal >= 35) threatColor = "\u001b[1;33mŞÜPHELİ\u001b[0m";
+            let threatColor = "🟢 **GÜVENLİ**";
+            if (threatVal >= 70) threatColor = "🔴 **KRİTİK / RAID SALDIRISI**";
+            else if (threatVal >= 35) threatColor = "🟡 **ŞÜPHELİ**";
 
             if (activePage === "main") {
                 return new EmbedBuilder()
                     .setColor(0x2B2D31)
                     .setTitle("🛡️ Slesy Guard | Sistem Kontrol Paneli")
-                    .setDescription(`\`\`\`ansi
-\u001b[1;34mSİSTEM DURUMU:\u001b[0m
-  Ana Koruma    :: ${mainStatus}
-  Otonom Mod    :: ${autoStatus}
+                    .setDescription(`
+**SİSTEM DURUMU**
+• Ana Koruma: ${mainStatus}
+• Otonom Mod: ${autoStatus}
 
-\u001b[1;34mTEHDİT SEVİYESİ:\u001b[0m
-  Durum         :: ${threatColor}
-  Bar           :: ${bar} %${threatVal}
-\`\`\`
-Kategorileri yönetmek veya genel eylemleri gerçekleştirmek için aşağıdaki butonları kullanın.`);
+**TEHDİT SEVİYESİ**
+• Durum: ${threatColor}
+• Tehdit Barı: \`[${bar}] %${threatVal}\`
+
+*Kategorileri yönetmek veya genel eylemleri gerçekleştirmek için aşağıdaki butonları kullanın.*`)
+                    .setTimestamp();
             }
 
             if (activePage === "server") {
                 return new EmbedBuilder()
                     .setColor(0x2B2D31)
                     .setTitle("🖥️ Sunucu Bütünlüğü Korumaları")
-                    .setDescription(`\`\`\`ansi
-\u001b[1;36mKanal Korumaları:\u001b[0m
-  Oluşturma    :: ${ansiStatus("antiChannelCreate")}
-  Silme        :: ${ansiStatus("antiChannelDelete")}
-  Güncelleme   :: ${ansiStatus("antiChannelUpdate")}
+                    .setDescription(`
+**Kanal Korumaları**
+${statusEmoji("antiChannelCreate")} Kanal Oluşturma Koruması
+${statusEmoji("antiChannelDelete")} Kanal Silme Koruması
+${statusEmoji("antiChannelUpdate")} Kanal Güncelleme Koruması
 
-\u001b[1;36mRol Korumaları:\u001b[0m
-  Oluşturma    :: ${ansiStatus("antiRoleCreate")}
-  Silme        :: ${ansiStatus("antiRoleDelete")}
-  Güncelleme   :: ${ansiStatus("antiRoleUpdate")}
+**Rol Korumaları**
+${statusEmoji("antiRoleCreate")} Rol Oluşturma Koruması
+${statusEmoji("antiRoleDelete")} Rol Silme Koruması
+${statusEmoji("antiRoleUpdate")} Rol Güncelleme Koruması
 
-\u001b[1;36mSistem Korumaları:\u001b[0m
-  Webhook      :: ${ansiStatus("antiWebhookCreate")}
-  Bot Ekleme   :: ${ansiStatus("antiBotAdd")}
-  Sunucu Ayar  :: ${ansiStatus("antiGuildUpdate")}
-  Budama       :: ${ansiStatus("antiPrune")}
-\`\`\``);
+**Sistem Korumaları**
+${statusEmoji("antiWebhookCreate")} Webhook Koruma Sistemi
+${statusEmoji("antiBotAdd")} Anti-Bot Ekleme Koruması
+${statusEmoji("antiGuildUpdate")} Sunucu Ayarları Koruması
+${statusEmoji("antiPrune")} Sunucu Budama Koruması
+
+*Açmak/kapatmak istediğiniz korumayı aşağıdaki menüden seçin.*`);
             }
 
             if (activePage === "chat") {
                 return new EmbedBuilder()
                     .setColor(0x2B2D31)
                     .setTitle("💬 Sohbet & İçerik Korumaları")
-                    .setDescription(`\`\`\`ansi
-\u001b[1;36mİçerik Engelleri:\u001b[0m
-  Linkler      :: ${ansiStatus("linkEngel")}
-  Davetler     :: ${ansiStatus("inviteEngel")}
-  Küfürler     :: ${ansiStatus("kufurEngel")}
-  Argolar      :: ${ansiStatus("argoEngel")}
+                    .setDescription(`
+**İçerik Engelleri**
+${statusEmoji("linkEngel")} Link Engeli (Tüm Linkler)
+${statusEmoji("inviteEngel")} Davet Linki Engeli (Discord Davetleri)
+${statusEmoji("kufurEngel")} Küfür Engeli (Karakter Filtresi)
+${statusEmoji("argoEngel")} Argo Engeli (Kaba Söz Filtresi)
 
-\u001b[1;36mBiçim Engelleri:\u001b[0m
-  Caps Lock    :: ${ansiStatus("capsEngel")}
-  Tekrarlar    :: ${ansiStatus("duplicateEngel")}
-  Satır Sınırı :: ${ansiStatus("lineLimitEngel")}
-  Karakterler  :: ${ansiStatus("lengthLimitEngel")}
+**Biçim Engelleri**
+${statusEmoji("capsEngel")} Caps Lock Engeli (Aşırı Büyük Harf)
+${statusEmoji("duplicateEngel")} Tekrarlanan Mesaj Engeli
+${statusEmoji("lineLimitEngel")} Satır Sınırı Engeli (Wall of Text)
+${statusEmoji("lengthLimitEngel")} Karakter Sınırı Engeli
 
-\u001b[1;36mSpam Engelleri:\u001b[0m
-  Emoji        :: ${ansiStatus("emojiSpamEngel")}
-  Etiket       :: ${ansiStatus("mentionSpamEngel")}
-  Toplu Etiket :: ${ansiStatus("everyoneHereEngel")}
-  Medya        :: ${ansiStatus("mediaSpamEngel")}
-\`\`\``);
+**Spam Engelleri**
+${statusEmoji("emojiSpamEngel")} Emoji Spami Engeli
+${statusEmoji("mentionSpamEngel")} Etiket Spami Engeli
+${statusEmoji("everyoneHereEngel")} Yetkisiz @everyone / @here Engeli
+${statusEmoji("mediaSpamEngel")} Medya Spami Engeli
+
+*Açmak/kapatmak istediğiniz korumayı aşağıdaki menüden seçin.*`);
             }
 
             if (activePage === "raid") {
@@ -420,18 +467,18 @@ Kategorileri yönetmek veya genel eylemleri gerçekleştirmek için aşağıdaki
                 return new EmbedBuilder()
                     .setColor(0x2B2D31)
                     .setTitle("👥 Giriş Güvenliği & Raid Koruması")
-                    .setDescription(`\`\`\`ansi
-\u001b[1;36mGiriş Korumaları:\u001b[0m
-  Hesap Yaşı   :: ${ansiStatus("accountAgeGuard")} (Sınır: ${limitDays} Gün)
-  Avatar       :: ${ansiStatus("defaultAvatarGuard")}
-  Raid Koruması:: ${ansiStatus("raidGuard")} (Sınır: ${limitRejoins} Giriş / ${limitTime} Sn)
-  Kötü İsimler :: ${ansiStatus("usernameRegexGuard")}
+                    .setDescription(`
+**Giriş Korumaları**
+• ${statusEmoji("accountAgeGuard")} Hesap Yaşı Koruması (Sınır: \`${limitDays} Gün\`)
+• ${statusEmoji("defaultAvatarGuard")} Varsayılan Avatar Koruması
+• ${statusEmoji("raidGuard")} Hızlı Giriş (Raid) Koruması (Sınır: \`${limitRejoins} Giriş / ${limitTime} Sn\`)
+• ${statusEmoji("usernameRegexGuard")} Reklamlı/Küfürlü İsim Koruması
 
-\u001b[1;36mDoğrulama & Karantina:\u001b[0m
-  Doğrulama    :: ${ansiStatus("buttonVerification")}
-  Karantina    :: ${ansiStatus("autoQuarantine")}
-\`\`\`
-Değerleri özelleştirmek için aşağıdaki menüden seçim yapın.`);
+**Doğrulama & Karantina**
+• ${statusEmoji("buttonVerification")} Butonlu Doğrulama Sistemi
+• ${statusEmoji("autoQuarantine")} Otomatik Karantina Sistemi
+
+*Süre ve limit değerlerini özelleştirmek için aşağıdaki menüyü kullanın.*`);
             }
 
             if (activePage === "limits") {
@@ -439,15 +486,16 @@ Değerleri özelleştirmek için aşağıdaki menüden seçim yapın.`);
                 return new EmbedBuilder()
                     .setColor(0x2B2D31)
                     .setTitle("⚙️ Yönetici Hız Limitleri")
-                    .setDescription(`\`\`\`ansi
-\u001b[1;36mEşik Değerleri (Zaman Dilimi: ${limitTime} Dakika):\u001b[0m
-  Ban Sınırı   :: ${getSetting(guildId, "banLimit")} Adet
-  Kick Sınırı  :: ${getSetting(guildId, "kickLimit")} Adet
-  Kanal Silme  :: ${getSetting(guildId, "channelDeleteLimit")} Adet
-  Rol Silme    :: ${getSetting(guildId, "roleDeleteLimit")} Adet
-  Rol Verme    :: ${getSetting(guildId, "roleGiveLimit")} Adet
-\`\`\`
-Limit ve süre değerlerini tamamen özelleştirmek için aşağıdaki menüyü kullanın.`);
+                    .setDescription(`
+Yöneticilerin belirli bir zaman dilimi (\`${limitTime} Dakika\`) içerisinde yapabileceği maksimum işlem limitleri:
+
+• **Ban Sınırı**: \`${getSetting(guildId, "banLimit")} Adet\`
+• **Kick Sınırı**: \`${getSetting(guildId, "kickLimit")} Adet\`
+• **Kanal Silme Sınırı**: \`${getSetting(guildId, "channelDeleteLimit")} Adet\`
+• **Rol Silme Sınırı**: \`${getSetting(guildId, "roleDeleteLimit")} Adet\`
+• **Rol Verme Sınırı**: \`${getSetting(guildId, "roleGiveLimit")} Adet\`
+
+*Limit ve süre değerlerini tamamen özelleştirmek için aşağıdaki menüyü kullanın.*`);
             }
 
             if (activePage === "logs") {
@@ -733,20 +781,23 @@ Limit ve süre değerlerini tamamen özelleştirmek için aşağıdaki menüyü 
             if (!global.guardDurums.get(guildId)) return;
             if (!isFeatureEnabled(guildId, "antiChannelCreate")) return;
 
-            const logs = await channel.guild.fetchAuditLogs({ type: AuditLogEvent.ChannelCreate, limit: 1 }).catch(() => null);
-            if (!logs) return;
-            const entry = logs.entries.first();
-            if (!entry) return;
-            const executor = entry.executor;
-            if (executor.id === channel.guild.ownerId || executor.id === client.user.id) return;
+            // Non-blocking action
+            const deletePromise = channel.delete("Guard | İzinsiz Kanal Oluşturma").catch(() => {});
 
-            const guvenliListe = global.guvenliListes.get(guildId) || [];
-            if (guvenliListe.includes(executor.id)) return;
+            // Asynchronous audit check & punish pipeline
+            (async () => {
+                const entry = await getAuditLogEntry(channel.guild, AuditLogEvent.ChannelCreate);
+                if (!entry) return;
+                const executor = entry.executor;
+                if (executor.id === channel.guild.ownerId || executor.id === client.user.id) return;
 
-            increaseThreat(guildId, 20, `Kanal oluşturuldu: ${channel.name}`, channel.guild);
+                const guvenliListe = global.guvenliListes.get(guildId) || [];
+                if (guvenliListe.includes(executor.id)) return;
 
-            await channel.delete("Guard | İzinsiz Kanal Oluşturma").catch(() => {});
-            await punishAdmin(channel.guild, executor, "İzinsiz Kanal Oluşturma", guildId);
+                increaseThreat(guildId, 20, `Kanal oluşturuldu: ${channel.name}`, channel.guild);
+                await deletePromise;
+                await punishAdmin(channel.guild, executor, "İzinsiz Kanal Oluşturma", guildId);
+            })();
         });
 
         // 2. Channel Delete Protection
@@ -756,33 +807,36 @@ Limit ve süre değerlerini tamamen özelleştirmek için aşağıdaki menüyü 
             if (!global.guardDurums.get(guildId)) return;
             if (!isFeatureEnabled(guildId, "antiChannelDelete")) return;
 
-            const logs = await channel.guild.fetchAuditLogs({ type: AuditLogEvent.ChannelDelete, limit: 1 }).catch(() => null);
-            if (!logs) return;
-            const entry = logs.entries.first();
-            if (!entry) return;
-            const executor = entry.executor;
-            if (executor.id === channel.guild.ownerId || executor.id === client.user.id) return;
+            // Asynchronous restore & punish pipeline
+            (async () => {
+                const entry = await getAuditLogEntry(channel.guild, AuditLogEvent.ChannelDelete);
+                if (!entry) return;
+                const executor = entry.executor;
+                if (executor.id === channel.guild.ownerId || executor.id === client.user.id) return;
 
-            const guvenliListe = global.guvenliListes.get(guildId) || [];
-            if (guvenliListe.includes(executor.id)) return;
+                const guvenliListe = global.guvenliListes.get(guildId) || [];
+                if (guvenliListe.includes(executor.id)) return;
 
-            increaseThreat(guildId, 25, `Kanal silindi: ${channel.name}`, channel.guild);
+                increaseThreat(guildId, 25, `Kanal silindi: ${channel.name}`, channel.guild);
 
-            await punishAdmin(channel.guild, executor, "İzinsiz Kanal Silme", guildId);
+                // Run punishment in parallel
+                punishAdmin(channel.guild, executor, "İzinsiz Kanal Silme", guildId);
 
-            await channel.guild.channels.create({
-                name: channel.name,
-                type: channel.type,
-                parent: channel.parentId,
-                topic: channel.topic,
-                nsfw: channel.nsfw,
-                rateLimitPerUser: channel.rateLimitPerUser,
-                permissionOverwrites: channel.permissionOverwrites.cache.map(o => ({
-                    id: o.id,
-                    allow: o.allow.toArray(),
-                    deny: o.deny.toArray()
-                }))
-            }).catch(() => {});
+                // Restore channel
+                await channel.guild.channels.create({
+                    name: channel.name,
+                    type: channel.type,
+                    parent: channel.parentId,
+                    topic: channel.topic,
+                    nsfw: channel.nsfw,
+                    rateLimitPerUser: channel.rateLimitPerUser,
+                    permissionOverwrites: channel.permissionOverwrites.cache.map(o => ({
+                        id: o.id,
+                        allow: o.allow.toArray(),
+                        deny: o.deny.toArray()
+                    }))
+                }).catch(() => {});
+            })();
         });
 
         // 3. Channel Update Protection
@@ -792,32 +846,33 @@ Limit ve süre değerlerini tamamen özelleştirmek için aşağıdaki menüyü 
             if (!global.guardDurums.get(guildId)) return;
             if (!isFeatureEnabled(guildId, "antiChannelUpdate")) return;
 
-            const logs = await newChannel.guild.fetchAuditLogs({ type: AuditLogEvent.ChannelUpdate, limit: 1 }).catch(() => null);
-            if (!logs) return;
-            const entry = logs.entries.first();
-            if (!entry) return;
-            const executor = entry.executor;
-            if (executor.id === newChannel.guild.ownerId || executor.id === client.user.id) return;
+            // Asynchronous revert & punish pipeline
+            (async () => {
+                const entry = await getAuditLogEntry(newChannel.guild, AuditLogEvent.ChannelUpdate);
+                if (!entry) return;
+                const executor = entry.executor;
+                if (executor.id === newChannel.guild.ownerId || executor.id === client.user.id) return;
 
-            const guvenliListe = global.guvenliListes.get(guildId) || [];
-            if (guvenliListe.includes(executor.id)) return;
+                const guvenliListe = global.guvenliListes.get(guildId) || [];
+                if (guvenliListe.includes(executor.id)) return;
 
-            increaseThreat(guildId, 15, `Kanal güncellendi: ${newChannel.name}`, newChannel.guild);
+                increaseThreat(guildId, 15, `Kanal güncellendi: ${newChannel.name}`, newChannel.guild);
 
-            await punishAdmin(newChannel.guild, executor, "İzinsiz Kanal Güncelleme", guildId);
+                punishAdmin(newChannel.guild, executor, "İzinsiz Kanal Güncelleme", guildId);
 
-            await newChannel.edit({
-                name: oldChannel.name,
-                topic: oldChannel.topic,
-                nsfw: oldChannel.nsfw,
-                parent: oldChannel.parentId,
-                rateLimitPerUser: oldChannel.rateLimitPerUser,
-                permissionOverwrites: oldChannel.permissionOverwrites.cache.map(o => ({
-                    id: o.id,
-                    allow: o.allow.toArray(),
-                    deny: o.deny.toArray()
-                }))
-            }).catch(() => {});
+                await newChannel.edit({
+                    name: oldChannel.name,
+                    topic: oldChannel.topic,
+                    nsfw: oldChannel.nsfw,
+                    parent: oldChannel.parentId,
+                    rateLimitPerUser: oldChannel.rateLimitPerUser,
+                    permissionOverwrites: oldChannel.permissionOverwrites.cache.map(o => ({
+                        id: o.id,
+                        allow: o.allow.toArray(),
+                        deny: o.deny.toArray()
+                    }))
+                }).catch(() => {});
+            })();
         });
 
         // 4. Role Create Protection
@@ -827,20 +882,23 @@ Limit ve süre değerlerini tamamen özelleştirmek için aşağıdaki menüyü 
             if (!global.guardDurums.get(guildId)) return;
             if (!isFeatureEnabled(guildId, "antiRoleCreate")) return;
 
-            const logs = await role.guild.fetchAuditLogs({ type: AuditLogEvent.RoleCreate, limit: 1 }).catch(() => null);
-            if (!logs) return;
-            const entry = logs.entries.first();
-            if (!entry) return;
-            const executor = entry.executor;
-            if (executor.id === role.guild.ownerId || executor.id === client.user.id) return;
+            // Revert action fast
+            const deletePromise = role.delete("Guard | İzinsiz Rol Oluşturma").catch(() => {});
 
-            const guvenliListe = global.guvenliListes.get(guildId) || [];
-            if (guvenliListe.includes(executor.id)) return;
+            // Asynchronous punish pipeline
+            (async () => {
+                const entry = await getAuditLogEntry(role.guild, AuditLogEvent.RoleCreate);
+                if (!entry) return;
+                const executor = entry.executor;
+                if (executor.id === role.guild.ownerId || executor.id === client.user.id) return;
 
-            increaseThreat(guildId, 20, `Rol oluşturuldu: ${role.name}`, role.guild);
+                const guvenliListe = global.guvenliListes.get(guildId) || [];
+                if (guvenliListe.includes(executor.id)) return;
 
-            await role.delete("Guard | İzinsiz Rol Oluşturma").catch(() => {});
-            await punishAdmin(role.guild, executor, "İzinsiz Rol Oluşturma", guildId);
+                increaseThreat(guildId, 20, `Rol oluşturuldu: ${role.name}`, role.guild);
+                await deletePromise;
+                await punishAdmin(role.guild, executor, "İzinsiz Rol Oluşturma", guildId);
+            })();
         });
 
         // 5. Role Delete Protection
@@ -850,28 +908,29 @@ Limit ve süre değerlerini tamamen özelleştirmek için aşağıdaki menüyü 
             if (!global.guardDurums.get(guildId)) return;
             if (!isFeatureEnabled(guildId, "antiRoleDelete")) return;
 
-            const logs = await role.guild.fetchAuditLogs({ type: AuditLogEvent.RoleDelete, limit: 1 }).catch(() => null);
-            if (!logs) return;
-            const entry = logs.entries.first();
-            if (!entry) return;
-            const executor = entry.executor;
-            if (executor.id === role.guild.ownerId || executor.id === client.user.id) return;
+            // Asynchronous restore & punish pipeline
+            (async () => {
+                const entry = await getAuditLogEntry(role.guild, AuditLogEvent.RoleDelete);
+                if (!entry) return;
+                const executor = entry.executor;
+                if (executor.id === role.guild.ownerId || executor.id === client.user.id) return;
 
-            const guvenliListe = global.guvenliListes.get(guildId) || [];
-            if (guvenliListe.includes(executor.id)) return;
+                const guvenliListe = global.guvenliListes.get(guildId) || [];
+                if (guvenliListe.includes(executor.id)) return;
 
-            increaseThreat(guildId, 25, `Rol silindi: ${role.name}`, role.guild);
+                increaseThreat(guildId, 25, `Rol silindi: ${role.name}`, role.guild);
 
-            await punishAdmin(role.guild, executor, "İzinsiz Rol Silme", guildId);
+                punishAdmin(role.guild, executor, "İzinsiz Rol Silme", guildId);
 
-            await role.guild.roles.create({
-                name: role.name,
-                color: role.color,
-                hoist: role.hoist,
-                mentionable: role.mentionable,
-                permissions: role.permissions,
-                position: role.position
-            }).catch(() => {});
+                await role.guild.roles.create({
+                    name: role.name,
+                    color: role.color,
+                    hoist: role.hoist,
+                    mentionable: role.mentionable,
+                    permissions: role.permissions,
+                    position: role.position
+                }).catch(() => {});
+            })();
         });
 
         // 6. Role Update Protection
@@ -881,27 +940,28 @@ Limit ve süre değerlerini tamamen özelleştirmek için aşağıdaki menüyü 
             if (!global.guardDurums.get(guildId)) return;
             if (!isFeatureEnabled(guildId, "antiRoleUpdate")) return;
 
-            const logs = await newRole.guild.fetchAuditLogs({ type: AuditLogEvent.RoleUpdate, limit: 1 }).catch(() => null);
-            if (!logs) return;
-            const entry = logs.entries.first();
-            if (!entry) return;
-            const executor = entry.executor;
-            if (executor.id === newRole.guild.ownerId || executor.id === client.user.id) return;
+            // Asynchronous revert & punish pipeline
+            (async () => {
+                const entry = await getAuditLogEntry(newRole.guild, AuditLogEvent.RoleUpdate);
+                if (!entry) return;
+                const executor = entry.executor;
+                if (executor.id === newRole.guild.ownerId || executor.id === client.user.id) return;
 
-            const guvenliListe = global.guvenliListes.get(guildId) || [];
-            if (guvenliListe.includes(executor.id)) return;
+                const guvenliListe = global.guvenliListes.get(guildId) || [];
+                if (guvenliListe.includes(executor.id)) return;
 
-            if (oldRole.permissions.bitfield !== newRole.permissions.bitfield || oldRole.name !== newRole.name) {
-                increaseThreat(guildId, 20, `Rol güncellendi: ${newRole.name}`, newRole.guild);
-                await punishAdmin(newRole.guild, executor, "İzinsiz Rol Güncelleme", guildId);
-                await newRole.edit({
-                    name: oldRole.name,
-                    color: oldRole.color,
-                    hoist: oldRole.hoist,
-                    mentionable: oldRole.mentionable,
-                    permissions: oldRole.permissions
-                }).catch(() => {});
-            }
+                if (oldRole.permissions.bitfield !== newRole.permissions.bitfield || oldRole.name !== newRole.name) {
+                    increaseThreat(guildId, 20, `Rol güncellendi: ${newRole.name}`, newRole.guild);
+                    punishAdmin(newRole.guild, executor, "İzinsiz Rol Güncelleme", guildId);
+                    await newRole.edit({
+                        name: oldRole.name,
+                        color: oldRole.color,
+                        hoist: oldRole.hoist,
+                        mentionable: oldRole.mentionable,
+                        permissions: oldRole.permissions
+                    }).catch(() => {});
+                }
+            })();
         });
 
         // 7. Webhook & Integration Protections
@@ -910,35 +970,38 @@ Limit ve süre değerlerini tamamen özelleştirmek için aşağıdaki menüyü 
             const guildId = channel.guild.id;
             if (!global.guardDurums.get(guildId)) return;
 
-            const logs = await channel.guild.fetchAuditLogs({ limit: 1 }).catch(() => null);
-            if (!logs) return;
-            const entry = logs.entries.first();
-            if (!entry) return;
+            // Asynchronous punish pipeline
+            (async () => {
+                const logs = await channel.guild.fetchAuditLogs({ limit: 1 }).catch(() => null);
+                if (!logs) return;
+                const entry = logs.entries.first();
+                if (!entry || (Date.now() - entry.createdTimestamp) > 8000) return;
 
-            let actionType = "";
-            if (entry.action === AuditLogEvent.WebhookCreate && isFeatureEnabled(guildId, "antiWebhookCreate")) actionType = "Webhook Oluşturma";
-            else if (entry.action === AuditLogEvent.WebhookDelete && isFeatureEnabled(guildId, "antiWebhookDelete")) actionType = "Webhook Silme";
-            else if (entry.action === AuditLogEvent.WebhookUpdate && isFeatureEnabled(guildId, "antiWebhookUpdate")) actionType = "Webhook Güncelleme";
+                let actionType = "";
+                if (entry.action === AuditLogEvent.WebhookCreate && isFeatureEnabled(guildId, "antiWebhookCreate")) actionType = "Webhook Oluşturma";
+                else if (entry.action === AuditLogEvent.WebhookDelete && isFeatureEnabled(guildId, "antiWebhookDelete")) actionType = "Webhook Silme";
+                else if (entry.action === AuditLogEvent.WebhookUpdate && isFeatureEnabled(guildId, "antiWebhookUpdate")) actionType = "Webhook Güncelleme";
 
-            if (!actionType) return;
+                if (!actionType) return;
 
-            const executor = entry.executor;
-            if (executor.id === channel.guild.ownerId || executor.id === client.user.id) return;
+                const executor = entry.executor;
+                if (executor.id === channel.guild.ownerId || executor.id === client.user.id) return;
 
-            const guvenliListe = global.guvenliListes.get(guildId) || [];
-            if (guvenliListe.includes(executor.id)) return;
+                const guvenliListe = global.guvenliListes.get(guildId) || [];
+                if (guvenliListe.includes(executor.id)) return;
 
-            increaseThreat(guildId, 15, `Webhook ihlali: ${actionType}`, channel.guild);
+                increaseThreat(guildId, 15, `Webhook ihlali: ${actionType}`, channel.guild);
 
-            await punishAdmin(channel.guild, executor, `İzinsiz ${actionType}`, guildId);
+                punishAdmin(channel.guild, executor, `İzinsiz ${actionType}`, guildId);
 
-            if (entry.action === AuditLogEvent.WebhookCreate) {
-                const webhooks = await channel.fetchWebhooks().catch(() => null);
-                if (webhooks) {
-                    const target = webhooks.first();
-                    if (target) await target.delete().catch(() => {});
+                if (entry.action === AuditLogEvent.WebhookCreate) {
+                    const webhooks = await channel.fetchWebhooks().catch(() => null);
+                    if (webhooks) {
+                        const target = webhooks.first();
+                        if (target) await target.delete().catch(() => {});
+                    }
                 }
-            }
+            })();
         });
 
         // 8. Bot Ekleme, Karantina & Giriş Korumaları
@@ -949,21 +1012,21 @@ Limit ve süre değerlerini tamamen özelleştirmek için aşağıdaki menüyü 
 
             // Anti-Bot Ekleme
             if (member.user.bot && isFeatureEnabled(guildId, "antiBotAdd")) {
-                const logs = await member.guild.fetchAuditLogs({ type: AuditLogEvent.BotAdd, limit: 1 }).catch(() => null);
-                if (logs) {
-                    const entry = logs.entries.first();
-                    if (entry) {
-                        const executor = entry.executor;
-                        if (executor.id !== member.guild.ownerId && executor.id !== client.user.id) {
-                            const guvenliListe = global.guvenliListes.get(guildId) || [];
-                            if (!guvenliListe.includes(executor.id)) {
-                                increaseThreat(guildId, 30, `Sunucuya izinsiz bot eklendi: ${member.user.tag}`, member.guild);
-                                await member.kick("Guard | İzinsiz Bot").catch(() => {});
-                                await punishAdmin(member.guild, executor, "İzinsiz Bot Ekleme", guildId);
-                            }
+                const kickPromise = member.kick("Guard | İzinsiz Bot").catch(() => {});
+
+                (async () => {
+                    const entry = await getAuditLogEntry(member.guild, AuditLogEvent.BotAdd);
+                    if (!entry) return;
+                    const executor = entry.executor;
+                    if (executor.id !== member.guild.ownerId && executor.id !== client.user.id) {
+                        const guvenliListe = global.guvenliListes.get(guildId) || [];
+                        if (!guvenliListe.includes(executor.id)) {
+                            increaseThreat(guildId, 30, `Sunucuya izinsiz bot eklendi: ${member.user.tag}`, member.guild);
+                            await kickPromise;
+                            await punishAdmin(member.guild, executor, "İzinsiz Bot Ekleme", guildId);
                         }
                     }
-                }
+                })();
             }
 
             // Normal Üye Girişleri
@@ -977,8 +1040,8 @@ Limit ve süre değerlerini tamamen özelleştirmek için aşağıdaki menüyü 
                     const diffDays = Math.ceil((Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
                     if (diffDays < ageLimitDays) {
                         increaseThreat(guildId, 12, "Yeni Hesap Katılımı", member.guild);
-                        await sendGuardLog(member.guild, member.user, null, `Yeni Hesap Koruması (${diffDays} günlük hesap)`, "Sunucudan Atıldı", guildId);
-                        await member.kick("Guard | Yeni Hesap Koruması").catch(() => {});
+                        sendGuardLog(member.guild, member.user, null, `Yeni Hesap Koruması (${diffDays} günlük hesap)`, "Sunucudan Atıldı", guildId);
+                        member.kick("Guard | Yeni Hesap Koruması").catch(() => {});
                         return;
                     }
                 }
@@ -986,8 +1049,8 @@ Limit ve süre değerlerini tamamen özelleştirmek için aşağıdaki menüyü 
                 // Varsayılan Avatar
                 if (isFeatureEnabled(guildId, "defaultAvatarGuard") && !member.user.avatar) {
                     increaseThreat(guildId, 10, "Avatar Olmayan Hesap Katılımı", member.guild);
-                    await sendGuardLog(member.guild, member.user, null, "Varsayılan Avatar Koruması", "Sunucudan Atıldı", guildId);
-                    await member.kick("Guard | Varsayılan Avatar Koruması").catch(() => {});
+                    sendGuardLog(member.guild, member.user, null, "Varsayılan Avatar Koruması", "Sunucudan Atıldı", guildId);
+                    member.kick("Guard | Varsayılan Avatar Koruması").catch(() => {});
                     return;
                 }
 
@@ -996,8 +1059,8 @@ Limit ve süre değerlerini tamamen özelleştirmek için aşağıdaki menüyü 
                     const badNameRegex = /(https?:\/\/|discord\.gg\/|www\.)/gi;
                     if (badNameRegex.test(member.user.username) || badNameRegex.test(member.user.displayName)) {
                         increaseThreat(guildId, 15, "Reklamlı İsim Katılımı", member.guild);
-                        await sendGuardLog(member.guild, member.user, null, "Profil İsim Koruması (Reklam/Link)", "Sunucudan Atıldı", guildId);
-                        await member.kick("Guard | Kötü Profil Adı").catch(() => {});
+                        sendGuardLog(member.guild, member.user, null, "Profil İsim Koruması (Reklam/Link)", "Sunucudan Atıldı", guildId);
+                        member.kick("Guard | Kötü Profil Adı").catch(() => {});
                         return;
                     }
                 }
@@ -1006,9 +1069,9 @@ Limit ve süre değerlerini tamamen özelleştirmek için aşağıdaki menüyü 
                 if (isFeatureEnabled(guildId, "buttonVerification") || isFeatureEnabled(guildId, "autoQuarantine")) {
                     const quarantineRolId = getSetting(guildId, "quarantineRoleId");
                     if (quarantineRolId) {
-                        await member.roles.add(quarantineRolId).catch(() => {});
+                        member.roles.add(quarantineRolId).catch(() => {});
                         if (isFeatureEnabled(guildId, "autoQuarantine")) {
-                            await sendGuardLog(member.guild, member.user, null, "Otomatik Karantina", "Karantina Rolü Verildi", guildId);
+                            sendGuardLog(member.guild, member.user, null, "Otomatik Karantina", "Karantina Rolü Verildi", guildId);
                         }
                     }
                 }
@@ -1022,26 +1085,26 @@ Limit ve süre değerlerini tamamen özelleştirmek için aşağıdaki menüyü 
             if (!global.guardDurums.get(guildId)) return;
             if (!isFeatureEnabled(guildId, "antiGuildUpdate")) return;
 
-            const logs = await newGuild.fetchAuditLogs({ type: AuditLogEvent.GuildUpdate, limit: 1 }).catch(() => null);
-            if (!logs) return;
-            const entry = logs.entries.first();
-            if (!entry) return;
-            const executor = entry.executor;
-            if (executor.id === newGuild.ownerId || executor.id === client.user.id) return;
+            (async () => {
+                const entry = await getAuditLogEntry(newGuild, AuditLogEvent.GuildUpdate);
+                if (!entry) return;
+                const executor = entry.executor;
+                if (executor.id === newGuild.ownerId || executor.id === client.user.id) return;
 
-            const guvenliListe = global.guvenliListes.get(guildId) || [];
-            if (guvenliListe.includes(executor.id)) return;
+                const guvenliListe = global.guvenliListes.get(guildId) || [];
+                if (guvenliListe.includes(executor.id)) return;
 
-            increaseThreat(guildId, 30, "Sunucu ayarları güncellendi", newGuild);
+                increaseThreat(guildId, 30, "Sunucu ayarları güncellendi", newGuild);
 
-            await punishAdmin(newGuild, executor, "İzinsiz Sunucu Ayarları Güncelleme", guildId);
+                punishAdmin(newGuild, executor, "İzinsiz Sunucu Ayarları Güncelleme", guildId);
 
-            await newGuild.edit({
-                name: oldGuild.name,
-                icon: oldGuild.iconURL(),
-                banner: oldGuild.bannerURL(),
-                splash: oldGuild.splashURL()
-            }).catch(() => {});
+                await newGuild.edit({
+                    name: oldGuild.name,
+                    icon: oldGuild.iconURL(),
+                    banner: oldGuild.bannerURL(),
+                    splash: oldGuild.splashURL()
+                }).catch(() => {});
+            })();
         });
 
         // 10. Audit Log Üye Yasaklama Limitleri
@@ -1052,22 +1115,22 @@ Limit ve süre değerlerini tamamen özelleştirmek için aşağıdaki menüyü 
             const limitMax = getSetting(guildId, "banLimit");
             const limitMinutes = getSetting(guildId, "limitTime") || 5;
 
-            const logs = await ban.guild.fetchAuditLogs({ type: AuditLogEvent.MemberBanAdd, limit: 1 }).catch(() => null);
-            if (!logs) return;
-            const entry = logs.entries.first();
-            if (!entry) return;
-            const executor = entry.executor;
-            if (executor.id === ban.guild.ownerId || executor.id === client.user.id) return;
+            (async () => {
+                const entry = await getAuditLogEntry(ban.guild, AuditLogEvent.MemberBanAdd);
+                if (!entry) return;
+                const executor = entry.executor;
+                if (executor.id === ban.guild.ownerId || executor.id === client.user.id) return;
 
-            const guvenliListe = global.guvenliListes.get(guildId) || [];
-            if (guvenliListe.includes(executor.id)) return;
+                const guvenliListe = global.guvenliListes.get(guildId) || [];
+                if (guvenliListe.includes(executor.id)) return;
 
-            const exceeded = checkRateLimit(guildId, executor.id, "banLimit", limitMax, limitMinutes);
-            if (exceeded) {
-                increaseThreat(guildId, 40, `Yönetici ban limitini aştı: ${executor.tag}`, ban.guild);
-                await punishAdmin(ban.guild, executor, `Yönetici Ban Limitini Aşma (Limit: ${limitMax})`, guildId);
-                await ban.guild.members.unban(ban.user.id, "Guard | Limit Aşımı Koruması").catch(() => {});
-            }
+                const exceeded = checkRateLimit(guildId, executor.id, "banLimit", limitMax, limitMinutes);
+                if (exceeded) {
+                    increaseThreat(guildId, 40, `Yönetici ban limitini aştı: ${executor.tag}`, ban.guild);
+                    punishAdmin(ban.guild, executor, `Yönetici Ban Limitini Aşma (Limit: ${limitMax})`, guildId);
+                    await ban.guild.members.unban(ban.user.id, "Guard | Limit Aşımı Koruması").catch(() => {});
+                }
+            })();
         });
 
         // 11. Sohbet Filtreleri ve İletiler
