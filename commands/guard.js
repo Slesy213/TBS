@@ -1192,10 +1192,14 @@ ${divider}
 
             if (activePage === "main") {
                 const rowMainActions = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId("action_toggle_main").setLabel(global.guardDurums.get(guildId) ? "🛡️ Ana Sistemi Kapat" : "🛡️ Ana Sistemi Aç").setStyle(global.guardDurums.get(guildId) ? ButtonStyle.Danger : ButtonStyle.Success),
                     new ButtonBuilder().setCustomId("action_autonom").setLabel("🤖 Otonom Mod").setStyle(getSetting(guildId, "autonomousMode") ? ButtonStyle.Success : ButtonStyle.Secondary),
+                    new ButtonBuilder().setCustomId("action_recommended").setLabel("⭐ Önerilen Ayarlar").setStyle(ButtonStyle.Primary),
                     new ButtonBuilder().setCustomId("action_open_all").setLabel("🟢 Hepsini Aç").setStyle(ButtonStyle.Success),
-                    new ButtonBuilder().setCustomId("action_close_all").setLabel("🔴 Hepsini Kapat").setStyle(ButtonStyle.Danger)
+                    new ButtonBuilder().setCustomId("action_close_all").setLabel("🔴 Kapat").setStyle(ButtonStyle.Danger)
                 );
+                rows.push(rowMainActions);
+            }
                 rows.push(rowMainActions);
             } else if (activePage === "server") {
                 const selectChannels = new StringSelectMenuBuilder()
@@ -1623,6 +1627,14 @@ ${divider}
                     embeds: [generateEmbed()],
                     components: generateComponents()
                 });
+            } else if (i.customId === "action_toggle_main") {
+    const currentState = global.guardDurums.get(guildId) || false;
+    global.guardDurums.set(guildId, !currentState);
+    await updateSetting(guildId, "guard_durum", !currentState);
+    await interaction.editReply({
+        embeds: [generateEmbed()],
+        components: generateComponents()
+    });
             } else if (i.customId === "action_autonom") {
                 const current = getSetting(guildId, "autonomousMode");
                 await setSetting(guildId, "autonomousMode", !current);
@@ -1719,6 +1731,71 @@ ${divider}
                 keys.forEach(k => settings[k] = i.values.includes(k));
                 global.guardSettings.set(guildId, settings);
                 await updateSetting(guildId, "guard_settings", settings);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "action_recommended") {
+                const settings = global.guardSettings.get(guildId) || {};
+                
+                // 1. Önce eski karmaşayı temizlemek için her şeyi kapatalım
+                booleanKeys.forEach(k => settings[k] = false);
+
+                // 2. Önerilen (İdeal) ayarlar listesi
+                const recommendedBools = [
+                    // Sunucu ve Genel Korumalar
+                    "antiChannelDelete", "antiChannelUpdate", "antiChannelOverwriteClear",
+                    "antiRoleDelete", "antiRoleUpdate", "antiEveryoneAdminGive", "antiRolePositionChange",
+                    "antiWebhookCreate", "antiWebhookDelete", "antiWebhookUpdate",
+                    "antiGuildUpdate", "antiPrune", "antiGuildVanityUrlUpdate",
+                    
+                    // Anti-Bot Koruması
+                    "antiBotAdd", "antiBotLimitAdd", "antiBotActionKickAddExecutor", "antiBotBlockTokenLeaks",
+                    
+                    // Link, Küfür ve Sohbet (Standart Seviye)
+                    "linkBlockAll", "linkBlockInvites", "linkBlockPhishing", "linkBlockIpLoggers", 
+                    "linkActionDelete", "linkActionWarn", "linkActionMute",
+                    "kufurBlockAll", "kufurActionDelete", "kufurActionWarn", "kufurActionMute",
+                    "everyoneHereEngel", "argoEngel",
+                    
+                    // Gelişmiş Spam Modülü
+                    "spamBlockAll", "spamDuplicateLimit", "spamMaxMessages", "spamMaxMentions", 
+                    "spamActionDelete", "spamActionWarn", "spamActionMute", "spamBypassChannels", "spamAllowStaff",
+                    
+                    // Anti-Raid / Giriş
+                    "raidGuard", "accountAgeGuard"
+                ];
+
+                // Belirlediğimiz önerilen ayarları aktif edelim
+                recommendedBools.forEach(k => settings[k] = true);
+
+                // 3. İdeal Ceza ve Limit Eşiklerini Ayarlayalım
+                settings.accountAgeLimit = 7;     // Yeni hesaplar için 7 gün sınırı
+                settings.raidLimit = 5;           // 10 saniyede 5 kişi girerse raid say
+                settings.raidTime = 10;
+                settings.banLimit = 3;            // 5 dakikada 3 ban
+                settings.kickLimit = 3;           // 5 dakikada 3 kick
+                settings.channelDeleteLimit = 2;  // 5 dakikada 2 kanal
+                settings.roleDeleteLimit = 2;     // 5 dakikada 2 rol
+                settings.roleGiveLimit = 3;       // 5 dakikada 3 yetkili rol verme
+                settings.limitTime = 5;           // Eşik sıfırlanma süresi (Dakika)
+
+                // 4. Otonom Modu ve Ana Sistemi Açık Konuma Getirelim
+                settings.autonomousMode = true;
+                
+                global.guardDurums.set(guildId, true);
+                await updateSetting(guildId, "guard_durum", true);
+
+                // Ayarları Kaydedelim
+                global.guardSettings.set(guildId, settings);
+                await updateSetting(guildId, "guard_settings", settings);
+
+                // Kullanıcıya mesaj verip menüyü güncelleyelim
+                await interaction.followUp({ 
+                    content: "✅ **Önerilen ayarlar başarıyla uygulandı!**\n*Ana sistem, otonom mod, kritik sunucu korumaları (Rol/Kanal silme), gelişmiş spam/küfür/link filtreleri ve ideal işlem limitleri aktif edildi.*", 
+                    ephemeral: true 
+                });
+
                 await interaction.editReply({
                     embeds: [generateEmbed()],
                     components: generateComponents()
