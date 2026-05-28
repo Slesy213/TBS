@@ -9,7 +9,10 @@ const {
     ActionRowBuilder,
     StringSelectMenuBuilder,
     ChannelSelectMenuBuilder,
-    RoleSelectMenuBuilder
+    RoleSelectMenuBuilder,
+    ModalBuilder,
+    TextInputBuilder,
+    TextInputStyle
 } = require("discord.js");
 const { updateSetting } = require("../db.js");
 
@@ -157,9 +160,9 @@ function increaseThreat(guildId, points, reason, guild) {
     global.guildThreatLevels.set(guildId, threat);
 
     if (oldThreat < 35 && threat >= 35) {
-        sendGuardLog(guild, { id: "SYSTEM", tag: "Otonom Koruma" }, null, `Şüpheli Aktivite Algılandı: ${reason} (Tehdit: %${threat})`, "Orta Seviye Korumalar Aktif Edildi", guildId);
+        sendGuardLog(guild, { id: "SYSTEM", tag: "Otonom Koruma" }, null, `Şüpheli Aktivite: ${reason} (Tehdit: %${threat})`, "Orta Seviye Korumalar Devrede", guildId);
     } else if (oldThreat < 70 && threat >= 70) {
-        sendGuardLog(guild, { id: "SYSTEM", tag: "Otonom Koruma" }, null, `Saldırı/Raid Algılandı: ${reason} (Tehdit: %${threat})`, "Üst Seviye Karantina Korumaları Aktif Edildi", guildId);
+        sendGuardLog(guild, { id: "SYSTEM", tag: "Otonom Koruma" }, null, `Saldırı/Raid Girişimi: ${reason} (Tehdit: %${threat})`, "Üst Seviye Karantina Korumaları Devrede", guildId);
     }
 }
 
@@ -221,6 +224,24 @@ function checkRateLimit(guildId, adminId, limitKey, limitMax, limitMinutes) {
     trackerMap.set(guildId, guildMap);
 
     return timestamps.length > limitMax;
+}
+
+async function showLimitModal(interaction, key, label) {
+    const modal = new ModalBuilder()
+        .setCustomId(`modal_limit_${key}`)
+        .setTitle("Değeri Özelleştir");
+
+    const limitInput = new TextInputBuilder()
+        .setCustomId("limit_value")
+        .setLabel(label)
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder("Sayısal bir değer girin")
+        .setRequired(true);
+
+    const firstActionRow = new ActionRowBuilder().addComponents(limitInput);
+    modal.addComponents(firstActionRow);
+
+    await interaction.showModal(modal);
 }
 
 module.exports = {
@@ -304,68 +325,129 @@ module.exports = {
         let activePage = "main";
 
         const generateEmbed = () => {
-            const statusEmoji = (key) => isFeatureEnabled(guildId, key) ? "🟢" : "🔴";
-            const dbEmoji = (key) => getSetting(guildId, key) ? "🟢" : "🔴";
-            const mainStatus = global.guardDurums.get(guildId) ? "🟢 AKTİF" : "🔴 DEVRE DIŞI";
-            const autoStatus = getSetting(guildId, "autonomousMode") ? "🤖 AKTİF" : "⚪ PASİF";
+            const ansiStatus = (key) => isFeatureEnabled(guildId, key) 
+                ? "\u001b[1;32m✔ AKTİF\u001b[0m" 
+                : "\u001b[1;31m✖ PASİF\u001b[0m";
+
+            const mainStatus = global.guardDurums.get(guildId) 
+                ? "\u001b[1;32mAKTİF\u001b[0m" 
+                : "\u001b[1;31mDEVRE DIŞI\u001b[0m";
+
+            const autoStatus = getSetting(guildId, "autonomousMode") 
+                ? "\u001b[1;32mAKTİF\u001b[0m" 
+                : "\u001b[1;31mPASİF\u001b[0m";
+
             const threatVal = global.guildThreatLevels.get(guildId) || 0;
             
-            let threatColor = "🟢 GÜVENLİ";
-            if (threatVal >= 70) threatColor = "🔴 KRİTİK / RAID SALDIRISI";
-            else if (threatVal >= 35) threatColor = "🟡 ŞÜPHELİ / HAREKETLİ";
+            let bar = "";
+            const blocks = Math.round(threatVal / 10);
+            for(let i=0; i<10; i++) {
+                bar += i < blocks ? "█" : "░";
+            }
+
+            let threatColor = "\u001b[1;32mGÜVENLİ\u001b[0m";
+            if (threatVal >= 70) threatColor = "\u001b[1;31mKRİTİK / RAID SALDIRISI\u001b[0m";
+            else if (threatVal >= 35) threatColor = "\u001b[1;33mŞÜPHELİ\u001b[0m";
 
             if (activePage === "main") {
                 return new EmbedBuilder()
-                    .setColor(0x5865F2)
-                    .setTitle("🛡️ Slesy Guard | Güvenlik Paneli")
-                    .setDescription(`Ana Koruma: **${mainStatus}**\nOtonom Sistem: **${autoStatus}**\nTehdit Seviyesi: **%${threatVal}** (${threatColor})\n\nAşağıdaki butonlardan güvenlik kategorilerini yönetin veya toplu işlemleri uygulayın.`)
-                    .setTimestamp();
+                    .setColor(0x2B2D31)
+                    .setTitle("🛡️ Slesy Guard | Sistem Kontrol Paneli")
+                    .setDescription(`\`\`\`ansi
+\u001b[1;34mSİSTEM DURUMU:\u001b[0m
+  Ana Koruma    :: ${mainStatus}
+  Otonom Mod    :: ${autoStatus}
+
+\u001b[1;34mTEHDİT SEVİYESİ:\u001b[0m
+  Durum         :: ${threatColor}
+  Bar           :: ${bar} %${threatVal}
+\`\`\`
+Kategorileri yönetmek veya genel eylemleri gerçekleştirmek için aşağıdaki butonları kullanın.`);
             }
 
             if (activePage === "server") {
                 return new EmbedBuilder()
-                    .setColor(0x57F287)
-                    .setTitle("🖥️ Sunucu Bütünlüğü Koruması")
-                    .setDescription("Audit-Log tabanlı koruma özellikleri (Otonom durumunu içerir):")
-                    .addFields(
-                        { name: "Kanal Korumaları", value: `${statusEmoji("antiChannelCreate")} Oluşturma\n${statusEmoji("antiChannelDelete")} Silme\n${statusEmoji("antiChannelUpdate")} Güncelleme`, inline: true },
-                        { name: "Rol Korumaları", value: `${statusEmoji("antiRoleCreate")} Oluşturma\n${statusEmoji("antiRoleDelete")} Silme\n${statusEmoji("antiRoleUpdate")} Güncelleme`, inline: true },
-                        { name: "Webhook & Bot", value: `${statusEmoji("antiWebhookCreate")} Webhook Koruma\n${statusEmoji("antiBotAdd")} Anti-Bot Ekleme\n${statusEmoji("antiGuildUpdate")} Sunucu Düzenleme`, inline: true },
-                        { name: "Emoji & Sticker", value: `${statusEmoji("antiEmojiCreate")} Emoji Koruma\n${statusEmoji("antiStickerCreate")} Çıkartma Koruma\n${statusEmoji("antiPrune")} Budama Koruması`, inline: true }
-                    );
+                    .setColor(0x2B2D31)
+                    .setTitle("🖥️ Sunucu Bütünlüğü Korumaları")
+                    .setDescription(`\`\`\`ansi
+\u001b[1;36mKanal Korumaları:\u001b[0m
+  Oluşturma    :: ${ansiStatus("antiChannelCreate")}
+  Silme        :: ${ansiStatus("antiChannelDelete")}
+  Güncelleme   :: ${ansiStatus("antiChannelUpdate")}
+
+\u001b[1;36mRol Korumaları:\u001b[0m
+  Oluşturma    :: ${ansiStatus("antiRoleCreate")}
+  Silme        :: ${ansiStatus("antiRoleDelete")}
+  Güncelleme   :: ${ansiStatus("antiRoleUpdate")}
+
+\u001b[1;36mSistem Korumaları:\u001b[0m
+  Webhook      :: ${ansiStatus("antiWebhookCreate")}
+  Bot Ekleme   :: ${ansiStatus("antiBotAdd")}
+  Sunucu Ayar  :: ${ansiStatus("antiGuildUpdate")}
+  Budama       :: ${ansiStatus("antiPrune")}
+\`\`\``);
             }
 
             if (activePage === "chat") {
                 return new EmbedBuilder()
-                    .setColor(0xFEE75C)
-                    .setTitle("💬 Sohbet Güvenliği Koruması")
-                    .setDescription("Sohbet/Mesaj tabanlı koruma özellikleri:")
-                    .addFields(
-                        { name: "İçerik Engelleri", value: `${statusEmoji("linkEngel")} Link Engel\n${statusEmoji("inviteEngel")} Davet Engel\n${statusEmoji("kufurEngel")} Küfür Engel\n${statusEmoji("argoEngel")} Argo Engel`, inline: true },
-                        { name: "Biçim Engelleri", value: `${statusEmoji("capsEngel")} Caps Lock Engel\n${statusEmoji("duplicateEngel")} Tekrar Engeli\n${statusEmoji("lineLimitEngel")} Satır Sınırı\n${statusEmoji("lengthLimitEngel")} Karakter Sınırı`, inline: true },
-                        { name: "Spam Engelleri", value: `${statusEmoji("emojiSpamEngel")} Emoji Spami\n${statusEmoji("mentionSpamEngel")} Etiket Spami\n${statusEmoji("everyoneHereEngel")} Herkesi Etiketleme\n${statusEmoji("mediaSpamEngel")} Medya Spami`, inline: true }
-                    );
+                    .setColor(0x2B2D31)
+                    .setTitle("💬 Sohbet & İçerik Korumaları")
+                    .setDescription(`\`\`\`ansi
+\u001b[1;36mİçerik Engelleri:\u001b[0m
+  Linkler      :: ${ansiStatus("linkEngel")}
+  Davetler     :: ${ansiStatus("inviteEngel")}
+  Küfürler     :: ${ansiStatus("kufurEngel")}
+  Argolar      :: ${ansiStatus("argoEngel")}
+
+\u001b[1;36mBiçim Engelleri:\u001b[0m
+  Caps Lock    :: ${ansiStatus("capsEngel")}
+  Tekrarlar    :: ${ansiStatus("duplicateEngel")}
+  Satır Sınırı :: ${ansiStatus("lineLimitEngel")}
+  Karakterler  :: ${ansiStatus("lengthLimitEngel")}
+
+\u001b[1;36mSpam Engelleri:\u001b[0m
+  Emoji        :: ${ansiStatus("emojiSpamEngel")}
+  Etiket       :: ${ansiStatus("mentionSpamEngel")}
+  Toplu Etiket :: ${ansiStatus("everyoneHereEngel")}
+  Medya        :: ${ansiStatus("mediaSpamEngel")}
+\`\`\``);
             }
 
             if (activePage === "raid") {
+                const limitDays = getSetting(guildId, "accountAgeLimit");
+                const limitRejoins = getSetting(guildId, "raidLimit");
+                const limitTime = getSetting(guildId, "raidTime");
                 return new EmbedBuilder()
-                    .setColor(0xEB459E)
-                    .setTitle("👥 Anti-Raid & Doğrulama")
-                    .setDescription("Giriş güvenliği ve doğrulama ayarları:")
-                    .addFields(
-                        { name: "Korumalar", value: `${statusEmoji("accountAgeGuard")} Hesap Yaşı Koruması (${getSetting(guildId, "accountAgeLimit")} gün)\n${statusEmoji("defaultAvatarGuard")} Varsayılan Avatar Koruması\n${statusEmoji("raidGuard")} Hızlı Giriş (Raid) Koruması\n${statusEmoji("usernameRegexGuard")} Reklamlı/Küfürlü İsim Koruması`, inline: false },
-                        { name: "Doğrulama", value: `${statusEmoji("buttonVerification")} Butonlu Doğrulama\n${statusEmoji("autoQuarantine")} Otomatik Karantina`, inline: false }
-                    );
+                    .setColor(0x2B2D31)
+                    .setTitle("👥 Giriş Güvenliği & Raid Koruması")
+                    .setDescription(`\`\`\`ansi
+\u001b[1;36mGiriş Korumaları:\u001b[0m
+  Hesap Yaşı   :: ${ansiStatus("accountAgeGuard")} (Sınır: ${limitDays} Gün)
+  Avatar       :: ${ansiStatus("defaultAvatarGuard")}
+  Raid Koruması:: ${ansiStatus("raidGuard")} (Sınır: ${limitRejoins} Giriş / ${limitTime} Sn)
+  Kötü İsimler :: ${ansiStatus("usernameRegexGuard")}
+
+\u001b[1;36mDoğrulama & Karantina:\u001b[0m
+  Doğrulama    :: ${ansiStatus("buttonVerification")}
+  Karantina    :: ${ansiStatus("autoQuarantine")}
+\`\`\`
+Değerleri özelleştirmek için aşağıdaki menüden seçim yapın.`);
             }
 
             if (activePage === "limits") {
+                const limitTime = getSetting(guildId, "limitTime");
                 return new EmbedBuilder()
-                    .setColor(0xED4245)
+                    .setColor(0x2B2D31)
                     .setTitle("⚙️ Yönetici Hız Limitleri")
-                    .setDescription(`Yöneticilerin belirli bir süre (${getSetting(guildId, "limitTime")} dk) içerisinde yapabileceği maksimum işlem limitleri:`)
-                    .addFields(
-                        { name: "Limit Ayarları", value: `🔨 **Ban Limiti**: ${getSetting(guildId, "banLimit")} adet\n👞 **Kick Limiti**: ${getSetting(guildId, "kickLimit")} adet\n🗑️ **Kanal Silme**: ${getSetting(guildId, "channelDeleteLimit")} adet\n📁 **Rol Silme**: ${getSetting(guildId, "roleDeleteLimit")} adet\n👑 **Rol Verme**: ${getSetting(guildId, "roleGiveLimit")} adet`, inline: false }
-                    );
+                    .setDescription(`\`\`\`ansi
+\u001b[1;36mEşik Değerleri (Zaman Dilimi: ${limitTime} Dakika):\u001b[0m
+  Ban Sınırı   :: ${getSetting(guildId, "banLimit")} Adet
+  Kick Sınırı  :: ${getSetting(guildId, "kickLimit")} Adet
+  Kanal Silme  :: ${getSetting(guildId, "channelDeleteLimit")} Adet
+  Rol Silme    :: ${getSetting(guildId, "roleDeleteLimit")} Adet
+  Rol Verme    :: ${getSetting(guildId, "roleGiveLimit")} Adet
+\`\`\`
+Limit ve süre değerlerini tamamen özelleştirmek için aşağıdaki menüyü kullanın.`);
             }
 
             if (activePage === "logs") {
@@ -374,12 +456,9 @@ module.exports = {
                 const quarantineRol = getSetting(guildId, "quarantineRoleId") ? `<@&${getSetting(guildId, "quarantineRoleId")}>` : "🔴 Ayarlanmamış";
 
                 return new EmbedBuilder()
-                    .setColor(0x99AAB5)
-                    .setTitle("📄 Log & Rol Ayarları")
-                    .setDescription("Guard sistemi için kullanılacak kanallar ve roller:")
-                    .addFields(
-                        { name: "Sistem Ayarları", value: `🔊 **Log Kanalı**: ${logCh}\n✅ **Doğrulanmış Üye Rolü**: ${verifyRol}\n☣️ **Karantina/Cezalı Rolü**: ${quarantineRol}`, inline: false }
-                    );
+                    .setColor(0x2B2D31)
+                    .setTitle("📄 Sistem Log & Rol Konfigürasyonu")
+                    .setDescription(`🔊 **Log Kanalı**: ${logCh}\n✅ **Doğrulama Rolü**: ${verifyRol}\n☣️ **Karantina Rolü**: ${quarantineRol}\n\nAyarları güncellemek için aşağıdaki dropdown menüyü seçin.`);
             }
         };
 
@@ -403,7 +482,7 @@ module.exports = {
                 rowToggles.addComponents(
                     new StringSelectMenuBuilder()
                         .setCustomId("toggle_server")
-                        .setPlaceholder("Değiştirmek istediğiniz özelliği seçin")
+                        .setPlaceholder("Açmak/Kapatmak istediğiniz özelliği seçin")
                         .addOptions([
                             { label: "Anti Channel Create", value: "antiChannelCreate" },
                             { label: "Anti Channel Delete", value: "antiChannelDelete" },
@@ -420,7 +499,7 @@ module.exports = {
                 rowToggles.addComponents(
                     new StringSelectMenuBuilder()
                         .setCustomId("toggle_chat")
-                        .setPlaceholder("Değiştirmek istediğiniz özelliği seçin")
+                        .setPlaceholder("Açmak/Kapatmak istediğiniz özelliği seçin")
                         .addOptions([
                             { label: "Link Engeli", value: "linkEngel" },
                             { label: "Davet Engeli", value: "inviteEngel" },
@@ -437,27 +516,31 @@ module.exports = {
                 rowToggles.addComponents(
                     new StringSelectMenuBuilder()
                         .setCustomId("toggle_raid")
-                        .setPlaceholder("Değiştirmek istediğiniz özelliği seçin")
+                        .setPlaceholder("Konfigüre etmek istediğiniz özelliği seçin")
                         .addOptions([
-                            { label: "Hesap Yaşı Koruması", value: "accountAgeGuard" },
-                            { label: "Avatar Koruması", value: "defaultAvatarGuard" },
-                            { label: "Raid Koruması", value: "raidGuard" },
-                            { label: "Kötü İsim Koruması", value: "usernameRegexGuard" },
-                            { label: "Butonlu Doğrulama", value: "buttonVerification" },
-                            { label: "Otomatik Karantina", value: "autoQuarantine" }
+                            { label: "Hesap Yaşı Koruması (Aç/Kapat)", value: "accountAgeGuard" },
+                            { label: "Avatar Koruması (Aç/Kapat)", value: "defaultAvatarGuard" },
+                            { label: "Raid Koruması (Aç/Kapat)", value: "raidGuard" },
+                            { label: "Kötü İsim Koruması (Aç/Kapat)", value: "usernameRegexGuard" },
+                            { label: "Butonlu Doğrulama (Aç/Kapat)", value: "buttonVerification" },
+                            { label: "Otomatik Karantina (Aç/Kapat)", value: "autoQuarantine" },
+                            { label: "✍️ Hesap Yaşı Sınırını Belirle (Gün)", value: "custom_age" },
+                            { label: "✍️ Raid Giriş Sınırını Belirle (Kişi)", value: "custom_raid" },
+                            { label: "✍️ Raid Zaman Dilimini Belirle (Saniye)", value: "custom_raid_time" }
                         ])
                 );
             } else if (activePage === "limits") {
                 rowToggles.addComponents(
                     new StringSelectMenuBuilder()
                         .setCustomId("adjust_limits")
-                        .setPlaceholder("Değiştirmek istediğiniz limiti seçin")
+                        .setPlaceholder("Düzenlemek istediğiniz limiti seçin")
                         .addOptions([
-                            { label: "Ban Limiti", value: "banLimit" },
-                            { label: "Kick Limiti", value: "kickLimit" },
-                            { label: "Kanal Silme Limiti", value: "channelDeleteLimit" },
-                            { label: "Rol Silme Limiti", value: "roleDeleteLimit" },
-                            { label: "Rol Verme Limiti", value: "roleGiveLimit" }
+                            { label: "✍️ Ban Limiti Değiştir", value: "banLimit" },
+                            { label: "✍️ Kick Limiti Değiştir", value: "kickLimit" },
+                            { label: "✍️ Kanal Silme Limiti Değiştir", value: "channelDeleteLimit" },
+                            { label: "✍️ Rol Silme Limiti Değiştir", value: "roleDeleteLimit" },
+                            { label: "✍️ Rol Verme Limiti Değiştir", value: "roleGiveLimit" },
+                            { label: "✍️ Zaman Dilimini Değiştir (Dakika)", value: "limitTime" }
                         ])
                 );
             } else if (activePage === "logs") {
@@ -494,6 +577,34 @@ module.exports = {
         });
 
         collector.on("collect", async (i) => {
+            // Check Modal requirements first (Do not call i.deferUpdate() if showing Modal)
+            if (i.customId === "adjust_limits") {
+                const key = i.values[0];
+                const labels = {
+                    banLimit: "Ban Limiti (Adet)",
+                    kickLimit: "Kick Limiti (Adet)",
+                    channelDeleteLimit: "Kanal Silme Limiti (Adet)",
+                    roleDeleteLimit: "Rol Silme Limiti (Adet)",
+                    roleGiveLimit: "Rol Verme Limiti (Adet)",
+                    limitTime: "Zaman Dilimi (Dakika)"
+                };
+                return await showLimitModal(i, key, labels[key]);
+            }
+
+            if (i.customId === "toggle_raid") {
+                const val = i.values[0];
+                if (val === "custom_age") {
+                    return await showLimitModal(i, "accountAgeLimit", "Hesap Yaş Sınırı (Gün)");
+                }
+                if (val === "custom_raid") {
+                    return await showLimitModal(i, "raidLimit", "Raid Giriş Sınırı (Kişi)");
+                }
+                if (val === "custom_raid_time") {
+                    return await showLimitModal(i, "raidTime", "Raid Zaman Aralığı (Saniye)");
+                }
+            }
+
+            // Normal Flow: Defer update
             await i.deferUpdate();
 
             if (i.customId.startsWith("page_")) {
@@ -510,7 +621,6 @@ module.exports = {
                     components: generateComponents()
                 });
             } else if (i.customId === "action_open_all") {
-                // Bulk enable all boolean settings
                 const settings = global.guardSettings.get(guildId) || {};
                 booleanKeys.forEach(k => settings[k] = true);
                 global.guardSettings.set(guildId, settings);
@@ -520,7 +630,6 @@ module.exports = {
                     components: generateComponents()
                 });
             } else if (i.customId === "action_close_all") {
-                // Bulk disable all boolean settings
                 const settings = global.guardSettings.get(guildId) || {};
                 booleanKeys.forEach(k => settings[k] = false);
                 global.guardSettings.set(guildId, settings);
@@ -533,16 +642,6 @@ module.exports = {
                 const key = i.values[0];
                 const current = getSetting(guildId, key);
                 await setSetting(guildId, key, !current);
-                await interaction.editReply({
-                    embeds: [generateEmbed()],
-                    components: generateComponents()
-                });
-            } else if (i.customId === "adjust_limits") {
-                const key = i.values[0];
-                const current = getSetting(guildId, key);
-                let nextValue = current + 1;
-                if (nextValue > 5) nextValue = 1;
-                await setSetting(guildId, key, nextValue);
                 await interaction.editReply({
                     embeds: [generateEmbed()],
                     components: generateComponents()
@@ -597,6 +696,20 @@ module.exports = {
                 });
             }
         });
+    },
+
+    // Modal submit response handler triggered from index.js
+    async handleLimitModal(interaction) {
+        const key = interaction.customId.replace("modal_limit_", "");
+        const val = parseInt(interaction.fields.getTextInputValue("limit_value"));
+        const guildId = interaction.guild.id;
+
+        if (isNaN(val) || val < 0) {
+            return interaction.reply({ content: "❌ Geçersiz sayı girdiniz! Lütfen pozitif bir tam sayı girin.", ephemeral: true });
+        }
+
+        await setSetting(guildId, key, val);
+        await interaction.reply({ content: `✅ Limit değeri başarıyla güncellendi! Yeni değer: **${val}**`, ephemeral: true });
     },
 
     // ============================================
@@ -855,7 +968,6 @@ module.exports = {
 
             // Normal Üye Girişleri
             if (!member.user.bot) {
-                // Increase threat slightly per join for Raid monitoring
                 increaseThreat(guildId, 6, "Üye Girişi", member.guild);
 
                 // Hesap Yaşı
