@@ -41,9 +41,31 @@ const defaultSettings = {
     antiChannelCreate: false,
     antiChannelDelete: false,
     antiChannelUpdate: false,
+    antiChannelOverwriteClear: false,
+    antiChannelClone: false,
+    antiCategoryDelete: false,
+    antiChannelSlowmodeChange: false,
+    antiNSFWDisable: false,
+    antiChannelNameSpam: false,
+    antiVoiceBitrateSpam: false,
+    antiVoiceLimitChange: false,
+    antiStageChannelSpam: false,
+    antiAnnouncementFollow: false,
+
     antiRoleCreate: false,
     antiRoleDelete: false,
     antiRoleUpdate: false,
+    antiEveryoneAdminGive: false,
+    antiRoleColorChange: false,
+    antiRoleNameSpam: false,
+    antiRoleHoistDisable: false,
+    antiRoleMentionableEnable: false,
+    antiBotRoleModify: false,
+    antiRolePositionChange: false,
+    antiAdminRoleGiveLimit: false,
+    antiOnboardingRoleSpam: false,
+    antiIntegrationRoleDelete: false,
+
     antiWebhookCreate: false,
     antiWebhookDelete: false,
     antiWebhookUpdate: false,
@@ -106,7 +128,15 @@ const defaultSettings = {
 
 const booleanKeys = [
     "antiChannelCreate", "antiChannelDelete", "antiChannelUpdate",
+    "antiChannelOverwriteClear", "antiChannelClone", "antiCategoryDelete",
+    "antiChannelSlowmodeChange", "antiNSFWDisable", "antiChannelNameSpam",
+    "antiVoiceBitrateSpam", "antiVoiceLimitChange", "antiStageChannelSpam",
+    "antiAnnouncementFollow",
     "antiRoleCreate", "antiRoleDelete", "antiRoleUpdate",
+    "antiEveryoneAdminGive", "antiRoleColorChange", "antiRoleNameSpam",
+    "antiRoleHoistDisable", "antiRoleMentionableEnable", "antiBotRoleModify",
+    "antiRolePositionChange", "antiAdminRoleGiveLimit", "antiOnboardingRoleSpam",
+    "antiIntegrationRoleDelete",
     "antiWebhookCreate", "antiWebhookDelete", "antiWebhookUpdate",
     "antiEmojiCreate", "antiEmojiDelete", "antiEmojiUpdate",
     "antiStickerCreate", "antiStickerDelete", "antiStickerUpdate",
@@ -490,22 +520,41 @@ ${divider}
                     .setDescription(`
 ${divider}
 **« KANAL KORUMALARI »**
-• **Kanal Oluşturma Koruması** :: ${statusEmoji("antiChannelCreate")}
-• **Kanal Silme Koruması**     :: ${statusEmoji("antiChannelDelete")} \`[Kategori/İzin Kurtarmalı]\`
-• **Kanal Güncelleme Koruması** :: ${statusEmoji("antiChannelUpdate")} \`[Eskiye Döndürmeli]\`
+• **Kanal Oluşturma**        :: ${statusEmoji("antiChannelCreate")}
+• **Kanal Silme**            :: ${statusEmoji("antiChannelDelete")} \`[Kategori/İzin Kurtarmalı]\`
+• **Kanal Güncelleme**       :: ${statusEmoji("antiChannelUpdate")} \`[Eskiye Döndürmeli]\`
+• **İzin Sıfırlama Engeli**  :: ${statusEmoji("antiChannelOverwriteClear")}
+• **Kanal Klonlama Engeli**  :: ${statusEmoji("antiChannelClone")}
+• **Kategori Silme Engeli**  :: ${statusEmoji("antiCategoryDelete")}
+• **Yavaş Mod Koruması**     :: ${statusEmoji("antiChannelSlowmodeChange")}
+• **NSFW Kapatma Engeli**     :: ${statusEmoji("antiNSFWDisable")}
+• **Kanal Adı Koruması**     :: ${statusEmoji("antiChannelNameSpam")}
+• **Bitrate Koruması**       :: ${statusEmoji("antiVoiceBitrateSpam")}
+• **Kanal Üye Sınırı Koruması**:: ${statusEmoji("antiVoiceLimitChange")}
+• **Kürsü Kanalı Engeli**    :: ${statusEmoji("antiStageChannelSpam")}
 
 **« ROL KORUMALARI »**
-• **Rol Oluşturma Koruması**   :: ${statusEmoji("antiRoleCreate")}
-• **Rol Silme Koruması**       :: ${statusEmoji("antiRoleDelete")} \`[Üye Rollerini İade Etmeli]\`
-• **Rol Güncelleme Koruması**   :: ${statusEmoji("antiRoleUpdate")} \`[Yetki Sınırlandırmalı]\`
+• **Rol Oluşturma**          :: ${statusEmoji("antiRoleCreate")}
+• **Rol Silme**              :: ${statusEmoji("antiRoleDelete")} \`[Üye Rollerini İade Etmeli]\`
+• **Rol Güncelleme**         :: ${statusEmoji("antiRoleUpdate")} \`[Yetki Sınırlandırmalı]\`
+• **Everyone Yetki Engeli**  :: ${statusEmoji("antiEveryoneAdminGive")}
+• **Renk Değişim Engeli**    :: ${statusEmoji("antiRoleColorChange")}
+• **Rol Adı Koruması**       :: ${statusEmoji("antiRoleNameSpam")}
+• **Hoist Kapatma Engeli**   :: ${statusEmoji("antiRoleHoistDisable")}
+• **Etiketlenebilme Engeli** :: ${statusEmoji("antiRoleMentionableEnable")}
+• **Bot Rolü Düzenleme**     :: ${statusEmoji("antiBotRoleModify")}
+• **Hiyerarşi Değişikliği**  :: ${statusEmoji("antiRolePositionChange")}
+• **Yetkili Rol Verme Sınırı**:: ${statusEmoji("antiAdminRoleGiveLimit")}
+• **Kayıt Rol İstismarı**    :: ${statusEmoji("antiOnboardingRoleSpam")}
+• **Entegrasyon Rolü Silme** :: ${statusEmoji("antiIntegrationRoleDelete")}
 
-**« DİĞER BÜTÜNLÜK KORUMALARI »**
-• **Webhook Koruması**         :: ${statusEmoji("antiWebhookCreate")}
-• **Anti Bot Ekleme**          :: ${statusEmoji("antiBotAdd")} \`[Bot & Admin Engelleyici]\`
-• **Sunucu Ayarları Koruması**  :: ${statusEmoji("antiGuildUpdate")}
-• **Sunucu Budama (Prune)**    :: ${statusEmoji("antiPrune")}
+**« DİĞER SİSTEM KORUMALARI »**
+• **Webhook Koruması**       :: ${statusEmoji("antiWebhookCreate")}
+• **Anti Bot Ekleme**        :: ${statusEmoji("antiBotAdd")} \`[Bot & Admin Engelleyici]\`
+• **Sunucu Ayarları Koruması**:: ${statusEmoji("antiGuildUpdate")}
+• **Sunucu Budama (Prune)**  :: ${statusEmoji("antiPrune")}
 ${divider}
-*İstediğiniz korumayı açıp kapatmak için aşağıdaki seçim menüsünü kullanın.*`);
+*İstediğiniz koruma kategorisini yapılandırmak için aşağıdaki açılır menüleri kullanın.*`);
             }
 
             if (activePage === "chat") {
@@ -644,23 +693,62 @@ ${divider}
                 );
                 rows.push(rowMainActions);
             } else if (activePage === "server") {
-                const selectServer = new StringSelectMenuBuilder()
-                    .setCustomId("toggle_server")
-                    .setPlaceholder("🖥️ Korumaları Seçin / Düzenleyin (Çoklu Seçim)")
+                const selectChannels = new StringSelectMenuBuilder()
+                    .setCustomId("toggle_channels")
+                    .setPlaceholder("🖥️ Kanal Korumalarını Seçin (Çoklu Seçim)")
                     .setMinValues(0)
-                    .setMaxValues(9)
+                    .setMaxValues(13)
                     .addOptions([
                         { label: "Kanal Oluşturma Koruması", value: "antiChannelCreate", description: "Kanal açılınca siler & engeller.", default: getSetting(guildId, "antiChannelCreate") },
                         { label: "Kanal Silme Koruması", value: "antiChannelDelete", description: "Silinen kanalı kurtarır & engeller.", default: getSetting(guildId, "antiChannelDelete") },
                         { label: "Kanal Güncelleme Koruması", value: "antiChannelUpdate", description: "Kanal değişimini geri alır & engeller.", default: getSetting(guildId, "antiChannelUpdate") },
+                        { label: "Kanal İzin Sıfırlama Engeli", value: "antiChannelOverwriteClear", description: "Kanal izin sıfırlamalarını geri yükler.", default: getSetting(guildId, "antiChannelOverwriteClear") },
+                        { label: "Kanal Klonlama Engeli", value: "antiChannelClone", description: "Kanal klonlamalarını engeller.", default: getSetting(guildId, "antiChannelClone") },
+                        { label: "Kategori Silme Engeli", value: "antiCategoryDelete", description: "Silinen kategorileri ve alt kanalları kurtarır.", default: getSetting(guildId, "antiCategoryDelete") },
+                        { label: "Yavaş Mod Koruması", value: "antiChannelSlowmodeChange", description: "Yavaş mod değişimlerini geri yükler.", default: getSetting(guildId, "antiChannelSlowmodeChange") },
+                        { label: "NSFW Kapatma Engeli", value: "antiNSFWDisable", description: "NSFW kapatmalarını geri açar.", default: getSetting(guildId, "antiNSFWDisable") },
+                        { label: "Kanal Adı Koruması", value: "antiChannelNameSpam", description: "Kanal isim değişikliklerini engeller.", default: getSetting(guildId, "antiChannelNameSpam") },
+                        { label: "Bitrate Koruması", value: "antiVoiceBitrateSpam", description: "Ses bitrate değişimlerini geri yükler.", default: getSetting(guildId, "antiVoiceBitrateSpam") },
+                        { label: "Kanal Üye Sınırı Koruması", value: "antiVoiceLimitChange", description: "Ses üye sınırı değişimlerini engeller.", default: getSetting(guildId, "antiVoiceLimitChange") },
+                        { label: "Kürsü Kanalı Engeli", value: "antiStageChannelSpam", description: "Stage kürsü kanalı istismarını engeller.", default: getSetting(guildId, "antiStageChannelSpam") }
+                    ]);
+
+                const selectRoles = new StringSelectMenuBuilder()
+                    .setCustomId("toggle_roles")
+                    .setPlaceholder("🛡️ Rol Korumalarını Seçin (Çoklu Seçim)")
+                    .setMinValues(0)
+                    .setMaxValues(13)
+                    .addOptions([
                         { label: "Rol Oluşturma Koruması", value: "antiRoleCreate", description: "Rol açılınca siler & engeller.", default: getSetting(guildId, "antiRoleCreate") },
                         { label: "Rol Silme Koruması", value: "antiRoleDelete", description: "Silinen rolü ve üyelerini kurtarır.", default: getSetting(guildId, "antiRoleDelete") },
                         { label: "Rol Güncelleme Koruması", value: "antiRoleUpdate", description: "Rol yetki değişimini geri alır.", default: getSetting(guildId, "antiRoleUpdate") },
+                        { label: "Everyone Yetki Engeli", value: "antiEveryoneAdminGive", description: "@everyone rolüne yetki verilmesini engeller.", default: getSetting(guildId, "antiEveryoneAdminGive") },
+                        { label: "Renk Değişim Engeli", value: "antiRoleColorChange", description: "Yetkili rol renk değişimlerini engeller.", default: getSetting(guildId, "antiRoleColorChange") },
+                        { label: "Rol Adı Koruması", value: "antiRoleNameSpam", description: "Rol isim değişikliklerini engeller.", default: getSetting(guildId, "antiRoleNameSpam") },
+                        { label: "Hoist Kapatma Engeli", value: "antiRoleHoistDisable", description: "Rollerin sağda gösterimini geri açar.", default: getSetting(guildId, "antiRoleHoistDisable") },
+                        { label: "Etiketlenebilme Engeli", value: "antiRoleMentionableEnable", description: "Rol etiketleme açılmasını engeller.", default: getSetting(guildId, "antiRoleMentionableEnable") },
+                        { label: "Bot Rolü Düzenleme Engeli", value: "antiBotRoleModify", description: "Entegrasyon bot rollerini korur.", default: getSetting(guildId, "antiBotRoleModify") },
+                        { label: "Hiyerarşi Değişiklik Engeli", value: "antiRolePositionChange", description: "Rol sıralama değişikliklerini geri alır.", default: getSetting(guildId, "antiRolePositionChange") },
+                        { label: "Yetkili Rol Verme Sınırı", value: "antiAdminRoleGiveLimit", description: "Adet/Süre bazlı yönetici rol verme sınırı.", default: getSetting(guildId, "antiAdminRoleGiveLimit") },
+                        { label: "Kayıt Rol İstismarı Koruması", value: "antiOnboardingRoleSpam", description: "İzinsiz kayıt/üye rol vermelerini engeller.", default: getSetting(guildId, "antiOnboardingRoleSpam") },
+                        { label: "Entegrasyon Rolü Silme", value: "antiIntegrationRoleDelete", description: "Silinen entegrasyon rollerini kurtarır.", default: getSetting(guildId, "antiIntegrationRoleDelete") }
+                    ]);
+
+                const selectOther = new StringSelectMenuBuilder()
+                    .setCustomId("toggle_server_other")
+                    .setPlaceholder("⚙️ Diğer Sistem Korumalarını Seçin (Çoklu Seçim)")
+                    .setMinValues(0)
+                    .setMaxValues(4)
+                    .addOptions([
                         { label: "Webhook Koruması", value: "antiWebhookCreate", description: "Webhook açılınca siler & engeller.", default: getSetting(guildId, "antiWebhookCreate") },
                         { label: "Anti-Bot Ekleme", value: "antiBotAdd", description: "İzinsiz botları atar & ekleyeni engeller.", default: getSetting(guildId, "antiBotAdd") },
-                        { label: "Sunucu Ayarları Koruması", value: "antiGuildUpdate", description: "Sunucu ayarlarını geri yükler.", default: getSetting(guildId, "antiGuildUpdate") }
+                        { label: "Sunucu Ayarları Koruması", value: "antiGuildUpdate", description: "Sunucu ayarlarını geri yükler.", default: getSetting(guildId, "antiGuildUpdate") },
+                        { label: "Sunucu Budama (Prune) Engeli", value: "antiPrune", description: "Toplu üye budamalarını engeller.", default: getSetting(guildId, "antiPrune") }
                     ]);
-                rows.push(new ActionRowBuilder().addComponents(selectServer));
+
+                rows.push(new ActionRowBuilder().addComponents(selectChannels));
+                rows.push(new ActionRowBuilder().addComponents(selectRoles));
+                rows.push(new ActionRowBuilder().addComponents(selectOther));
             } else if (activePage === "chat") {
                 const selectChat = new StringSelectMenuBuilder()
                     .setCustomId("toggle_chat")
@@ -810,12 +898,41 @@ ${divider}
                     embeds: [generateEmbed()],
                     components: generateComponents()
                 });
-            } else if (i.customId === "toggle_server") {
+            } else if (i.customId === "toggle_channels") {
                 const settings = global.guardSettings.get(guildId) || {};
                 const keys = [
                     "antiChannelCreate", "antiChannelDelete", "antiChannelUpdate",
+                    "antiChannelOverwriteClear", "antiChannelClone", "antiCategoryDelete",
+                    "antiChannelSlowmodeChange", "antiNSFWDisable", "antiChannelNameSpam",
+                    "antiVoiceBitrateSpam", "antiVoiceLimitChange", "antiStageChannelSpam"
+                ];
+                keys.forEach(k => settings[k] = i.values.includes(k));
+                global.guardSettings.set(guildId, settings);
+                await updateSetting(guildId, "guard_settings", settings);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "toggle_roles") {
+                const settings = global.guardSettings.get(guildId) || {};
+                const keys = [
                     "antiRoleCreate", "antiRoleDelete", "antiRoleUpdate",
-                    "antiWebhookCreate", "antiBotAdd", "antiGuildUpdate"
+                    "antiEveryoneAdminGive", "antiRoleColorChange", "antiRoleNameSpam",
+                    "antiRoleHoistDisable", "antiRoleMentionableEnable", "antiBotRoleModify",
+                    "antiRolePositionChange", "antiAdminRoleGiveLimit", "antiOnboardingRoleSpam",
+                    "antiIntegrationRoleDelete"
+                ];
+                keys.forEach(k => settings[k] = i.values.includes(k));
+                global.guardSettings.set(guildId, settings);
+                await updateSetting(guildId, "guard_settings", settings);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "toggle_server_other") {
+                const settings = global.guardSettings.get(guildId) || {};
+                const keys = [
+                    "antiWebhookCreate", "antiBotAdd", "antiGuildUpdate", "antiPrune"
                 ];
                 keys.forEach(k => settings[k] = i.values.includes(k));
                 global.guardSettings.set(guildId, settings);
