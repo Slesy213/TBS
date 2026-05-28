@@ -12,6 +12,7 @@ const {
 // Yerel Bellekler (Raid ve Alt Hesap tespiti için önbellek)
 const joinTracker = new Map(); // guildId -> [giris_zamanlari]
 const altTracker = new Map();  // guildId -> [yeni_hesap_giris_zamanlari]
+const avatarTracker = new Map(); // guildId -> [avatarsiz_giris_zamanlari]
 
 module.exports = (client) => {
     // Helper to punish bot adding administrator
@@ -333,12 +334,90 @@ Sunucuya yeni bir bot eklendi ve onay bekliyor:
 
         // --- DİĞER GİRİŞ KORUMALARI ---
         
-        // Varsayılan Avatar Koruması
+        // Varsayılan Avatar Koruması (10 Özellik)
         if (isFeatureEnabled(guildId, "defaultAvatarGuard") && !member.user.avatar) {
-            increaseThreat(guildId, 10, "Avatar Olmayan Hesap Katılımı", member.guild);
-            sendGuardLog(member.guild, member.user, null, "Varsayılan Avatar Koruması", "Sunucudan Atıldı", guildId);
-            member.kick("Guard | Varsayılan Avatar Koruması").catch(() => {});
-            return;
+            
+            // 8. ÖZELLİK: Güvenli Liste Muafiyeti (Bypass)
+            let isBypassed = false;
+            if (isFeatureEnabled(guildId, "defaultAvatarBypassWhitelisted")) {
+                if (isWhitelisted(member.guild, member.id)) {
+                    isBypassed = true;
+                }
+            }
+
+            if (!isBypassed) {
+                // 9. ÖZELLİK: Seri Giriş (Raid) Tespiti
+                if (isFeatureEnabled(guildId, "defaultAvatarTrackSpam")) {
+                    let tracker = avatarTracker.get(guildId) || [];
+                    tracker = tracker.filter(t => now - t < 5 * 60 * 1000); // 5 Dakikalık kayan pencere
+                    tracker.push(now);
+                    avatarTracker.set(guildId, tracker);
+
+                    if (tracker.length >= 3) {
+                        increaseThreat(guildId, 15, "Seri Varsayılan Avatar Girişi", member.guild);
+                    }
+                }
+
+                // Otonom Mod için Tehdit Çarpanı ve Durumu
+                const currentThreat = global.guildThreatLevels.get(guildId) || 0;
+
+                // 10. ÖZELLİK: Otonom Katı Mod (Tehdit seviyesi >= 35 ise cezayı sertleştirir)
+                let autoStrictEscalated = false;
+                if (isFeatureEnabled(guildId, "defaultAvatarAutoStrict") && currentThreat >= 35) {
+                    autoStrictEscalated = true;
+                }
+
+                let actionTaken = "İşlem Yok";
+                let punished = false;
+
+                // 7. ÖZELLİK: Kullanıcıya DM Bildirimi
+                if (isFeatureEnabled(guildId, "defaultAvatarDMNotify")) {
+                    const dmEmbed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setTitle("🛑 Giriş Reddedildi / Kısıtlandı")
+                        .setDescription(`**${member.guild.name}** sunucusuna girişiniz güvenlik nedeniyle kısıtlandı.\n\n**Sebep:** Hesabınızda varsayılan avatar (profil resmi olmaması) tespit edilmiştir. Sunucu güvenliği için profil resmi olmayan hesapların sunucuya katılımı sınırlandırılmıştır.`)
+                        .setFooter({ text: "Slesy Global Security | Varsayılan Avatar Koruması" });
+                    
+                    await member.send({ embeds: [dmEmbed] }).catch(() => {});
+                }
+
+                // 3. ÖZELLİK: Sunucudan Yasakla (Ban)
+                if (isFeatureEnabled(guildId, "defaultAvatarActionBan") || autoStrictEscalated) {
+                    await member.ban({ reason: `Slesy Guard - Varsayılan Avatar Koruması (Katı Mod/Raid)` }).catch(() => {});
+                    actionTaken = "Sunucudan Yasaklandı (Ban)";
+                    punished = true;
+                }
+                // 2. ÖZELLİK: Sunucudan At (Kick) - ve varsayılan davranış
+                else if (isFeatureEnabled(guildId, "defaultAvatarActionKick") || (!isFeatureEnabled(guildId, "defaultAvatarActionQuarantine") && !isFeatureEnabled(guildId, "defaultAvatarActionTimeout"))) {
+                    await member.kick("Slesy Guard - Varsayılan Avatar Koruması").catch(() => {});
+                    actionTaken = "Sunucudan Atıldı (Kick)";
+                    punished = true;
+                }
+                // 4. ÖZELLİK: Karantinaya Al
+                else if (isFeatureEnabled(guildId, "defaultAvatarActionQuarantine")) {
+                    const quarantineRoleId = getSetting(guildId, "quarantineRoleId");
+                    if (quarantineRoleId) {
+                        await member.roles.add(quarantineRoleId, "Varsayılan Avatar Karantinası").catch(() => {});
+                        actionTaken = "Karantina Rolü Verildi";
+                        punished = true;
+                    }
+                }
+                // 5. ÖZELLİK: Sustur (Timeout)
+                else if (isFeatureEnabled(guildId, "defaultAvatarActionTimeout")) {
+                    await member.timeout(60 * 60 * 1000, "Varsayılan Avatar Koruması - 1 Saat").catch(() => {});
+                    actionTaken = "1 Saat Susturuldu";
+                    punished = true;
+                }
+
+                // 6. ÖZELLİK: Yetkili Log Bildirimi
+                if (isFeatureEnabled(guildId, "defaultAvatarLogStaff") && punished) {
+                    sendGuardLog(member.guild, { id: "SYSTEM", tag: "Varsayılan Avatar Koruması" }, member.user, `Avatar Durumu: **Profil Resmi Yok**\nUygulanan Eylem: **${actionTaken}**`, actionTaken, guildId);
+                }
+
+                if (punished && (actionTaken.includes("Atıldı") || actionTaken.includes("Yasaklandı"))) {
+                    return; 
+                }
+            }
         }
 
         // Anti-Raid Koruması (Önceki kodda yoktu, yerel Map kullanarak ekledim)
