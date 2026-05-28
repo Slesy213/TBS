@@ -58,6 +58,7 @@ global.spamMap = new Map();
 global.ticketKategoris = new Map();
 global.ticketYetkiliRols = new Map();
 global.ticketLogKanals = new Map();
+global.guardSettings = new Map();
 
 // =========================
 // KOMUTLAR
