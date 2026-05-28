@@ -9,6 +9,10 @@ const {
     isWhitelisted
 } = require("../guard.js");
 
+// Yerel Bellekler (Raid ve Alt Hesap tespiti için önbellek)
+const joinTracker = new Map(); // guildId -> [giris_zamanlari]
+const altTracker = new Map();  // guildId -> [yeni_hesap_giris_zamanlari]
+
 module.exports = (client) => {
     // Helper to punish bot adding administrator
     async function handleBotExecutorPunishment(guild, executor, reason, guildId) {
@@ -230,29 +234,129 @@ Sunucuya yeni bir bot eklendi ve onay bekliyor:
         }
 
         // ============================================
-        // 2. NORMAL MEMBER JOINS
+        // 2. NORMAL MEMBER JOINS (YENİ HESAP 10 ÖZELLİK ENTEGRELİ)
         // ============================================
         increaseThreat(guildId, 6, "Üye Girişi", member.guild);
 
-        // Hesap Yaşı Koruması
-        if (isFeatureEnabled(guildId, "accountAgeGuard")) {
-            const ageLimitDays = getSetting(guildId, "accountAgeLimit");
-            const createdDate = member.user.createdAt;
-            const diffDays = Math.ceil((Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
-            if (diffDays < ageLimitDays) {
-                increaseThreat(guildId, 12, "Yeni Hesap Katılımı", member.guild);
-                sendGuardLog(member.guild, member.user, null, `Yeni Hesap Koruması (${diffDays} günlük hesap)`, "Sunucudan Atıldı", guildId);
-                member.kick("Guard | Yeni Hesap Koruması").catch(() => {});
-                return;
+        const now = Date.now();
+        const accountAgeMs = now - member.user.createdTimestamp;
+        const accountAgeDays = accountAgeMs / (1000 * 60 * 60 * 24);
+
+        // Otonom Mod için Tehdit Çarpanı
+        let threatMultiplier = 1;
+        const currentThreat = global.guildThreatLevels.get(guildId) || 0;
+
+        // 10. ÖZELLİK: Otonom Katı Mod
+        if (isFeatureEnabled(guildId, "accountAgeAutoStrict") && currentThreat >= 35) {
+            threatMultiplier = 2; // Saldırı anında sınırı 2 katına çıkarır
+        }
+
+        const baseLimit = getSetting(guildId, "accountAgeLimit") || 7;
+        const limitDays = baseLimit * threatMultiplier;
+
+        // --- YENİ HESAP KORUMASI ---
+        if (isFeatureEnabled(guildId, "accountAgeBlockAll") && accountAgeDays < limitDays) {
+            
+            // 9. ÖZELLİK: Alt Hesap (Multi) Tespiti
+            if (isFeatureEnabled(guildId, "accountAgeTrackAltAccounts")) {
+                let alts = altTracker.get(guildId) || [];
+                alts = alts.filter(t => now - t < 5 * 60 * 1000); // Sadece son 5 dakikayı tut
+                alts.push(now);
+                altTracker.set(guildId, alts);
+
+                // 3'ten fazla yeni hesap art arda geliyorsa tehdit seviyesini artır!
+                if (alts.length >= 3) {
+                    increaseThreat(guildId, 15, "Ardışık Yeni (Alt) Hesap Girişi Tespiti", member.guild);
+                }
+            }
+
+            // 8. ÖZELLİK: Özel Davet İzni (Bypass)
+            // Eğer özel botlar veya vanity ile girmişse (geliştirilecek) bypass atılabilir.
+            if (isFeatureEnabled(guildId, "accountAgeBypassInvites")) {
+                // Şimdilik pasif (invite takip modülü eklenince entegre edilebilir)
+            }
+
+            let actionTaken = "İşlem Yok";
+            let punished = false;
+
+            // 7. ÖZELLİK: Kullanıcıya DM Bildirimi
+            if (isFeatureEnabled(guildId, "accountAgeDMNotify")) {
+                const dmEmbed = new EmbedBuilder()
+                    .setColor(0xED4245)
+                    .setTitle("🛑 Giriş Reddedildi / Kısıtlandı")
+                    .setDescription(`**${member.guild.name}** sunucusuna girişiniz güvenlik nedeniyle kısıtlandı.\n\n**Sebep:** Hesabınızın açılış tarihi (\`${Math.floor(accountAgeDays)} gün önce\`), sunucunun asgari güvenlik sınırının (\`${limitDays} gün\`) altındadır.`)
+                    .setFooter({ text: "Slesy Global Security | Yeni Hesap Koruması" });
+                
+                await member.send({ embeds: [dmEmbed] }).catch(() => {});
+            }
+
+            // 3. ÖZELLİK: Sunucudan Yasakla (Ban)
+            if (isFeatureEnabled(guildId, "accountAgeActionBan")) {
+                await member.ban({ reason: `Slesy Guard - Yeni Hesap (Sınır: ${limitDays} Gün)` }).catch(() => {});
+                actionTaken = "Sunucudan Yasaklandı (Ban)";
+                punished = true;
+            }
+            // 2. ÖZELLİK: Sunucudan At (Kick)
+            else if (isFeatureEnabled(guildId, "accountAgeActionKick") && !punished) {
+                await member.kick(`Slesy Guard - Yeni Hesap (Sınır: ${limitDays} Gün)`).catch(() => {});
+                actionTaken = "Sunucudan Atıldı (Kick)";
+                punished = true;
+            }
+            
+            // 4. ÖZELLİK: Karantinaya Al
+            if (!punished && isFeatureEnabled(guildId, "accountAgeActionQuarantine")) {
+                const quarantineRoleId = getSetting(guildId, "quarantineRoleId");
+                if (quarantineRoleId) {
+                    await member.roles.add(quarantineRoleId, "Yeni Hesap Karantinası").catch(() => {});
+                    actionTaken = "Karantina Rolü Verildi";
+                    punished = true;
+                }
+            }
+
+            // 5. ÖZELLİK: Sustur (Timeout)
+            if (!punished && isFeatureEnabled(guildId, "accountAgeActionTimeout")) {
+                await member.timeout(60 * 60 * 1000, "Yeni Hesap Koruması - 1 Saat").catch(() => {});
+                actionTaken = actionTaken === "İşlem Yok" ? "1 Saat Susturuldu" : actionTaken + " & Susturuldu";
+                punished = true;
+            }
+
+            // 6. ÖZELLİK: Yetkili Log Bildirimi
+            if (isFeatureEnabled(guildId, "accountAgeLogStaff") && punished) {
+                sendGuardLog(member.guild, { id: "SYSTEM", tag: "Yeni Hesap Koruması" }, member.user, `Hesap Yaşı: **${Math.floor(accountAgeDays)} Gün**\nOtonom Sınır: **${limitDays} Gün**`, actionTaken, guildId);
+            }
+
+            // Ban veya Kick atıldıysa diğer kuralları kontrol etmeye gerek yok
+            if (punished && (actionTaken.includes("Atıldı") || actionTaken.includes("Yasaklandı"))) {
+                return; 
             }
         }
 
+        // --- DİĞER GİRİŞ KORUMALARI ---
+        
         // Varsayılan Avatar Koruması
         if (isFeatureEnabled(guildId, "defaultAvatarGuard") && !member.user.avatar) {
             increaseThreat(guildId, 10, "Avatar Olmayan Hesap Katılımı", member.guild);
             sendGuardLog(member.guild, member.user, null, "Varsayılan Avatar Koruması", "Sunucudan Atıldı", guildId);
             member.kick("Guard | Varsayılan Avatar Koruması").catch(() => {});
             return;
+        }
+
+        // Anti-Raid Koruması (Önceki kodda yoktu, yerel Map kullanarak ekledim)
+        if (isFeatureEnabled(guildId, "raidGuard")) {
+            const raidLimit = getSetting(guildId, "raidLimit") || 5;
+            const raidTime = getSetting(guildId, "raidTime") || 10;
+
+            let joins = joinTracker.get(guildId) || [];
+            joins = joins.filter(t => now - t < raidTime * 1000);
+            joins.push(now);
+            joinTracker.set(guildId, joins);
+
+            if (joins.length >= raidLimit) {
+                increaseThreat(guildId, 25, "Mass Join (Raid) Tespit Edildi", member.guild);
+                member.kick("Slesy Guard - Raid Koruması Aktif").catch(() => {});
+                sendGuardLog(member.guild, member.user, null, `Raid limiti aşıldı! (${joins.length} giriş / ${raidTime} sn)`, "Sunucudan Atıldı", guildId);
+                return;
+            }
         }
 
         // Kötü İsim Koruması
