@@ -1199,8 +1199,6 @@ ${divider}
                     new ButtonBuilder().setCustomId("action_close_all").setLabel("🔴 Kapat").setStyle(ButtonStyle.Danger)
                 );
                 rows.push(rowMainActions);
-            }
-                rows.push(rowMainActions);
             } else if (activePage === "server") {
                 const selectChannels = new StringSelectMenuBuilder()
                     .setCustomId("toggle_channels")
