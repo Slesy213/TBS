@@ -101,8 +101,6 @@ const defaultSettings = {
     antiPrune: false,
 
     // Category 2: Chat & Content Security
-    linkEngel: false,
-    inviteEngel: false,
     linkBlockAll: false,
     linkBlockInvites: false,
     linkBlockHttpsOnly: false,
@@ -143,7 +141,46 @@ const defaultSettings = {
     linkActionKick: false,
     linkActionBan: false,
     linkActionStaffLog: false,
-    kufurEngel: false,
+    kufurBlockAll: false,
+    kufurBlockFamily: false,
+    kufurBlockSexual: false,
+    kufurBlockReligious: false,
+    kufurBlockRacist: false,
+    kufurBlockPolitical: false,
+    kufurBlockArgo: false,
+    kufurBlockAbbreviations: false,
+    kufurBlockHomophobic: false,
+    kufurBlockSpamInsults: false,
+    kufurBlockThreats: false,
+    kufurBlockAdmins: false,
+    kufurBlockForeign: false,
+    kufurBlockPhonetic: false,
+    kufurBlockSpaced: false,
+    kufurBlockHomoglyphs: false,
+    kufurBlockCustomBlacklist: false,
+    kufurBlockEmojis: false,
+    kufurBlockNicknames: false,
+    kufurBlockRichEmbedTexts: false,
+    kufurAllowWhitelistedChannels: false,
+    kufurAllowStaff: false,
+    kufurAllowSelfCorrect: false,
+    kufurAllowQuotes: false,
+    kufurAllowCustomWhitelist: false,
+    kufurAllowRoleWhitelist: false,
+    kufurAllowAutonomousBypass: false,
+    kufurScanLevensthein: false,
+    kufurScanRegexBypass: false,
+    kufurScanCapsInsult: false,
+    kufurScanZalgo: false,
+    kufurScanLengthRatio: false,
+    kufurScanSpoilers: false,
+    kufurScanAttachments: false,
+    kufurActionDelete: false,
+    kufurActionWarn: false,
+    kufurActionMute: false,
+    kufurActionKick: false,
+    kufurActionBan: false,
+    kufurActionStaffLog: false,
     argoEngel: false,
     capsEngel: false,
     emojiSpamEngel: false,
@@ -208,7 +245,6 @@ const booleanKeys = [
     "antiEmojiCreate", "antiEmojiDelete", "antiEmojiUpdate",
     "antiStickerCreate", "antiStickerDelete", "antiStickerUpdate",
     "antiGuildUpdate", "antiBotAdd", "antiIntegrationCreate", "antiPrune",
-    "linkEngel", "inviteEngel",
     "linkBlockAll", "linkBlockInvites", "linkBlockHttpsOnly", "linkBlockHttpOnly",
     "linkBlockIPLinks", "linkBlockSubdomains", "linkBlockShorteners", "linkBlockPhishing",
     "linkBlockIpLoggers", "linkBlockAdultContent", "linkBlockDownloads", "linkBlockMalware",
@@ -219,7 +255,17 @@ const booleanKeys = [
     "linkScanRedirectLimit", "linkScanContentMinimizer", "linkScanCapsRatio", "linkScanLengthLimit",
     "linkScanChannelWhitelist", "linkScanRoleWhitelist", "linkActionDelete", "linkActionWarn",
     "linkActionTimeout", "linkActionKick", "linkActionBan", "linkActionStaffLog",
-    "kufurEngel", "argoEngel", "capsEngel",
+    "kufurBlockAll", "kufurBlockFamily", "kufurBlockSexual", "kufurBlockReligious",
+    "kufurBlockRacist", "kufurBlockPolitical", "kufurBlockArgo", "kufurBlockAbbreviations",
+    "kufurBlockHomophobic", "kufurBlockSpamInsults", "kufurBlockThreats", "kufurBlockAdmins",
+    "kufurBlockForeign", "kufurBlockPhonetic", "kufurBlockSpaced", "kufurBlockHomoglyphs",
+    "kufurBlockCustomBlacklist", "kufurBlockEmojis", "kufurBlockNicknames", "kufurBlockRichEmbedTexts",
+    "kufurAllowWhitelistedChannels", "kufurAllowStaff", "kufurAllowSelfCorrect", "kufurAllowQuotes",
+    "kufurAllowCustomWhitelist", "kufurAllowRoleWhitelist", "kufurAllowAutonomousBypass", "kufurScanLevensthein",
+    "kufurScanRegexBypass", "kufurScanCapsInsult", "kufurScanZalgo", "kufurScanLengthRatio",
+    "kufurScanSpoilers", "kufurScanAttachments", "kufurActionDelete", "kufurActionWarn",
+    "kufurActionMute", "kufurActionKick", "kufurActionBan", "kufurActionStaffLog",
+    "argoEngel", "capsEngel",
     "emojiSpamEngel", "mentionSpamEngel", "everyoneHereEngel", "mediaSpamEngel",
     "selfBotEngel", "duplicateEngel", "lineLimitEngel", "lengthLimitEngel",
     "accountAgeGuard", "defaultAvatarGuard", "raidGuard", "usernameRegexGuard",
@@ -228,6 +274,16 @@ const booleanKeys = [
 
 function getSetting(guildId, key) {
     const settings = global.guardSettings.get(guildId) || {};
+    // Configuration Migrations
+    if (key === "linkBlockAll" && settings.linkBlockAll === undefined && settings.linkEngel !== undefined) {
+        settings.linkBlockAll = settings.linkEngel;
+    }
+    if (key === "linkBlockInvites" && settings.linkBlockInvites === undefined && settings.inviteEngel !== undefined) {
+        settings.linkBlockInvites = settings.inviteEngel;
+    }
+    if (key === "kufurBlockAll" && settings.kufurBlockAll === undefined && settings.kufurEngel !== undefined) {
+        settings.kufurBlockAll = settings.kufurEngel;
+    }
     return settings[key] !== undefined ? settings[key] : defaultSettings[key];
 }
 
@@ -268,7 +324,7 @@ function isFeatureEnabled(guildId, featureKey) {
         if (threat >= 70) {
             if ([
                 "raidGuard", "buttonVerification", "antiChannelCreate", "antiRoleCreate",
-                "linkEngel", "inviteEngel", "everyoneHereEngel", "autoQuarantine"
+                "linkBlockAll", "linkBlockInvites", "everyoneHereEngel", "autoQuarantine"
             ].includes(featureKey)) {
                 return true;
             }
@@ -277,7 +333,7 @@ function isFeatureEnabled(guildId, featureKey) {
         // Level 2 (Suspicious Activity): > 35
         if (threat >= 35) {
             if ([
-                "linkEngel", "inviteEngel", "kufurEngel", "argoEngel",
+                "linkBlockAll", "linkBlockInvites", "kufurBlockAll", "argoEngel",
                 "emojiSpamEngel", "mentionSpamEngel"
             ].includes(featureKey)) {
                 return true;
@@ -665,9 +721,6 @@ ${divider}
                     .setDescription(`
 ${divider}
 **« İÇERİK ENGELLERİ »**
-• **Tüm Link Engeli**          :: ${statusEmoji("linkEngel")}
-• **Davet Link Engeli**        :: ${statusEmoji("inviteEngel")} \`[Discord Davetleri]\`
-• **Küfür Engeli**             :: ${statusEmoji("kufurEngel")}
 • **Argo Sözcük Engeli**       :: ${statusEmoji("argoEngel")}
 
 **« BİÇİM & SPAM FİLTRELERİ »**
@@ -736,6 +789,59 @@ ${divider}
 • **Yetkili Log Bildirimi**   :: ${statusEmoji("linkActionStaffLog")}
 ${divider}
 *İstediğiniz link engelleme filtresini veya tarama davranışını yapılandırmak için aşağıdaki açılır menüleri kullanın.*`);
+            }
+
+            if (activePage === "kufur") {
+                return new EmbedBuilder()
+                    .setColor(0x2B2D31)
+                    .setTitle("🤬 Küfür Engel Koruması (40 Özellik)")
+                    .setDescription(`
+${divider}
+**« KÜFÜR FİLTRELERİ VE KATEGORİLER »**
+• **Genel Engel**            :: ${statusEmoji("kufurBlockAll")}
+• **Ailevi Hakaret Engeli**   :: ${statusEmoji("kufurBlockFamily")}
+• **Cinsel İçerik Engeli**    :: ${statusEmoji("kufurBlockSexual")}
+• **Dini Değerlere Küfür**    :: ${statusEmoji("kufurBlockReligious")}
+• **Irkçı Hakaret Engeli**    :: ${statusEmoji("kufurBlockRacist")}
+• **Siyasi Taciz Engeli**     :: ${statusEmoji("kufurBlockPolitical")}
+• **Argo Sözcük Engeli**       :: ${statusEmoji("kufurBlockArgo")}
+• **Kısaltmalar Koruması**    :: ${statusEmoji("kufurBlockAbbreviations")}
+• **Cinsiyetçi Taciz Engeli** :: ${statusEmoji("kufurBlockHomophobic")}
+• **Hakaret Spami Engeli**    :: ${statusEmoji("kufurBlockSpamInsults")}
+• **Şiddet / Tehdit Engeli**  :: ${statusEmoji("kufurBlockThreats")}
+• **Yetkiliye Hakaret Engeli**:: ${statusEmoji("kufurBlockAdmins")}
+• **Yabancı Dil Küfürler**    :: ${statusEmoji("kufurBlockForeign")}
+• **Fonetik Karakter Engeli** :: ${statusEmoji("kufurBlockPhonetic")}
+• **Boşluklu Yazım Engeli**   :: ${statusEmoji("kufurBlockSpaced")}
+• **Homoglif/Bypass Engeli**  :: ${statusEmoji("kufurBlockHomoglyphs")}
+• **Özel Blacklist Engeli**   :: ${statusEmoji("kufurBlockCustomBlacklist")}
+• **Uygunsuz Emoji İsimleri** :: ${statusEmoji("kufurBlockEmojis")}
+• **Kullanıcı İsmi Koruması** :: ${statusEmoji("kufurBlockNicknames")}
+• **Kullanıcı Embed Metinleri**:: ${statusEmoji("kufurBlockRichEmbedTexts")}
+
+**« MUAFİYETLER, TARAMA VE CEZALANDIRMALAR »**
+• **Kanal Muafiyetleri**      :: ${statusEmoji("kufurAllowWhitelistedChannels")}
+• **Yetkili Muafiyeti**       :: ${statusEmoji("kufurAllowStaff")}
+• **Hatalı Yazım Düzeltme**   :: ${statusEmoji("kufurAllowSelfCorrect")}
+• **Alıntı Küfür İzni**       :: ${statusEmoji("kufurAllowQuotes")}
+• **Özel Kelime Whitelisti**  :: ${statusEmoji("kufurAllowCustomWhitelist")}
+• **Rol Muafiyetleri**        :: ${statusEmoji("kufurAllowRoleWhitelist")}
+• **Otonom Susturma Bypassı** :: ${statusEmoji("kufurAllowAutonomousBypass")}
+• **Levensthein (Yakınlık)**  :: ${statusEmoji("kufurScanLevensthein")}
+• **Gelişmiş Regex Taraması** :: ${statusEmoji("kufurScanRegexBypass")}
+• **Büyük Harfli Küfür Filtresi**:: ${statusEmoji("kufurScanCapsInsult")}
+• **Zalgo/Bozuk Harf Filtresi**:: ${statusEmoji("kufurScanZalgo")}
+• **Yoğunluk Sınırı Engeli**  :: ${statusEmoji("kufurScanLengthRatio")}
+• **Spoiler İçerik Koruması** :: ${statusEmoji("kufurScanSpoilers")}
+• **Dosya Adı Koruması**      :: ${statusEmoji("kufurScanAttachments")}
+• **Mesajı Silme Cezası**     :: ${statusEmoji("kufurActionDelete")}
+• **Kullanıcıyı Uyarma**      :: ${statusEmoji("kufurActionWarn")}
+• **Susturma (Mute) Cezası**  :: ${statusEmoji("kufurActionMute")}
+• **Sunucudan Atma (Kick)**   :: ${statusEmoji("kufurActionKick")}
+• **Sunucudan Yasaklama**     :: ${statusEmoji("kufurActionBan")}
+• **Yetkili Log Bildirimi**   :: ${statusEmoji("kufurActionStaffLog")}
+${divider}
+*İstediğiniz küfür/hakaret filtresini veya tarama davranışını yapılandırmak için aşağıdaki açılır menüleri kullanın.*`);
             }
 
             if (activePage === "raid") {
@@ -832,6 +938,7 @@ ${divider}
                         { label: "🖥️ Sunucu Bütünlüğü Korumaları", value: "page_server", description: "Kanal, rol ve webhook korumaları.", default: activePage === "server" },
                         { label: "💬 Sohbet & İçerik Korumaları", value: "page_chat", description: "Küfür, link ve spam engelleri.", default: activePage === "chat" },
                         { label: "🔗 Link Engel Koruması (40 Özellik)", value: "page_links", description: "Link türleri, muafiyetler ve cezalar.", default: activePage === "links" },
+                        { label: "🤬 Küfür Engel Koruması (40 Özellik)", value: "page_kufur", description: "Küfür, hakaret ve bypass engelleri.", default: activePage === "kufur" },
                         { label: "👥 Giriş Güvenliği & Raid", value: "page_raid", description: "Hesap yaşı, anti-raid ve karantina.", default: activePage === "raid" },
                         { label: "⚙️ Yönetici Hız Limitleri", value: "page_limits", description: "Yöneticilerin eylem eşik sınırları.", default: activePage === "limits" },
                         { label: "📄 Sistem Ayarları & Whitelist", value: "page_logs", description: "Log kanalı, roller ve whitelist.", default: activePage === "logs" }
@@ -939,11 +1046,8 @@ ${divider}
                     .setCustomId("toggle_chat")
                     .setPlaceholder("💬 Filtreleri Seçin / Düzenleyin (Çoklu Seçim)")
                     .setMinValues(0)
-                    .setMaxValues(10)
+                    .setMaxValues(7)
                     .addOptions([
-                        { label: "Tüm Linkleri Engelle", value: "linkEngel", description: "Tüm web adreslerini engeller.", default: getSetting(guildId, "linkEngel") },
-                        { label: "Davet Linklerini Engelle", value: "inviteEngel", description: "Discord davet linklerini engeller.", default: getSetting(guildId, "inviteEngel") },
-                        { label: "Küfür Filtresi", value: "kufurEngel", description: "Küfürlü kelimeleri engeller.", default: getSetting(guildId, "kufurEngel") },
                         { label: "Argo Filtresi", value: "argoEngel", description: "Argo kelimeleri engeller.", default: getSetting(guildId, "argoEngel") },
                         { label: "Caps Lock Filtresi", value: "capsEngel", description: "Aşırı büyük harf kullanımını engeller.", default: getSetting(guildId, "capsEngel") },
                         { label: "Emoji Spam Filtresi", value: "emojiSpamEngel", description: "Çok fazla emoji kullanımını engeller.", default: getSetting(guildId, "emojiSpamEngel") },
@@ -1011,6 +1115,64 @@ ${divider}
                     ]);
                 rows.push(new ActionRowBuilder().addComponents(selectLinks1));
                 rows.push(new ActionRowBuilder().addComponents(selectLinks2));
+            } else if (activePage === "kufur") {
+                const selectKufur1 = new StringSelectMenuBuilder()
+                    .setCustomId("toggle_kufur_1")
+                    .setPlaceholder("🤬 Küfür Filtreleri & Kategoriler (Menü 1)")
+                    .setMinValues(0)
+                    .setMaxValues(20)
+                    .addOptions([
+                        { label: "Genel Engel", value: "kufurBlockAll", description: "Tüm küfür ve hakaretleri engeller.", default: getSetting(guildId, "kufurBlockAll") },
+                        { label: "Ailevi Hakaret Engeli", value: "kufurBlockFamily", description: "Ailevi hakaretleri engeller.", default: getSetting(guildId, "kufurBlockFamily") },
+                        { label: "Cinsel İçerik Engeli", value: "kufurBlockSexual", description: "Cinsel içerikli kelimeleri engeller.", default: getSetting(guildId, "kufurBlockSexual") },
+                        { label: "Dini Değerlere Küfür", value: "kufurBlockReligious", description: "Dini değerlere küfürleri engeller.", default: getSetting(guildId, "kufurBlockReligious") },
+                        { label: "Irkçı Hakaret Engeli", value: "kufurBlockRacist", description: "Irkçı hakaretleri engeller.", default: getSetting(guildId, "kufurBlockRacist") },
+                        { label: "Siyasi Taciz Engeli", value: "kufurBlockPolitical", description: "Siyasi taciz ve hakaretleri engeller.", default: getSetting(guildId, "kufurBlockPolitical") },
+                        { label: "Argo Sözcük Engeli", value: "kufurBlockArgo", description: "Argo ve kaba kelimeleri engeller.", default: getSetting(guildId, "kufurBlockArgo") },
+                        { label: "Kısaltmalar Koruması", value: "kufurBlockAbbreviations", description: "Kısaltılmış küfürleri engeller (amk, aq, vb.).", default: getSetting(guildId, "kufurBlockAbbreviations") },
+                        { label: "Cinsiyetçi Taciz Engeli", value: "kufurBlockHomophobic", description: "Homofobik ve cinsiyetçi kelimeleri engeller.", default: getSetting(guildId, "kufurBlockHomophobic") },
+                        { label: "Hakaret Spami Engeli", value: "kufurBlockSpamInsults", description: "Aynı hakareti tekrarlamayı engeller.", default: getSetting(guildId, "kufurBlockSpamInsults") },
+                        { label: "Şiddet / Tehdit Engeli", value: "kufurBlockThreats", description: "Tehdit ve şiddet içeren kelimeleri engeller.", default: getSetting(guildId, "kufurBlockThreats") },
+                        { label: "Yetkiliye Hakaret Engeli", value: "kufurBlockAdmins", description: "Yetkililere yönelik hakaretleri engeller.", default: getSetting(guildId, "kufurBlockAdmins") },
+                        { label: "Yabancı Dil Küfürler", value: "kufurBlockForeign", description: "İngilizce vb. yabancı küfürleri engeller.", default: getSetting(guildId, "kufurBlockForeign") },
+                        { label: "Fonetik Karakter Engeli", value: "kufurBlockPhonetic", description: "Harf aralarına işaret koymayı engeller.", default: getSetting(guildId, "kufurBlockPhonetic") },
+                        { label: "Boşluklu Yazım Engeli", value: "kufurBlockSpaced", description: "Boşluklu küfür yazımlarını engeller.", default: getSetting(guildId, "kufurBlockSpaced") },
+                        { label: "Homoglif/Bypass Engeli", value: "kufurBlockHomoglyphs", description: "Farklı alfabeden harf değişimlerini engeller.", default: getSetting(guildId, "kufurBlockHomoglyphs") },
+                        { label: "Özel Blacklist Engeli", value: "kufurBlockCustomBlacklist", description: "Özel kara listedeki kelimeleri engeller.", default: getSetting(guildId, "kufurBlockCustomBlacklist") },
+                        { label: "Uygunsuz Emoji İsimleri", value: "kufurBlockEmojis", description: "Uygunsuz isimli emojileri engeller.", default: getSetting(guildId, "kufurBlockEmojis") },
+                        { label: "Kullanıcı İsmi Koruması", value: "kufurBlockNicknames", description: "Kullanıcı adlarında küfürü engeller.", default: getSetting(guildId, "kufurBlockNicknames") },
+                        { label: "Kullanıcı Embed Metinleri", value: "kufurBlockRichEmbedTexts", description: "Zengin içerikli embed metinlerini tarar.", default: getSetting(guildId, "kufurBlockRichEmbedTexts") }
+                    ]);
+
+                const selectKufur2 = new StringSelectMenuBuilder()
+                    .setCustomId("toggle_kufur_2")
+                    .setPlaceholder("⚙️ Muafiyetler, Tarama ve Cezalar (Menü 2)")
+                    .setMinValues(0)
+                    .setMaxValues(20)
+                    .addOptions([
+                        { label: "Kanal Muafiyetleri", value: "kufurAllowWhitelistedChannels", description: "Muaf kanallarda filtreyi kapatır.", default: getSetting(guildId, "kufurAllowWhitelistedChannels") },
+                        { label: "Yetkili Muafiyeti", value: "kufurAllowStaff", description: "Yönetici ve yetkilileri muaf tutar.", default: getSetting(guildId, "kufurAllowStaff") },
+                        { label: "Hatalı Yazım Düzeltme", value: "kufurAllowSelfCorrect", description: "Hatalı yazımda 3 saniye silme izni verir.", default: getSetting(guildId, "kufurAllowSelfCorrect") },
+                        { label: "Alıntı Küfür İzni", value: "kufurAllowQuotes", description: "Alıntı işaretli küfürlere izin verir.", default: getSetting(guildId, "kufurAllowQuotes") },
+                        { label: "Özel Kelime Whitelisti", value: "kufurAllowCustomWhitelist", description: "Güvenli kelimelere izin verir.", default: getSetting(guildId, "kufurAllowCustomWhitelist") },
+                        { label: "Rol Muafiyetleri", value: "kufurAllowRoleWhitelist", description: "Muaf rollerde filtreyi kapatır.", default: getSetting(guildId, "kufurAllowRoleWhitelist") },
+                        { label: "Otonom Susturma Bypassı", value: "kufurAllowAutonomousBypass", description: "Otonom susturmayı duruma göre yumuşatır.", default: getSetting(guildId, "kufurAllowAutonomousBypass") },
+                        { label: "Levensthein (Yakınlık)", value: "kufurScanLevensthein", description: "Benzer yazılmış küfürleri algılar.", default: getSetting(guildId, "kufurScanLevensthein") },
+                        { label: "Gelişmiş Regex Taraması", value: "kufurScanRegexBypass", description: "Regex kullanarak bypassları arar.", default: getSetting(guildId, "kufurScanRegexBypass") },
+                        { label: "Büyük Harfli Küfür Filtresi", value: "kufurScanCapsInsult", description: "Caps Lock ile yazılmış küfürleri tarar.", default: getSetting(guildId, "kufurScanCapsInsult") },
+                        { label: "Zalgo/Bozuk Harf Filtresi", value: "kufurScanZalgo", description: "Zalgo/bozuk karakterleri temizler.", default: getSetting(guildId, "kufurScanZalgo") },
+                        { label: "Yoğunluk Sınırı Engeli", value: "kufurScanLengthRatio", description: "Mesajdaki küfür oranı %50+ ise engeller.", default: getSetting(guildId, "kufurScanLengthRatio") },
+                        { label: "Spoiler İçerik Koruması", value: "kufurScanSpoilers", description: "Spoiler içindeki küfürleri tarar.", default: getSetting(guildId, "kufurScanSpoilers") },
+                        { label: "Dosya Adı Koruması", value: "kufurScanAttachments", description: "Görsel ve dosya isimlerini tarar.", default: getSetting(guildId, "kufurScanAttachments") },
+                        { label: "Mesajı Silme Cezası", value: "kufurActionDelete", description: "Küfür edildiğinde mesajı siler.", default: getSetting(guildId, "kufurActionDelete") },
+                        { label: "Kullanıcıyı Uyarma", value: "kufurActionWarn", description: "Kullanıcıyı chatte uyarır.", default: getSetting(guildId, "kufurActionWarn") },
+                        { label: "Susturma (Mute) Cezası", value: "kufurActionMute", description: "5 dakika susturma cezası verir.", default: getSetting(guildId, "kufurActionMute") },
+                        { label: "Sunucudan Atma (Kick)", value: "kufurActionKick", description: "Tekrarlı ihlalde sunucudan atar.", default: getSetting(guildId, "kufurActionKick") },
+                        { label: "Sunucudan Yasaklama", value: "kufurActionBan", description: "Kritik ihlalde sunucudan banlar.", default: getSetting(guildId, "kufurActionBan") },
+                        { label: "Yetkili Log Bildirimi", value: "kufurActionStaffLog", description: "İhlali yetkili kanalına loglar.", default: getSetting(guildId, "kufurActionStaffLog") }
+                    ]);
+                rows.push(new ActionRowBuilder().addComponents(selectKufur1));
+                rows.push(new ActionRowBuilder().addComponents(selectKufur2));
             } else if (activePage === "raid") {
                 const selectRaidBools = new StringSelectMenuBuilder()
                     .setCustomId("toggle_raid_bools")
@@ -1206,9 +1368,8 @@ ${divider}
             } else if (i.customId === "toggle_chat") {
                 const settings = global.guardSettings.get(guildId) || {};
                 const keys = [
-                    "linkEngel", "inviteEngel", "kufurEngel", "argoEngel", "capsEngel",
-                    "emojiSpamEngel", "mentionSpamEngel", "everyoneHereEngel", "mediaSpamEngel",
-                    "duplicateEngel"
+                    "argoEngel", "capsEngel", "emojiSpamEngel", "mentionSpamEngel",
+                    "everyoneHereEngel", "mediaSpamEngel", "duplicateEngel"
                 ];
                 keys.forEach(k => settings[k] = i.values.includes(k));
                 global.guardSettings.set(guildId, settings);
@@ -1241,6 +1402,38 @@ ${divider}
                     "linkScanRedirectLimit", "linkScanContentMinimizer", "linkScanCapsRatio", "linkScanLengthLimit",
                     "linkScanChannelWhitelist", "linkScanRoleWhitelist", "linkActionDelete", "linkActionWarn",
                     "linkActionTimeout", "linkActionKick", "linkActionBan", "linkActionStaffLog"
+                ];
+                keys.forEach(k => settings[k] = i.values.includes(k));
+                global.guardSettings.set(guildId, settings);
+                await updateSetting(guildId, "guard_settings", settings);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "toggle_kufur_1") {
+                const settings = global.guardSettings.get(guildId) || {};
+                const keys = [
+                    "kufurBlockAll", "kufurBlockFamily", "kufurBlockSexual", "kufurBlockReligious",
+                    "kufurBlockRacist", "kufurBlockPolitical", "kufurBlockArgo", "kufurBlockAbbreviations",
+                    "kufurBlockHomophobic", "kufurBlockSpamInsults", "kufurBlockThreats", "kufurBlockAdmins",
+                    "kufurBlockForeign", "kufurBlockPhonetic", "kufurBlockSpaced", "kufurBlockHomoglyphs",
+                    "kufurBlockCustomBlacklist", "kufurBlockEmojis", "kufurBlockNicknames", "kufurBlockRichEmbedTexts"
+                ];
+                keys.forEach(k => settings[k] = i.values.includes(k));
+                global.guardSettings.set(guildId, settings);
+                await updateSetting(guildId, "guard_settings", settings);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "toggle_kufur_2") {
+                const settings = global.guardSettings.get(guildId) || {};
+                const keys = [
+                    "kufurAllowWhitelistedChannels", "kufurAllowStaff", "kufurAllowSelfCorrect", "kufurAllowQuotes",
+                    "kufurAllowCustomWhitelist", "kufurAllowRoleWhitelist", "kufurAllowAutonomousBypass", "kufurScanLevensthein",
+                    "kufurScanRegexBypass", "kufurScanCapsInsult", "kufurScanZalgo", "kufurScanLengthRatio",
+                    "kufurScanSpoilers", "kufurScanAttachments", "kufurActionDelete", "kufurActionWarn",
+                    "kufurActionMute", "kufurActionKick", "kufurActionBan", "kufurActionStaffLog"
                 ];
                 keys.forEach(k => settings[k] = i.values.includes(k));
                 global.guardSettings.set(guildId, settings);
