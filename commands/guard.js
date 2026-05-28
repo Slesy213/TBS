@@ -336,13 +336,25 @@ const defaultSettings = {
     verifyRoleId: null,
     quarantineRoleId: null,
 
-    // Category 4: Admin Limits
+    // Category 4: Admin & Protection Limits
     banLimit: 3,
     kickLimit: 3,
     channelDeleteLimit: 2,
     roleDeleteLimit: 2,
     roleGiveLimit: 3,
     limitTime: 5, // minutes
+
+    // Spam Limits
+    spamDuplicateLimitVal: 3,
+    spamMaxMessagesVal: 7,
+    spamMinTimeVal: 500, // ms
+    spamCapsPercentageVal: 70, // %
+    spamMaxEmojisVal: 10,
+    spamMaxMentionsVal: 5,
+    spamMaxLinesVal: 15,
+    spamMaxLengthVal: 1500,
+    spamLinkCountVal: 3,
+    spamCrossChannelLimitVal: 3,
 
     
 
@@ -1224,19 +1236,40 @@ ${divider}
                 const limitTime = getSetting(guildId, "limitTime");
                 return new EmbedBuilder()
                     .setColor(0x2B2D31)
-                    .setTitle("⚙️ Yönetici Hız Limitleri")
+                    .setTitle("⚙️ Sistem Eşik ve Limit Ayarları")
                     .setDescription(`
 ${divider}
-Bir yöneticinin belirlenen zaman dilimi (\`${limitTime} Dakika\`) içinde yapabileceği maksimum eylem limitleri. Limit aşıldığında yetkili banlanır ve tüm rolleri alınır.
+Sunucu güvenliği için tanımlanan tüm sınır, eşik ve zaman aşımı limitlerini buradan inceleyip güncelleyebilirsiniz.
 
-**« İŞLEM EŞİKLERİ »**
+**« YÖNETİCİ EYLEM LİMİTLERİ »**
+*Belirlenen süre içinde sınırı aşan yöneticiler sunucudan yasaklanır.*
+• **Zaman Dilimi** :: \`${limitTime} Dakika\`
 • **Banlama Sınırı** :: \`${getSetting(guildId, "banLimit")} Adet\`
-• **Kullanıcı Atma (Kick)** :: \`${getSetting(guildId, "kickLimit")} Adet\`
-• **Kanal Silme Sınırı** :: \`${getSetting(guildId, "channelDeleteLimit")} Adet\`
-• **Rol Silme Sınırı** :: \`${getSetting(guildId, "roleDeleteLimit")} Adet\`
-• **Rol Verme Sınırı** :: \`${getSetting(guildId, "roleGiveLimit")} Adet\`
+• **Kullanıcı Atma** :: \`${getSetting(guildId, "kickLimit")} Adet\`
+• **Kanal Silme** :: \`${getSetting(guildId, "channelDeleteLimit")} Adet\`
+• **Rol Silme** :: \`${getSetting(guildId, "roleDeleteLimit")} Adet\`
+• **Rol Verme** :: \`${getSetting(guildId, "roleGiveLimit")} Adet\`
+
+**« GİRİŞ VE RAID EŞİKLERİ »**
+*Yeni üye girişleri ve raid saldırı tespit sınırları.*
+• **Hesap Yaş Sınırı** :: \`${getSetting(guildId, "accountAgeLimit")} Gün\`
+• **Raid Giriş Sınırı** :: \`${getSetting(guildId, "raidLimit")} Giriş\`
+• **Raid Zaman Aralığı** :: \`${getSetting(guildId, "raidTime")} Saniye\`
+
+**« SOHBET VE SPAM LİMİTLERİ »**
+*Sohbet kanallarındaki spam koruma limitleri.*
+• **Tekrarlı Mesaj Sınırı** :: \`${getSetting(guildId, "spamDuplicateLimitVal")} Mesaj\`
+• **Hızlı Mesaj Sınırı** :: \`${getSetting(guildId, "spamMaxMessagesVal")} Mesaj\` *(30 Sn içinde)*
+• **Min Mesaj Aralığı** :: \`${getSetting(guildId, "spamMinTimeVal")} Milisaniye\`
+• **Büyük Harf Yüzdesi** :: \`%${getSetting(guildId, "spamCapsPercentageVal")}\`
+• **Maks Emoji Sınırı** :: \`${getSetting(guildId, "spamMaxEmojisVal")} Adet\`
+• **Maks Etiket Sınırı** :: \`${getSetting(guildId, "spamMaxMentionsVal")} Adet\`
+• **Maks Satır Sınırı** :: \`${getSetting(guildId, "spamMaxLinesVal")} Satır\`
+• **Maks Karakter Sınırı** :: \`${getSetting(guildId, "spamMaxLengthVal")} Karakter\`
+• **Maks Link Sınırı** :: \`${getSetting(guildId, "spamLinkCountVal")} Adet\`
+• **Çapraz Kanal Spami** :: \`${getSetting(guildId, "spamCrossChannelLimitVal")} Farklı Kanal\`
 ${divider}
-*Zaman aralıklarını ve adet sınırlarını özelleştirmek için aşağıdaki seçim menüsünü kullanın.*`);
+*İstediğiniz limit değerini özelleştirmek için aşağıdaki açılır seçim menüsünü kullanın.*`);
             }
 
             if (activePage === "logs") {
@@ -1841,14 +1874,27 @@ ${divider}
             } else if (activePage === "limits") {
                 const selectLimits = new StringSelectMenuBuilder()
                     .setCustomId("adjust_limits")
-                    .setPlaceholder("⚙️ Eşik sınırlarını ve süreleri düzenleyin")
+                    .setPlaceholder("⚙️ Ayarlamak istediğiniz eşik/limit değerini seçin")
                     .addOptions([
-                        { label: "Ban Limiti Değiştir", value: "banLimit" },
-                        { label: "Kick Limiti Değiştir", value: "kickLimit" },
-                        { label: "Kanal Silme Limiti Değiştir", value: "channelDeleteLimit" },
-                        { label: "Rol Silme Limiti Değiştir", value: "roleDeleteLimit" },
-                        { label: "Rol Verme Limiti Değiştir", value: "roleGiveLimit" },
-                        { label: "Zaman Dilimini Değiştir (Dakika)", value: "limitTime" }
+                        { label: "Ban Limiti Değiştir", value: "banLimit", description: "Yöneticinin yapabileceği maksimum ban sayısı." },
+                        { label: "Kick Limiti Değiştir", value: "kickLimit", description: "Yöneticinin yapabileceği maksimum kick sayısı." },
+                        { label: "Kanal Silme Limiti Değiştir", value: "channelDeleteLimit", description: "Yöneticinin silebileceği maksimum kanal sayısı." },
+                        { label: "Rol Silme Limiti Değiştir", value: "roleDeleteLimit", description: "Yöneticinin silebileceği maksimum rol sayısı." },
+                        { label: "Rol Verme Limiti Değiştir", value: "roleGiveLimit", description: "Yöneticinin verebileceği yetkili rolü sayısı." },
+                        { label: "Yönetici Limit Zaman Dilimi", value: "limitTime", description: "Yönetici eylem limitlerinin sıfırlanma süresi (Dakika)." },
+                        { label: "Hesap Yaş Sınırı (Gün)", value: "accountAgeLimit", description: "Yeni hesap koruması için gereken asgari hesap yaşı." },
+                        { label: "Raid Giriş Sınırı (Kişi)", value: "raidLimit", description: "Raid alarmını tetikleyen giriş yapan kişi sayısı." },
+                        { label: "Raid Zaman Aralığı (Saniye)", value: "raidTime", description: "Raid giriş limitinin kontrol edildiği süre aralığı." },
+                        { label: "Tekrarlı Mesaj Sınırı (Adet)", value: "spamDuplicateLimitVal", description: "Aynı mesajın 30 sn içinde maksimum tekrarlanma sayısı." },
+                        { label: "Hızlı Mesaj Sınırı (Adet)", value: "spamMaxMessagesVal", description: "Bir üyenin 30 saniyede gönderebileceği maksimum mesaj." },
+                        { label: "Min Mesaj Aralığı (Milisaniye)", value: "spamMinTimeVal", description: "İki mesaj arasındaki minimum süre (Milisaniye)." },
+                        { label: "Büyük Harf Yüzdesi (%)", value: "spamCapsPercentageVal", description: "Mesajdaki büyük harf sınırı yüzdesi (%70 önerilen)." },
+                        { label: "Maks Emoji Sınırı (Adet)", value: "spamMaxEmojisVal", description: "Tek mesajda kullanılabilecek maksimum emoji." },
+                        { label: "Maks Etiket Sınırı (Adet)", value: "spamMaxMentionsVal", description: "Tek mesajda yapılabilecek maksimum üye etiketi." },
+                        { label: "Maks Satır Sınırı (Adet)", value: "spamMaxLinesVal", description: "Tek bir mesajın içerebileceği maksimum satır sayısı." },
+                        { label: "Maks Karakter Sınırı (Harf)", value: "spamMaxLengthVal", description: "Bir mesajın içerebileceği maksimum karakter (harf) sayısı." },
+                        { label: "Maks Link Sınırı (Adet)", value: "spamLinkCountVal", description: "Tek bir mesajda paylaşılabilecek maksimum bağlantı sayısı." },
+                        { label: "Çapraz Kanal Spami (Kanal)", value: "spamCrossChannelLimitVal", description: "Aynı mesajın gönderilebileceği maksimum farklı kanal adedi." }
                     ]);
                 rows.push(new ActionRowBuilder().addComponents(selectLimits));
             } else if (activePage === "logs") {
@@ -1889,7 +1935,20 @@ ${divider}
                     channelDeleteLimit: "Kanal Silme Limiti (Adet)",
                     roleDeleteLimit: "Rol Silme Limiti (Adet)",
                     roleGiveLimit: "Rol Verme Limiti (Adet)",
-                    limitTime: "Zaman Dilimi (Dakika)"
+                    limitTime: "Zaman Dilimi (Dakika)",
+                    accountAgeLimit: "Hesap Yaş Sınırı (Gün)",
+                    raidLimit: "Raid Giriş Sınırı (Kişi)",
+                    raidTime: "Raid Zaman Aralığı (Saniye)",
+                    spamDuplicateLimitVal: "Tekrarlı Mesaj Sınırı (Adet)",
+                    spamMaxMessagesVal: "Hızlı Mesaj Sınırı (Adet)",
+                    spamMinTimeVal: "Min Mesaj Aralığı (Milisaniye)",
+                    spamCapsPercentageVal: "Büyük Harf Yüzdesi (0 - 100)",
+                    spamMaxEmojisVal: "Maks Emoji Sınırı (Adet)",
+                    spamMaxMentionsVal: "Maks Etiket Sınırı (Adet)",
+                    spamMaxLinesVal: "Maks Satır Sınırı (Adet)",
+                    spamMaxLengthVal: "Maks Karakter Sınırı (Harf)",
+                    spamLinkCountVal: "Maks Link Sınırı (Adet)",
+                    spamCrossChannelLimitVal: "Çapraz Kanal Spami (Kanal)"
                 };
                 return await showLimitModal(i, key, labels[key]);
             }
@@ -2082,6 +2141,18 @@ ${divider}
                 settings.roleDeleteLimit = 2;     // 5 dakikada 2 rol
                 settings.roleGiveLimit = 3;       // 5 dakikada 3 yetkili rol verme
                 settings.limitTime = 5;           // Eşik sıfırlanma süresi (Dakika)
+
+                // Yeni Spam Limit Eşikleri
+                settings.spamDuplicateLimitVal = 3;
+                settings.spamMaxMessagesVal = 7;
+                settings.spamMinTimeVal = 500;
+                settings.spamCapsPercentageVal = 70;
+                settings.spamMaxEmojisVal = 10;
+                settings.spamMaxMentionsVal = 5;
+                settings.spamMaxLinesVal = 15;
+                settings.spamMaxLengthVal = 1500;
+                settings.spamLinkCountVal = 3;
+                settings.spamCrossChannelLimitVal = 3;
 
                 // 4. Otonom Modu ve Ana Sistemi Açık Konuma Getirelim
                 settings.autonomousMode = true;
