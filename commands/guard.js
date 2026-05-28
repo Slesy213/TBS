@@ -2049,6 +2049,8 @@ ${divider}
             return interaction.reply({ content: "❌ Geçersiz sayı girdiniz! Lütfen pozitif bir tam sayı girin.", ephemeral: true });
         }
 
+        await interaction.deferReply({ ephemeral: true });
+
         await setSetting(guildId, key, val);
         await interaction.reply({ content: `✅ Değer başarıyla güncellendi! Yeni değer: **${val}**`, ephemeral: true });
     },
