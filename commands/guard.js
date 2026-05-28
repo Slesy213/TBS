@@ -642,6 +642,9 @@ module.exports = {
         ),
 
     async execute(interaction) {
+
+        await interaction.deferReply({ ephemeral: true });
+
         const islem = interaction.options.getString("işlem");
         const kullanici = interaction.options.getUser("kullanici");
         const guildId = interaction.guild.id;
@@ -1167,10 +1170,10 @@ ${divider}
 
             if (activePage === "main") {
                 const rowMainActions = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("action_toggle_main").setLabel(global.guardDurums.get(guildId) ? "🛡️ Ana Sistemi Kapat" : "🛡️ Ana Sistemi Aç").setStyle(global.guardDurums.get(guildId) ? ButtonStyle.Danger : ButtonStyle.Success),
-    new ButtonBuilder().setCustomId("action_open_all").setLabel("🟢 Hepsini Aç").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId("action_close_all").setLabel("🔴 Hepsini Kapat").setStyle(ButtonStyle.Danger)
-);
+                    new ButtonBuilder().setCustomId("action_autonom").setLabel("🤖 Otonom Mod").setStyle(getSetting(guildId, "autonomousMode") ? ButtonStyle.Success : ButtonStyle.Secondary),
+                    new ButtonBuilder().setCustomId("action_open_all").setLabel("🟢 Hepsini Aç").setStyle(ButtonStyle.Success),
+                    new ButtonBuilder().setCustomId("action_close_all").setLabel("🔴 Hepsini Kapat").setStyle(ButtonStyle.Danger)
+                );
                 rows.push(rowMainActions);
             } else if (activePage === "server") {
                 const selectChannels = new StringSelectMenuBuilder()
@@ -1548,7 +1551,7 @@ ${divider}
             return rows;
         };
 
-        const response = await interaction.reply({
+        const response = await interaction.editReply({
             embeds: [generateEmbed()],
             components: generateComponents(),
             ephemeral: true
@@ -1598,15 +1601,14 @@ ${divider}
                     embeds: [generateEmbed()],
                     components: generateComponents()
                 });
-            } else if (i.customId === "action_toggle_main") {
-    const currentState = global.guardDurums.get(guildId) || false;
-    global.guardDurums.set(guildId, !currentState);
-    await updateSetting(guildId, "guard_durum", !currentState);
-    await interaction.editReply({
-        embeds: [generateEmbed()],
-        components: generateComponents()
-    });
-} else if (i.customId === "action_open_all") {
+            } else if (i.customId === "action_autonom") {
+                const current = getSetting(guildId, "autonomousMode");
+                await setSetting(guildId, "autonomousMode", !current);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "action_open_all") {
                 const settings = global.guardSettings.get(guildId) || {};
                 booleanKeys.forEach(k => settings[k] = true);
                 global.guardSettings.set(guildId, settings);
