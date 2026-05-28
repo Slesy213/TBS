@@ -1739,11 +1739,11 @@ ${divider}
                         { label: "Otonom Katı Mod", value: "defaultAvatarAutoStrict", description: "Raid anında cezalandırmayı otomatik en katı moda çeker.", default: getSetting(guildId, "defaultAvatarAutoStrict") }
                     ]);
 
-                const selectUsernameBools = new StringSelectMenuBuilder()
-                    .setCustomId("toggle_username_advertising")
-                    .setPlaceholder("📇 Reklamlı İsim Koruması (10 Özellik)")
+                const selectUsernameAndVerify = new StringSelectMenuBuilder()
+                    .setCustomId("toggle_username_and_verify")
+                    .setPlaceholder("📇 Reklamlı İsim & Giriş Korumaları")
                     .setMinValues(0)
-                    .setMaxValues(10)
+                    .setMaxValues(12)
                     .addOptions([
                         { label: "Genel Engel Şalteri", value: "usernameGuard", description: "Reklamlı isim korumasını aktif eder.", default: getSetting(guildId, "usernameGuard") },
                         { label: "Sunucudan At (Kick)", value: "usernameActionKick", description: "Reklamlı ismi olan üyeyi sunucudan atar.", default: getSetting(guildId, "usernameActionKick") },
@@ -1754,15 +1754,7 @@ ${divider}
                         { label: "Davet/Link Tespiti", value: "usernameDetectLink", description: "Kullanıcı adında davet kodu/link arar.", default: getSetting(guildId, "usernameDetectLink") },
                         { label: "Kelime Kara Listesi Taraması", value: "usernameDetectWords", description: "Kullanıcı adında reklamlı kelimeleri tarar.", default: getSetting(guildId, "usernameDetectWords") },
                         { label: "Güvenli Liste Muafiyeti", value: "usernameBypassWhitelisted", description: "Güvenli listede olan üyeleri es geçer.", default: getSetting(guildId, "usernameBypassWhitelisted") },
-                        { label: "İsim Değişimini Takip Et", value: "usernameMonitorNickChange", description: "Kullanıcıların isim değişimlerini de denetler.", default: getSetting(guildId, "usernameMonitorNickChange") }
-                    ]);
-
-                const selectRaidBools = new StringSelectMenuBuilder()
-                    .setCustomId("toggle_raid_bools")
-                    .setPlaceholder("👥 Diğer Giriş Korumaları")
-                    .setMinValues(0)
-                    .setMaxValues(2)
-                    .addOptions([
+                        { label: "İsim Değişimini Takip Et", value: "usernameMonitorNickChange", description: "Kullanıcıların isim değişimlerini de denetler.", default: getSetting(guildId, "usernameMonitorNickChange") },
                         { label: "Butonlu Doğrulama Sistemi", value: "buttonVerification", description: "Yeni üyeleri butonla doğrulatır.", default: getSetting(guildId, "buttonVerification") },
                         { label: "Otomatik Karantina", value: "autoQuarantine", description: "Yeni üyeleri direkt karantinaya alır.", default: getSetting(guildId, "autoQuarantine") }
                     ]);
@@ -1778,8 +1770,7 @@ ${divider}
 
                 rows.push(new ActionRowBuilder().addComponents(selectAccountAge));
                 rows.push(new ActionRowBuilder().addComponents(selectDefaultAvatar));
-                rows.push(new ActionRowBuilder().addComponents(selectUsernameBools));
-                rows.push(new ActionRowBuilder().addComponents(selectRaidBools));
+                rows.push(new ActionRowBuilder().addComponents(selectUsernameAndVerify));
                 rows.push(new ActionRowBuilder().addComponents(selectRaidLimits));
             } else if (activePage === "antiraid") {
                 const selectAntiRaid1 = new StringSelectMenuBuilder()
@@ -2234,37 +2225,7 @@ ${divider}
                 keys.forEach(k => settings[k] = i.values.includes(k));
                 global.guardSettings.set(guildId, settings);
                 await updateSetting(guildId, "guard_settings", settings);
-                await interaction.editReply({
-                    embeds: [generateEmbed()],
-                    components: generateComponents()
-                });
-            } else if (i.customId === "toggle_raid_bools") {
-                const settings = global.guardSettings.get(guildId) || {};
-                const keys = [
-                    "buttonVerification", "autoQuarantine"
-                ];
-                keys.forEach(k => settings[k] = i.values.includes(k));
-                global.guardSettings.set(guildId, settings);
-                await updateSetting(guildId, "guard_settings", settings);
-                await interaction.editReply({
-                    embeds: [generateEmbed()],
-                    components: generateComponents()
-                });
-            } else if (i.customId === "toggle_username_advertising") {
-                const settings = global.guardSettings.get(guildId) || {};
-                const keys = [
-                    "usernameGuard", "usernameActionKick", "usernameActionBan", "usernameActionQuarantine",
-                    "usernameActionTimeout", "usernameActionNickChange", "usernameDetectLink", "usernameDetectWords",
-                    "usernameBypassWhitelisted", "usernameMonitorNickChange"
-                ];
-                keys.forEach(k => settings[k] = i.values.includes(k));
-                global.guardSettings.set(guildId, settings);
-                await updateSetting(guildId, "guard_settings", settings);
-                await interaction.editReply({
-                    embeds: [generateEmbed()],
-                    components: generateComponents()
-                });
-            } else if (i.customId === "toggle_default_avatar") {
+
                 const settings = global.guardSettings.get(guildId) || {};
                 const keys = [
                     "defaultAvatarGuard", "defaultAvatarActionKick", "defaultAvatarActionBan", "defaultAvatarActionQuarantine",
