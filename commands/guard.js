@@ -1969,6 +1969,19 @@ ${divider}
             } else if (i.customId === "toggle_raid_bools") {
                 const settings = global.guardSettings.get(guildId) || {};
                 const keys = [
+                    "defaultAvatarGuard", "raidGuard", "usernameRegexGuard",
+                    "buttonVerification", "autoQuarantine"
+                ];
+                keys.forEach(k => settings[k] = i.values.includes(k));
+                global.guardSettings.set(guildId, settings);
+                await updateSetting(guildId, "guard_settings", settings);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "toggle_account_age") {
+                const settings = global.guardSettings.get(guildId) || {};
+                const keys = [
                     "accountAgeBlockAll", "accountAgeActionKick", "accountAgeActionBan", "accountAgeActionQuarantine", 
                     "accountAgeActionTimeout", "accountAgeLogStaff", "accountAgeDMNotify", "accountAgeBypassInvites", 
                     "accountAgeTrackAltAccounts", "accountAgeAutoStrict", "defaultAvatarGuard", "raidGuard", "usernameRegexGuard",
