@@ -1,5 +1,3 @@
-const fs = require('fs');
-const path = require('path');
 const {
     EmbedBuilder,
     ActionRowBuilder,
@@ -8,29 +6,38 @@ const {
     StringSelectMenuBuilder
 } = require('discord.js');
 
-const dbPath = path.join(__dirname, 'polls.json');
-
-// Initialize database file
-if (!fs.existsSync(dbPath)) {
-    fs.writeFileSync(dbPath, JSON.stringify([], null, 4));
-}
+const { updateSettings } = require('./db.js');
 
 let polls = [];
-try {
-    polls = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
-} catch (e) {
-    console.error('❌ polls.json okunamadı, boş diziyle başlatılıyor:', e);
-    polls = [];
-}
-
 const activeTimers = new Map();
 const captchaSessions = new Map(); // userId -> { answer: number, pollId: string, values: [number] }
 
-function saveDB() {
+function loadFromSettings() {
+    polls.length = 0;
+    for (const [guildId, gs] of global.guardSettings.entries()) {
+        if (gs.polls && Array.isArray(gs.polls)) {
+            polls.push(...gs.polls);
+        }
+    }
+    console.log(`[POLL DEBUG] Hafızaya ${polls.length} aktif anket yüklendi.`);
+}
+
+async function saveGuildPolls(guildId) {
+    if (!guildId) return;
     try {
-        fs.writeFileSync(dbPath, JSON.stringify(polls, null, 4));
+        const guildPolls = polls.filter(p => p.guildId === guildId);
+        await updateSettings(guildId, {
+            guard_settings: {
+                ...global.guardSettings.get(guildId),
+                polls: guildPolls
+            }
+        });
+
+        const gs = global.guardSettings.get(guildId) || {};
+        gs.polls = guildPolls;
+        global.guardSettings.set(guildId, gs);
     } catch (e) {
-        console.error('❌ polls.json kaydedilemedi:', e);
+        console.error(`❌ Supabase anket güncelleme hatası (Guild: ${guildId}):`, e);
     }
 }
 
@@ -379,7 +386,7 @@ async function endPoll(client, pollId) {
     if (!poll || poll.ended) return;
 
     poll.ended = true;
-    saveDB();
+    await saveGuildPolls(poll.guildId);
 
     const timer = activeTimers.get(pollId);
     if (timer) clearTimeout(timer);
@@ -459,12 +466,12 @@ async function endPoll(client, pollId) {
 // ─── START A POLL ───
 async function startPoll(client, data) {
     polls.push(data);
-    saveDB();
+    await saveGuildPolls(data.guildId);
 
     const duration = parseTime(data.sureText);
     const endAt = Date.now() + duration;
     data.endAt = endAt;
-    saveDB();
+    await saveGuildPolls(data.guildId);
 
     const guild = client.guilds.cache.get(data.guildId);
     if (!guild) return null;
@@ -477,7 +484,7 @@ async function startPoll(client, data) {
 
     const message = await channel.send({ embeds: [embed], components });
     data.messageId = message.id;
-    saveDB();
+    await saveGuildPolls(data.guildId);
 
     // Re-render embed with final message ID inside footer
     const finalEmbed = generatePollEmbed(data);
@@ -524,7 +531,7 @@ async function cancelPoll(client, guildId, messageId) {
     }
 
     polls.splice(pollIndex, 1);
-    saveDB();
+    await saveGuildPolls(guildId);
 
     return { success: true };
 }
@@ -549,7 +556,7 @@ async function extendPoll(client, guildId, messageId, extraTimeStr) {
     if (!extraMs) return { success: false, reason: 'Geçersiz süre formatı.' };
 
     poll.endAt += extraMs;
-    saveDB();
+    await saveGuildPolls(guildId);
 
     // Reset timer
     const timer = activeTimers.get(messageId);
@@ -676,7 +683,7 @@ function init(client) {
             // Record vote
             const oldVote = poll.votes[userId];
             poll.votes[userId] = optionIdx;
-            saveDB();
+            await saveGuildPolls(guildId);
 
             const choiceName = poll.choices[optionIdx];
             await interaction.reply({ content: `✅ **Oyunuz başarıyla kaydedildi!** Tercihiniz: **${choiceName}**`, ephemeral: true });
@@ -752,7 +759,7 @@ function init(client) {
             // Record vote
             const isMulti = poll.customization?.multiChoice || false;
             poll.votes[userId] = isMulti ? chosenIndices : chosenIndices[0];
-            saveDB();
+            await saveGuildPolls(guildId);
 
             const choicesNames = chosenIndices.map(idx => poll.choices[idx]).join(', ');
             await interaction.reply({ content: `✅ **Oyunuz başarıyla kaydedildi!** Tercihiniz: **${choicesNames}**`, ephemeral: true });
@@ -787,7 +794,7 @@ function init(client) {
 
                 const isMulti = poll.customization?.multiChoice || false;
                 poll.votes[userId] = isMulti ? session.values : session.values[0];
-                saveDB();
+                await saveGuildPolls(guildId);
 
                 const choicesNames = session.values.map(idx => poll.choices[idx]).join(', ');
                 await interaction.update({ content: `✅ **Doğrulama başarılı!** Oyunuz başarıyla kaydedildi: **${choicesNames}**`, components: [] });
@@ -821,7 +828,7 @@ function init(client) {
             }
 
             delete poll.votes[userId];
-            saveDB();
+            await saveGuildPolls(guildId);
 
             await interaction.reply({ content: '🚪 **Oyunuz başarıyla geri çekildi!** Kaydınız silindi.', ephemeral: true });
 
@@ -882,6 +889,8 @@ module.exports = {
     cancelPoll,
     forceEndPoll,
     extendPoll,
+    saveGuildPolls,
+    loadFromSettings,
     parseTime,
     generatePollEmbed,
     generatePollComponents
