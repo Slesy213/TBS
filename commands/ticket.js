@@ -246,7 +246,7 @@ module.exports = {
             const memberTarget = interaction.options.getMember('uye');
             if (!memberTarget) return interaction.editReply('❌ Üye bulunamadı.');
 
-            const t = ticketManager.tickets.find(x => x.channelId === interaction.channel.id);
+            const t = await ticketManager.getTicket(interaction.channel.id);
             if (!t) return interaction.editReply('❌ Bu komutu sadece destek kanallarında kullanabilirsiniz.');
 
             await interaction.channel.permissionOverwrites.edit(memberTarget.id, {
@@ -264,7 +264,7 @@ module.exports = {
             const memberTarget = interaction.options.getMember('uye');
             if (!memberTarget) return interaction.editReply('❌ Üye bulunamadı.');
 
-            const t = ticketManager.tickets.find(x => x.channelId === interaction.channel.id);
+            const t = await ticketManager.getTicket(interaction.channel.id);
             if (!t) return interaction.editReply('❌ Bu komutu sadece destek kanallarında kullanabilirsiniz.');
 
             if (memberTarget.id === t.creatorId) {
@@ -280,7 +280,7 @@ module.exports = {
 
         // ─── SUBCOMMAND: KAPAT ───
         else if (subcommand === 'kapat') {
-            const t = ticketManager.tickets.find(x => x.channelId === interaction.channel.id);
+            const t = await ticketManager.getTicket(interaction.channel.id);
             if (!t) return interaction.reply({ content: '❌ Bu komutu sadece destek kanallarında kullanabilirsiniz.', ephemeral: true });
 
             await interaction.reply('🔒 Destek talebi kapatılıyor...');
@@ -289,7 +289,7 @@ module.exports = {
 
         // ─── SUBCOMMAND: KİLİTLE ───
         else if (subcommand === 'kilitle') {
-            const t = ticketManager.tickets.find(x => x.channelId === interaction.channel.id);
+            const t = await ticketManager.getTicket(interaction.channel.id);
             if (!t) return interaction.reply({ content: '❌ Bu komutu sadece destek kanallarında kullanabilirsiniz.', ephemeral: true });
 
             t.status = 'locked';
@@ -309,7 +309,7 @@ module.exports = {
 
         // ─── SUBCOMMAND: KİLİT AÇ ───
         else if (subcommand === 'kilit-aç') {
-            const t = ticketManager.tickets.find(x => x.channelId === interaction.channel.id);
+            const t = await ticketManager.getTicket(interaction.channel.id);
             if (!t) return interaction.reply({ content: '❌ Bu komutu sadece destek kanallarında kullanabilirsiniz.', ephemeral: true });
 
             t.status = 'open';
@@ -329,7 +329,7 @@ module.exports = {
 
         // ─── SUBCOMMAND: ARŞİVLE ───
         else if (subcommand === 'arşivle') {
-            const t = ticketManager.tickets.find(x => x.channelId === interaction.channel.id);
+            const t = await ticketManager.getTicket(interaction.channel.id);
             if (!t) return interaction.reply({ content: '❌ Bu komutu sadece destek kanallarında kullanabilirsiniz.', ephemeral: true });
 
             t.status = 'archived';
@@ -349,7 +349,7 @@ module.exports = {
 
         // ─── SUBCOMMAND: AD DEĞİŞTİR ───
         else if (subcommand === 'ad-değiştir') {
-            const t = ticketManager.tickets.find(x => x.channelId === interaction.channel.id);
+            const t = await ticketManager.getTicket(interaction.channel.id);
             if (!t) return interaction.reply({ content: '❌ Bu komutu sadece destek kanallarında kullanabilirsiniz.', ephemeral: true });
 
             const yeniAd = interaction.options.getString('yeni_ad').toLowerCase().replace(/[^a-z0-9_-]/g, '');
@@ -359,7 +359,7 @@ module.exports = {
 
         // ─── SUBCOMMAND: ÖNCELİK ───
         else if (subcommand === 'öncelik') {
-            const t = ticketManager.tickets.find(x => x.channelId === interaction.channel.id);
+            const t = await ticketManager.getTicket(interaction.channel.id);
             if (!t) return interaction.reply({ content: '❌ Bu komutu sadece destek kanallarında kullanabilirsiniz.', ephemeral: true });
 
             const deger = interaction.options.getString('değer');
@@ -380,7 +380,7 @@ module.exports = {
 
         // ─── SUBCOMMAND: AKTAR ───
         else if (subcommand === 'aktar') {
-            const t = ticketManager.tickets.find(x => x.channelId === interaction.channel.id);
+            const t = await ticketManager.getTicket(interaction.channel.id);
             if (!t) return interaction.reply({ content: '❌ Bu komutu sadece destek kanallarında kullanabilirsiniz.', ephemeral: true });
 
             const yetkili = interaction.options.getUser('yetkili');
@@ -411,7 +411,7 @@ module.exports = {
 
         // ─── SUBCOMMAND: NOT ───
         else if (subcommand === 'not') {
-            const t = ticketManager.tickets.find(x => x.channelId === interaction.channel.id);
+            const t = await ticketManager.getTicket(interaction.channel.id);
             if (!t) return interaction.reply({ content: '❌ Bu komutu sadece destek kanallarında kullanabilirsiniz.', ephemeral: true });
 
             const notMetni = interaction.options.getString('not_metni');
