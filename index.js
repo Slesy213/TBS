@@ -312,9 +312,9 @@ async function startBot() {
     await loadSettings();
 
     // Populate managers from global.guardSettings loaded from Supabase
-    ticketManager.loadFromSettings();
-    pollManager.loadFromSettings();
-    giveawayManager.loadFromSettings();
+    await ticketManager.loadFromSettings();
+    await pollManager.loadFromSettings();
+    await giveawayManager.loadFromSettings();
     log.success('Veritabanı hafıza yüklemesi (Supabase -> Cache) başarıyla tamamlandı.');
 
     await client.login(process.env.DISCORD_TOKEN);
