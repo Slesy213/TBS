@@ -517,6 +517,178 @@ module.exports = (client) => {
         return null;
     }
 
+    // 20-Feature Caps Lock (Büyük Harf) Protection Suite
+    function evaluateCapsContent(message) {
+        const guildId = message.guild.id;
+        // Feature 1: capsBlockAll (Master Switch)
+        if (!isFeatureEnabled(guildId, "capsEngel")) return null;
+
+        let content = message.content || "";
+        if (!content.trim()) return null;
+
+        // Feature 3: capsMinLength
+        const minLength = getSetting(guildId, "capsMinLength") ?? 8;
+        if (content.length < minLength) return null;
+
+        // Feature 8: Exclude Code Blocks
+        if (getSetting(guildId, "capsExcludeCodeBlocks") ?? true) {
+            content = content.replace(/`[^`]*`/g, "");
+            content = content.replace(/```[^`]*```/g, "");
+        }
+
+        // Feature 5: Exclude Mentions
+        if (getSetting(guildId, "capsExcludeMentions") ?? true) {
+            content = content.replace(/<@!?\d+>/g, "");
+            content = content.replace(/<@&\d+>/g, "");
+            content = content.replace(/<#\d+>/g, "");
+        }
+
+        // Feature 6: Exclude Emojis
+        if (getSetting(guildId, "capsExcludeEmojis") ?? true) {
+            content = content.replace(/<a?:\w+:\d+>/g, "");
+            const unicodeEmojiRegex = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}]/gu;
+            content = content.replace(unicodeEmojiRegex, "");
+        }
+
+        // Feature 7: Exclude Links
+        if (getSetting(guildId, "capsExcludeLinks") ?? true) {
+            const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+            content = content.replace(urlRegex, "");
+        }
+
+        // Feature 4: capsMinLetters
+        const letters = content.replace(/[^a-zA-ZğüşöçıİĞÜŞÖÇ]/g, "");
+        const minLetters = getSetting(guildId, "capsMinLetters") ?? 5;
+        if (letters.length < minLetters) return null;
+
+        const upperLetters = letters.replace(/[^A-ZİĞÜŞÖÇ]/g, "");
+        const capsPercent = (upperLetters.length / letters.length) * 100;
+
+        // Feature 2: capsPercentageVal
+        const capsLimit = getSetting(guildId, "capsPercentageVal") ?? 70;
+
+        if (capsPercent > capsLimit) {
+            return {
+                percent: capsPercent,
+                limit: capsLimit
+            };
+        }
+        return null;
+    }
+
+    async function handleCapsViolation(message) {
+        if (!message.guild || message.author.bot || !message.member) return false;
+        
+        const capsViol = evaluateCapsContent(message);
+        if (!capsViol) return false;
+
+        const guildId = message.guild.id;
+        const userId = message.author.id;
+
+        // Feature 14: capsAllowStaff
+        if (getSetting(guildId, "capsAllowStaff") ?? true) {
+            if (message.member.permissions.has(PermissionFlagsBits.ManageMessages) ||
+                message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+                return false;
+            }
+        }
+        // Feature 15: capsAllowRoleWhitelist
+        if (getSetting(guildId, "capsAllowRoleWhitelist") ?? true) {
+            if (isWhitelisted(message.guild, message.author.id, "chat")) {
+                return false;
+            }
+        }
+        // Feature 16: capsAllowChannelsWhitelist
+        if (getSetting(guildId, "capsAllowChannelsWhitelist") ?? true) {
+            const chName = message.channel.name.toLowerCase();
+            const whitelistChannels = ["bot", "komut", "spam", "oyun", "serbest", "caps"];
+            if (whitelistChannels.some(ch => chName.includes(ch))) {
+                return false;
+            }
+        }
+
+        // Feature 9: capsActionDelete
+        if (getSetting(guildId, "capsActionDelete") ?? true) {
+            await message.delete().catch(() => {});
+        }
+
+        // Feature 17: capsToleranceWarnings
+        const warnKey = `${guildId}-${userId}`;
+        global.capsWarningTracker = global.capsWarningTracker || new Map();
+        let userWarnings = global.capsWarningTracker.get(warnKey) || { count: 0, lastViol: Date.now() };
+
+        if (Date.now() - userWarnings.lastViol > 60000) {
+            userWarnings.count = 0;
+        }
+
+        userWarnings.count++;
+        userWarnings.lastViol = Date.now();
+        global.capsWarningTracker.set(warnKey, userWarnings);
+
+        const tolerance = getSetting(guildId, "capsToleranceWarnings") ?? 3;
+
+        // Feature 20: capsSpamInsultsIntegration
+        if (getSetting(guildId, "capsSpamInsultsIntegration") ?? true) {
+            const lowerContent = (message.content || "").toLowerCase();
+            const rudeWords = ["amk", "aq", "sg", "oç", "oc", "piç", "pic", "lan", "salak", "gerizekalı", "aptal", "siktir", "sik"];
+            const containsInsult = rudeWords.some(w => lowerContent.includes(w));
+            if (containsInsult) {
+                userWarnings.count = tolerance; // Escalate directly to trigger mute
+            }
+        }
+
+        let actionTaken = "Mesaj Silindi";
+
+        // Feature 11: capsActionMute
+        const actionMuteEnabled = getSetting(guildId, "capsActionMute") ?? false;
+        if (actionMuteEnabled && userWarnings.count >= tolerance) {
+            // Feature 12: capsActionMuteDuration
+            const muteDuration = (getSetting(guildId, "capsActionMuteDuration") ?? 60) * 1000;
+            await message.member.timeout(muteDuration, "Guard | Caps Lock Limit İhlali").catch(() => {});
+            actionTaken = `Geçici Susturma (${(muteDuration / 1000)} Saniye)`;
+            userWarnings.count = 0;
+            global.capsWarningTracker.set(warnKey, userWarnings);
+        } else {
+            // Feature 10: capsActionWarn
+            if (getSetting(guildId, "capsActionWarn") ?? true) {
+                await message.channel.send({
+                    content: `⚠️ ${message.author}, lütfen aşırı büyük harf (Caps Lock) kullanmayın! (${userWarnings.count}/${tolerance})`
+                }).then(msg => {
+                    setTimeout(() => msg.delete().catch(() => {}), 5000);
+                });
+                actionTaken = `Uyarıldı (${userWarnings.count}/${tolerance})`;
+            }
+        }
+
+        // Feature 19: capsThreatLevelIncrease
+        const threatInc = getSetting(guildId, "capsThreatLevelIncrease") ?? 2;
+        increaseThreat(guildId, threatInc, `Aşırı Büyük Harf Kullanımı: ${message.author.tag}`, message.guild);
+
+        // Feature 13: capsActionStaffLog
+        if (getSetting(guildId, "capsActionStaffLog") ?? true) {
+            const logChId = getSetting(guildId, "logChannelId");
+            if (logChId) {
+                const logCh = message.guild.channels.cache.get(logChId);
+                if (logCh) {
+                    const embed = new EmbedBuilder()
+                        .setColor(0xFEE75C)
+                        .setTitle("🚨 Büyük Harf (Caps Lock) İhlali")
+                        .setDescription(`
+**Kullanıcı**        :: ${message.author} (\`${message.author.id}\`)
+**Kanal**            :: ${message.channel}
+**Büyük Harf Oranı** :: \`%${capsViol.percent.toFixed(0)}\` (Limit: \`%${capsViol.limit}\`)
+**Mesaj**            :: \`${message.content.substring(0, 200)}\`
+**Uygulanan Eylem**  :: \`${actionTaken}\`
+                        `)
+                        .setTimestamp();
+                    await logCh.send({ embeds: [embed] }).catch(() => {});
+                }
+            }
+        }
+
+        return true;
+    }
+
     // Sohbet Filtreleri ve İletiler
     client.on("messageCreate", async message => {
         if (!message.guild) return;
@@ -725,9 +897,12 @@ module.exports = (client) => {
             return;
         }
 
-        // Original User-Chat Protections
         if (message.author.bot) return;
         if (isWhitelisted(message.guild, message.author.id, "chat")) return;
+
+        // 20-Feature Caps Lock (Büyük Harf) Protection execution for normal messages
+        const capsViolated = await handleCapsViolation(message);
+        if (capsViolated) return;
 
         // 40 Features Link Protection execution for normal messages
         const linkViolation = evaluateLinkContent(message);
@@ -929,9 +1104,14 @@ module.exports = (client) => {
             return;
         }
 
-        // Regular user message edit checks
         if (!newMessage.author || newMessage.author.bot) return;
         if (isWhitelisted(newMessage.guild, newMessage.author.id, "chat")) return;
+
+        // 20-Feature Caps Lock (Büyük Harf) Protection execution for edited messages
+        if (isFeatureEnabled(guildId, "capsScanEdit") ?? true) {
+            const capsViolated = await handleCapsViolation(newMessage);
+            if (capsViolated) return;
+        }
 
         const violation = evaluateLinkContent(newMessage);
         if (violation) {
