@@ -66,27 +66,29 @@ async function saveGuildTickets(guildId) {
     try {
         const guildTickets = dbData.tickets.filter(t => t.guildId === guildId);
         
-        for (const t of guildTickets) {
+        const rows = guildTickets.map(t => ({
+            channel_id: t.channelId,
+            guild_id: t.guildId,
+            creator_id: t.creatorId,
+            type: t.type,
+            status: t.status,
+            claimed_by: t.claimedBy,
+            opened_at: t.openedAt,
+            closed_at: t.closedAt,
+            last_message_at: t.lastMessageAt,
+            priority: t.priority,
+            notes: t.notes,
+            rating: t.rating,
+            feedback_text: t.feedbackText,
+            closed_by: t.closedBy
+        }));
+
+        if (rows.length > 0) {
             const { error } = await supabase
                 .from('tickets')
-                .upsert({
-                    channel_id: t.channelId,
-                    guild_id: t.guildId,
-                    creator_id: t.creatorId,
-                    type: t.type,
-                    status: t.status,
-                    claimed_by: t.claimedBy,
-                    opened_at: t.openedAt,
-                    closed_at: t.closedAt,
-                    last_message_at: t.lastMessageAt,
-                    priority: t.priority,
-                    notes: t.notes,
-                    rating: t.rating,
-                    feedback_text: t.feedbackText,
-                    closed_by: t.closedBy
-                }, { onConflict: 'channel_id' });
+                .upsert(rows, { onConflict: 'channel_id' });
             if (error) {
-                console.error(`❌ Supabase ticket upsert hatası (Channel: ${t.channelId}):`, error.message);
+                console.error(`❌ Supabase ticket toplu upsert hatası:`, error.message);
             }
         }
 
