@@ -1,5 +1,3 @@
-const fs = require('fs');
-const path = require('path');
 const {
     EmbedBuilder,
     ActionRowBuilder,
@@ -8,29 +6,38 @@ const {
     PermissionFlagsBits
 } = require('discord.js');
 
-const dbPath = path.join(__dirname, 'giveaways.json');
-
-// Initialize database file
-if (!fs.existsSync(dbPath)) {
-    fs.writeFileSync(dbPath, JSON.stringify([], null, 4));
-}
+const { updateSettings } = require('./db.js');
 
 let giveaways = [];
-try {
-    giveaways = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
-} catch (e) {
-    console.error('❌ giveaways.json okunamadı, boş diziyle başlatılıyor:', e);
-    giveaways = [];
-}
-
 const activeTimers = new Map();
 const captchaSessions = new Map(); // userId -> { answer: number, giveawayId: string }
 
-function saveDB() {
+function loadFromSettings() {
+    giveaways.length = 0;
+    for (const [guildId, gs] of global.guardSettings.entries()) {
+        if (gs.giveaways && Array.isArray(gs.giveaways)) {
+            giveaways.push(...gs.giveaways);
+        }
+    }
+    console.log(`[GIVEAWAY DEBUG] Hafızaya ${giveaways.length} aktif çekiliş yüklendi.`);
+}
+
+async function saveGuildGiveaways(guildId) {
+    if (!guildId) return;
     try {
-        fs.writeFileSync(dbPath, JSON.stringify(giveaways, null, 4));
+        const guildGiveaways = giveaways.filter(g => g.guildId === guildId);
+        await updateSettings(guildId, {
+            guard_settings: {
+                ...global.guardSettings.get(guildId),
+                giveaways: guildGiveaways
+            }
+        });
+
+        const gs = global.guardSettings.get(guildId) || {};
+        gs.giveaways = guildGiveaways;
+        global.guardSettings.set(guildId, gs);
     } catch (e) {
-        console.error('❌ giveaways.json kaydedilemedi:', e);
+        console.error(`❌ Supabase çekiliş güncelleme hatası (Guild: ${guildId}):`, e);
     }
 }
 
@@ -251,7 +258,7 @@ async function endGiveaway(client, giveawayId) {
     if (!giveaway || giveaway.ended) return;
 
     giveaway.ended = true;
-    saveDB();
+    await saveGuildGiveaways(giveaway.guildId);
 
     const timer = activeTimers.get(giveawayId);
     if (timer) clearTimeout(timer);
@@ -312,7 +319,7 @@ async function endGiveaway(client, giveawayId) {
     }
 
     giveaway.winners = winnerIds;
-    saveDB();
+    await saveGuildGiveaways(giveaway.guildId);
 
     const winnerMentions = winnerIds.map(id => `<@${id}>`).join(', ');
 
@@ -400,12 +407,12 @@ async function endGiveaway(client, giveawayId) {
 // ─── START A GIVEAWAY ───
 async function startGiveaway(client, data) {
     giveaways.push(data);
-    saveDB();
+    await saveGuildGiveaways(data.guildId);
 
     const duration = parseTime(data.sureText);
     const endAt = Date.now() + duration;
     data.endAt = endAt;
-    saveDB();
+    await saveGuildGiveaways(data.guildId);
 
     const guild = client.guilds.cache.get(data.guildId);
     if (!guild) return null;
@@ -418,7 +425,7 @@ async function startGiveaway(client, data) {
 
     const message = await channel.send({ embeds: [embed], components: [buttons] });
     data.messageId = message.id;
-    saveDB();
+    await saveGuildGiveaways(data.guildId);
 
     // Re-render embed with final message ID inside footer
     const finalEmbed = generateGiveawayEmbed(data);
@@ -469,7 +476,7 @@ async function cancelGiveaway(client, guildId, messageId) {
     }
 
     giveaways.splice(giveawayIndex, 1);
-    saveDB();
+    await saveGuildGiveaways(guildId);
 
     return { success: true };
 }
@@ -540,7 +547,7 @@ async function rerollGiveaway(client, guildId, messageId, count = 1) {
 
     // Update database record for winners list
     giveaway.winners = [...(giveaway.winners || []), ...newWinnerIds];
-    saveDB();
+    await saveGuildGiveaways(guildId);
 
     const mentions = newWinnerIds.map(id => `<@${id}>`).join(', ');
 
@@ -684,7 +691,7 @@ function init(client) {
 
             // Add participant
             giveaway.participants.push(userId);
-            saveDB();
+            await saveGuildGiveaways(interaction.guild?.id);
 
             await interaction.reply({ content: '✅ **Çekilişe başarıyla katıldınız!** Bol şans dileriz. 🎟️', ephemeral: true });
 
@@ -723,7 +730,7 @@ function init(client) {
                 }
 
                 giveaway.participants.push(userId);
-                saveDB();
+                await saveGuildGiveaways(interaction.guild?.id);
 
                 await interaction.update({ content: '✅ **Doğrulama başarılı!** Çekilişe kaydınız yapıldı. 🎟️', components: [] });
 
@@ -756,7 +763,7 @@ function init(client) {
             }
 
             giveaway.participants = giveaway.participants.filter(id => id !== userId);
-            saveDB();
+            await saveGuildGiveaways(interaction.guild?.id);
 
             await interaction.reply({ content: '🚪 **Çekiliş katılımından ayrıldınız.** Kaydınız silindi.', ephemeral: true });
 
@@ -830,7 +837,7 @@ function init(client) {
             }
 
             giveaway.claimed[userId] = Date.now();
-            saveDB();
+            await saveGuildGiveaways(interaction.guild?.id);
 
             await interaction.reply({ content: '🏆 **Ödülü başarıyla onayladınız/talep ettiniz!** Sponsor sizinle en kısa sürede iletişime geçecektir.', ephemeral: true });
 
@@ -847,6 +854,8 @@ module.exports = {
     cancelGiveaway,
     forceEndGiveaway,
     rerollGiveaway,
+    saveGuildGiveaways,
+    loadFromSettings,
     parseTime,
     generateGiveawayEmbed,
     generateGiveawayButtons
