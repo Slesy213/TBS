@@ -97,7 +97,7 @@ for (const file of commandFiles) {
       log.success(`Slash komut yüklendi: /${command.data.name}`);
     }
     // Prefix command mapping
-    else if (command.name && command.execute) {
+    if (command.name && command.execute) {
       client.commands.set(command.name, command);
       log.success(`Prefix komut yüklendi: .${command.name}`);
     }
@@ -127,7 +127,7 @@ client.once('ready', () => {
     () => ({ name: 'Slesy ile Sohbet Ediyor 💬', type: ActivityType.Watching }),
     () => ({ name: `${client.guilds.cache.size} Sunucuyu Koruyor 🛡️`, type: ActivityType.Watching }),
     () => ({ name: `${client.guilds.cache.reduce((a, g) => a + g.memberCount, 0)} Üyeye Hizmet Veriyor 👥`, type: ActivityType.Watching }),
-    () => ({ name: 'Premium Sistemler | /yardım 💎', type: ActivityType.Listening })
+    () => ({ name: 'Premium Sistemler | .yardım 💎', type: ActivityType.Listening })
   ];
 
   let statusIdx = 0;
