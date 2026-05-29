@@ -293,7 +293,7 @@ module.exports = {
             if (!t) return interaction.reply({ content: '❌ Bu komutu sadece destek kanallarında kullanabilirsiniz.', ephemeral: true });
 
             t.status = 'locked';
-            ticketManager.saveDB();
+            await ticketManager.saveGuildTickets(guildId);
 
             await interaction.channel.permissionOverwrites.edit(t.creatorId, {
                 SendMessages: false
@@ -313,7 +313,7 @@ module.exports = {
             if (!t) return interaction.reply({ content: '❌ Bu komutu sadece destek kanallarında kullanabilirsiniz.', ephemeral: true });
 
             t.status = 'open';
-            ticketManager.saveDB();
+            await ticketManager.saveGuildTickets(guildId);
 
             await interaction.channel.permissionOverwrites.edit(t.creatorId, {
                 SendMessages: true
@@ -333,7 +333,7 @@ module.exports = {
             if (!t) return interaction.reply({ content: '❌ Bu komutu sadece destek kanallarında kullanabilirsiniz.', ephemeral: true });
 
             t.status = 'archived';
-            ticketManager.saveDB();
+            await ticketManager.saveGuildTickets(guildId);
 
             await interaction.channel.permissionOverwrites.edit(t.creatorId, {
                 ViewChannel: false
@@ -364,7 +364,7 @@ module.exports = {
 
             const deger = interaction.options.getString('değer');
             t.priority = deger;
-            ticketManager.saveDB();
+            await ticketManager.saveGuildTickets(guildId);
 
             const currentName = interaction.channel.name.replace(/^(dusuk|orta|yuksek|acil)-/, '');
             const prefixMap = { 'Düşük': 'dusuk-', 'Orta': 'orta-', 'Yüksek': 'yuksek-', 'Acil': 'acil-' };
@@ -388,7 +388,7 @@ module.exports = {
 
             if (yetkili) {
                 t.claimedBy = yetkili.id;
-                ticketManager.saveDB();
+                await ticketManager.saveGuildTickets(guildId);
 
                 await interaction.channel.permissionOverwrites.edit(yetkili.id, {
                     ViewChannel: true,
@@ -421,7 +421,7 @@ module.exports = {
                 text: notMetni,
                 timestamp: Date.now()
             });
-            ticketManager.saveDB();
+            await ticketManager.saveGuildTickets(guildId);
 
             const embed = new EmbedBuilder()
                 .setColor(0x3498DB)
@@ -476,7 +476,7 @@ module.exports = {
                     return interaction.editReply({ content: '⚠️ Kullanıcı zaten ticket kara listesinde.' });
                 }
                 ticketManager.blacklist.push(targetUser.id);
-                ticketManager.saveDB();
+                await ticketManager.saveGuildTickets(guildId);
                 await interaction.editReply({ content: `✅ **${targetUser.tag}** kullanıcısı ticket kara listesine eklendi. Artık destek talebi oluşturamaz.` });
             } 
             else if (islem === 'cikar') {
@@ -486,7 +486,7 @@ module.exports = {
                 }
                 const index = ticketManager.blacklist.indexOf(targetUser.id);
                 ticketManager.blacklist.splice(index, 1);
-                ticketManager.saveDB();
+                await ticketManager.saveGuildTickets(guildId);
                 await interaction.editReply({ content: `✅ **${targetUser.tag}** kullanıcısı ticket kara listesinden çıkarıldı.` });
             } 
             else if (islem === 'liste') {
