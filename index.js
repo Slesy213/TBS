@@ -127,7 +127,7 @@ client.once('ready', () => {
     () => ({ name: 'Slesy ile Sohbet Ediyor 💬', type: ActivityType.Watching }),
     () => ({ name: `${client.guilds.cache.size} Sunucuyu Koruyor 🛡️`, type: ActivityType.Watching }),
     () => ({ name: `${client.guilds.cache.reduce((a, g) => a + g.memberCount, 0)} Üyeye Hizmet Veriyor 👥`, type: ActivityType.Watching }),
-    () => ({ name: 'Premium Sistemler | .yardım 💎', type: ActivityType.Listening })
+    () => ({ name: 'Premium Sistemler | /yardım 💎', type: ActivityType.Listening })
   ];
 
   let statusIdx = 0;
