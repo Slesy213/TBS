@@ -51,33 +51,34 @@ async function loadFromSettings() {
 async function saveGuildGiveaways(guildId) {
     if (!guildId) return;
     try {
-        const guildGiveaways = giveaways.filter(g => g.guildId === guildId);
+        const guildGiveaways = giveaways.filter(g => g.guildId === guildId && g.messageId);
         
-        for (const g of guildGiveaways) {
-            if (!g.messageId) continue;
+        const rows = guildGiveaways.map(g => ({
+            message_id: g.messageId,
+            channel_id: g.channelId,
+            guild_id: g.guildId,
+            host_id: g.hostId,
+            reward: g.reward,
+            winners_count: g.winnersCount,
+            ended: g.ended,
+            end_at: g.endAt,
+            sure_text: g.sureText,
+            participants: g.participants,
+            winners: g.winners,
+            requirements: g.requirements,
+            bonus_roles: g.bonusRoles,
+            bypass_roles: g.bypassRoles,
+            customization: g.customization,
+            use_captcha: g.useCaptcha,
+            claimed: g.claimed
+        }));
+
+        if (rows.length > 0) {
             const { error } = await supabase
                 .from('giveaways')
-                .upsert({
-                    message_id: g.messageId,
-                    channel_id: g.channelId,
-                    guild_id: g.guildId,
-                    host_id: g.hostId,
-                    reward: g.reward,
-                    winners_count: g.winnersCount,
-                    ended: g.ended,
-                    end_at: g.endAt,
-                    sure_text: g.sureText,
-                    participants: g.participants,
-                    winners: g.winners,
-                    requirements: g.requirements,
-                    bonus_roles: g.bonusRoles,
-                    bypass_roles: g.bypassRoles,
-                    customization: g.customization,
-                    use_captcha: g.useCaptcha,
-                    claimed: g.claimed
-                }, { onConflict: 'message_id' });
+                .upsert(rows, { onConflict: 'message_id' });
             if (error) {
-                console.error(`❌ Supabase çekiliş upsert hatası (Message: ${g.messageId}):`, error.message);
+                console.error(`❌ Supabase çekiliş toplu upsert hatası:`, error.message);
             }
         }
 
