@@ -359,7 +359,7 @@ client.on('interactionCreate', async interaction => {
 
         const command =
           client.commands.get(
-            'ticket-kur'
+            'ticket'
           );
 
         if (
@@ -381,7 +381,7 @@ client.on('interactionCreate', async interaction => {
 
         const command =
           client.commands.get(
-            'ticket-kur'
+            'ticket'
           );
 
         if (
@@ -403,7 +403,7 @@ client.on('interactionCreate', async interaction => {
 
         const command =
           client.commands.get(
-            'ticket-kur'
+            'ticket'
           );
 
         if (
@@ -461,7 +461,7 @@ client.on('interactionCreate', async interaction => {
 
     const ticket =
       client.commands.get(
-        'ticket-kur'
+        'ticket'
       );
 
     try {
