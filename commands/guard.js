@@ -252,6 +252,26 @@ const defaultSettings = {
     kufurActionStaffLog: false,
     argoEngel: false,
     capsEngel: false,
+    // CapsLock Protection Suite (20 Features)
+    capsPercentageVal: 70, // %
+    capsMinLength: 8, // min message length
+    capsMinLetters: 5, // min letter count
+    capsExcludeMentions: true,
+    capsExcludeEmojis: true,
+    capsExcludeLinks: true,
+    capsExcludeCodeBlocks: true,
+    capsActionDelete: true,
+    capsActionWarn: true,
+    capsActionMute: false,
+    capsActionMuteDuration: 60, // seconds
+    capsActionStaffLog: true,
+    capsAllowStaff: true,
+    capsAllowRoleWhitelist: true,
+    capsAllowChannelsWhitelist: true,
+    capsToleranceWarnings: 3,
+    capsScanEdit: true,
+    capsThreatLevelIncrease: 2,
+    capsSpamInsultsIntegration: true,
     emojiSpamEngel: false,
     mentionSpamEngel: false,
     everyoneHereEngel: false,
@@ -429,6 +449,10 @@ const booleanKeys = [
     "kufurScanSpoilers", "kufurScanAttachments", "kufurActionDelete", "kufurActionWarn",
     "kufurActionMute", "kufurActionKick", "kufurActionBan", "kufurActionStaffLog",
     "argoEngel", "capsEngel",
+    "capsExcludeMentions", "capsExcludeEmojis", "capsExcludeLinks", "capsExcludeCodeBlocks",
+    "capsActionDelete", "capsActionWarn", "capsActionMute", "capsActionStaffLog",
+    "capsAllowStaff", "capsAllowRoleWhitelist", "capsAllowChannelsWhitelist",
+    "capsScanEdit", "capsSpamInsultsIntegration",
     "emojiSpamEngel", "mentionSpamEngel", "everyoneHereEngel", "mediaSpamEngel",
     "selfBotEngel",
     "accountAgeBlockAll", "accountAgeActionKick", "accountAgeActionBan", "accountAgeActionQuarantine", 
@@ -924,20 +948,44 @@ ${divider}
             if (activePage === "chat") {
                 return new EmbedBuilder()
                     .setColor(0x2B2D31)
-                    .setTitle("💬 Sohbet & İçerik Korumaları")
+                    .setTitle("💬 Sohbet & İçerik Korumaları (Caps Lock: 20 Özellik)")
                     .setDescription(`
 ${divider}
 **« İÇERİK ENGELLERİ »**
 • **Argo Sözcük Engeli (Basit Motor)** :: ${statusEmoji("argoEngel")}
-
-**« BİÇİM FİLTRELERİ »**
-• **Büyük Harf (Caps Lock)** :: ${statusEmoji("capsEngel")} \`[>%70 Oran]\`
-
-**« İÇERİK KORUMALARI »**
 • **Mass Tag (@everyone)** :: ${statusEmoji("everyoneHereEngel")}
 • **Medya Spami Engeli** :: ${statusEmoji("mediaSpamEngel")}
+
+**« 🔠 BÜYÜK HARF (CAPS LOCK) KORUMASI — 20 ÖZELLİK »**
+• **Ana Anahtar** :: ${statusEmoji("capsEngel")}
+• **Eşik Yüzdesi** :: \`%${getSetting(guildId, "capsPercentageVal")}\`
+• **Min. Mesaj Uzunluğu** :: \`${getSetting(guildId, "capsMinLength")} karakter\`
+• **Min. Harf Sayısı** :: \`${getSetting(guildId, "capsMinLetters")} harf\`
+
+**« FİLTRE İSTİSNALARI »**
+• **Mention Hariç Tut** :: ${statusEmoji("capsExcludeMentions")}
+• **Emoji Hariç Tut** :: ${statusEmoji("capsExcludeEmojis")}
+• **Link Hariç Tut** :: ${statusEmoji("capsExcludeLinks")}
+• **Kod Bloğu Hariç Tut** :: ${statusEmoji("capsExcludeCodeBlocks")}
+
+**« EYLEMLER »**
+• **Mesaj Sil** :: ${statusEmoji("capsActionDelete")}
+• **Uyarı Gönder** :: ${statusEmoji("capsActionWarn")}
+• **Geçici Sustur (Mute)** :: ${statusEmoji("capsActionMute")} \`[${getSetting(guildId, "capsActionMuteDuration")}sn]\`
+• **Yetkili Log Gönder** :: ${statusEmoji("capsActionStaffLog")}
+
+**« İZİNLER »**
+• **Yetkili Muafiyeti** :: ${statusEmoji("capsAllowStaff")}
+• **Güvenli Liste Muafiyeti** :: ${statusEmoji("capsAllowRoleWhitelist")}
+• **Kanal Muafiyeti** :: ${statusEmoji("capsAllowChannelsWhitelist")}
+
+**« GELİŞMİŞ »**
+• **Tolerans Uyarı Sayısı** :: \`${getSetting(guildId, "capsToleranceWarnings")}\`
+• **Düzenleme Taraması** :: ${statusEmoji("capsScanEdit")}
+• **Tehdit Artışı** :: \`+${getSetting(guildId, "capsThreatLevelIncrease")} puan\`
+• **Küfür Entegrasyonu** :: ${statusEmoji("capsSpamInsultsIntegration")}
 ${divider}
-*Emoji, etiket, tekrar, satır ve karakter sınırları artık **Spam Engel** modülünde yönetilmektedir. İstediğiniz sohbet filtresini açıp kapatmak için aşağıdaki menüyü kullanın.*`);
+*Emoji, etiket, tekrar, satır ve karakter sınırları artık **Spam Engel** modülünde yönetilmektedir. Büyük harf korumasının alt özelliklerini aşağıdaki menülerden yönetin.*`);
             }
 
             if (activePage === "links") {
@@ -1391,7 +1439,7 @@ ${divider}
                         { label: "🖥️ Sunucu Bütünlüğü Korumaları", value: "page_server", description: "Kanal, rol ve webhook korumaları.", default: activePage === "server" },
                         { label: "🖥️ Sunucu Ayarları (15 Özellik)", value: "page_guild", description: "Sunucu ismi, resmi, ban/vanity ayarları.", default: activePage === "guild" },
                         { label: " Prune / Budama (15 Özellik)", value: "page_prune", description: "Toplu üye budama ve engelleme limitleri.", default: activePage === "prune" },
-                        { label: "💬 Sohbet & İçerik Korumaları", value: "page_chat", description: "Küfür, link ve spam engelleri.", default: activePage === "chat" },
+                        { label: "💬 Sohbet & İçerik Korumaları (20 Özellik)", value: "page_chat", description: "Caps Lock, argo, etiket ve medya engelleri.", default: activePage === "chat" },
                         { label: "🔗 Link Engel Koruması (40 Özellik)", value: "page_links", description: "Link türleri, muafiyetler ve cezalar.", default: activePage === "links" },
                         { label: "🤬 Küfür Engel Koruması (40 Özellik)", value: "page_kufur", description: "Küfür, hakaret ve bypass engelleri.", default: activePage === "kufur" },
                         { label: "💬 Spam Engel Koruması (20 Özellik)", value: "page_spam", description: "Mesaj hızı, tekrarlı mesaj, emoji ve harf engeli.", default: activePage === "spam" },
@@ -1503,16 +1551,61 @@ ${divider}
             } else if (activePage === "chat") {
                 const selectChat = new StringSelectMenuBuilder()
                     .setCustomId("toggle_chat")
-                    .setPlaceholder("💬 Filtreleri Seçin / Düzenleyin (Çoklu Seçim)")
+                    .setPlaceholder("💬 Genel Sohbet Filtreleri (Çoklu Seçim)")
                     .setMinValues(0)
                     .setMaxValues(4)
                     .addOptions([
                         { label: "Argo Filtresi (Basit Motor)", value: "argoEngel", description: "Argo kelimeleri engeller.", default: getSetting(guildId, "argoEngel") },
-                        { label: "Caps Lock Filtresi", value: "capsEngel", description: "Aşırı büyük harf kullanımını engeller.", default: getSetting(guildId, "capsEngel") },
+                        { label: "🔠 Caps Lock Ana Anahtar", value: "capsEngel", description: "20 özellikli büyük harf korumasını açar/kapar.", default: getSetting(guildId, "capsEngel") },
                         { label: "Toplu Etiket Engeli", value: "everyoneHereEngel", description: "Yetkisiz @everyone ve @here engeller.", default: getSetting(guildId, "everyoneHereEngel") },
                         { label: "Medya Spam Filtresi", value: "mediaSpamEngel", description: "Arka arkaya görsel paylaşımını engeller.", default: getSetting(guildId, "mediaSpamEngel") }
                     ]);
+
+                const selectCaps1 = new StringSelectMenuBuilder()
+                    .setCustomId("toggle_caps_1")
+                    .setPlaceholder("🔠 Caps Lock — Filtreler & Eylemler (Çoklu Seçim)")
+                    .setMinValues(0)
+                    .setMaxValues(8)
+                    .addOptions([
+                        { label: "Mention Hariç Tut", value: "capsExcludeMentions", description: "Mention'ları caps hesabından çıkarır.", default: getSetting(guildId, "capsExcludeMentions") },
+                        { label: "Emoji Hariç Tut", value: "capsExcludeEmojis", description: "Emojileri caps hesabından çıkarır.", default: getSetting(guildId, "capsExcludeEmojis") },
+                        { label: "Link Hariç Tut", value: "capsExcludeLinks", description: "Linkleri caps hesabından çıkarır.", default: getSetting(guildId, "capsExcludeLinks") },
+                        { label: "Kod Bloğu Hariç Tut", value: "capsExcludeCodeBlocks", description: "Kod bloklarını caps hesabından çıkarır.", default: getSetting(guildId, "capsExcludeCodeBlocks") },
+                        { label: "Mesaj Sil", value: "capsActionDelete", description: "İhlal eden mesajı otomatik siler.", default: getSetting(guildId, "capsActionDelete") },
+                        { label: "Uyarı Gönder", value: "capsActionWarn", description: "Kullanıcıya uyarı mesajı gönderir.", default: getSetting(guildId, "capsActionWarn") },
+                        { label: "Geçici Sustur (Mute)", value: "capsActionMute", description: "Tolerans aşılınca geçici susturma uygular.", default: getSetting(guildId, "capsActionMute") },
+                        { label: "Yetkili Log Gönder", value: "capsActionStaffLog", description: "İhlali log kanalına bildirir.", default: getSetting(guildId, "capsActionStaffLog") }
+                    ]);
+
+                const selectCaps2 = new StringSelectMenuBuilder()
+                    .setCustomId("toggle_caps_2")
+                    .setPlaceholder("🔠 Caps Lock — İzinler & Gelişmiş (Çoklu Seçim)")
+                    .setMinValues(0)
+                    .setMaxValues(5)
+                    .addOptions([
+                        { label: "Yetkili Muafiyeti", value: "capsAllowStaff", description: "Yöneticileri caps filtresinden muaf tutar.", default: getSetting(guildId, "capsAllowStaff") },
+                        { label: "Güvenli Liste Muafiyeti", value: "capsAllowRoleWhitelist", description: "Güvenli listedeki üyeleri muaf tutar.", default: getSetting(guildId, "capsAllowRoleWhitelist") },
+                        { label: "Kanal Muafiyeti", value: "capsAllowChannelsWhitelist", description: "Bot/spam/oyun kanallarını muaf tutar.", default: getSetting(guildId, "capsAllowChannelsWhitelist") },
+                        { label: "Düzenleme Taraması", value: "capsScanEdit", description: "Düzenlenen mesajları da caps için tarar.", default: getSetting(guildId, "capsScanEdit") },
+                        { label: "Küfür Entegrasyonu", value: "capsSpamInsultsIntegration", description: "Caps+küfür birleşince anında ceza verir.", default: getSetting(guildId, "capsSpamInsultsIntegration") }
+                    ]);
+
+                const selectCapsNumbers = new StringSelectMenuBuilder()
+                    .setCustomId("adjust_caps_numbers")
+                    .setPlaceholder("🔢 Caps Lock — Sayısal Değerleri Ayarla")
+                    .addOptions([
+                        { label: "Eşik Yüzdesi (%)", value: "capsPercentageVal", description: `Şu an: %${getSetting(guildId, "capsPercentageVal")} — Büyük harf oranı limiti.` },
+                        { label: "Min. Mesaj Uzunluğu", value: "capsMinLength", description: `Şu an: ${getSetting(guildId, "capsMinLength")} karakter — Kısa mesajlar atlanır.` },
+                        { label: "Min. Harf Sayısı", value: "capsMinLetters", description: `Şu an: ${getSetting(guildId, "capsMinLetters")} harf — Az harfli mesajlar atlanır.` },
+                        { label: "Mute Süresi (Saniye)", value: "capsActionMuteDuration", description: `Şu an: ${getSetting(guildId, "capsActionMuteDuration")}sn — Mute cezası süresi.` },
+                        { label: "Tolerans Uyarı Sayısı", value: "capsToleranceWarnings", description: `Şu an: ${getSetting(guildId, "capsToleranceWarnings")} — Mute öncesi uyarı adedi.` },
+                        { label: "Tehdit Artış Puanı", value: "capsThreatLevelIncrease", description: `Şu an: +${getSetting(guildId, "capsThreatLevelIncrease")} — İhlal başına tehdit artışı.` }
+                    ]);
+
                 rows.push(new ActionRowBuilder().addComponents(selectChat));
+                rows.push(new ActionRowBuilder().addComponents(selectCaps1));
+                rows.push(new ActionRowBuilder().addComponents(selectCaps2));
+                rows.push(new ActionRowBuilder().addComponents(selectCapsNumbers));
             } else if (activePage === "links") {
                 const selectLinks1 = new StringSelectMenuBuilder()
                     .setCustomId("toggle_links_1")
@@ -1966,6 +2059,19 @@ ${divider}
                 }
             }
 
+            if (i.customId === "adjust_caps_numbers") {
+                const key = i.values[0];
+                const capsLabels = {
+                    capsPercentageVal: "Büyük Harf Eşik Yüzdesi (0 - 100)",
+                    capsMinLength: "Min. Mesaj Uzunluğu (Karakter)",
+                    capsMinLetters: "Min. Harf Sayısı (Adet)",
+                    capsActionMuteDuration: "Mute Süresi (Saniye)",
+                    capsToleranceWarnings: "Tolerans Uyarı Sayısı (Adet)",
+                    capsThreatLevelIncrease: "Tehdit Artış Puanı (Sayı)"
+                };
+                return await showLimitModal(i, key, capsLabels[key]);
+            }
+
             // Normal Flow: Defer update
             if (!i.customId.startsWith("wl_perms_toggle_") && i.customId !== "add_whitelist_member" && i.customId !== "remove_whitelist_member" && i.customId !== "select_perms_user") {
                 await i.deferUpdate();
@@ -2085,6 +2191,32 @@ ${divider}
                     embeds: [generateEmbed()],
                     components: generateComponents()
                 });
+            } else if (i.customId === "toggle_caps_1") {
+                const settings = global.guardSettings.get(guildId) || {};
+                const keys = [
+                    "capsExcludeMentions", "capsExcludeEmojis", "capsExcludeLinks", "capsExcludeCodeBlocks",
+                    "capsActionDelete", "capsActionWarn", "capsActionMute", "capsActionStaffLog"
+                ];
+                keys.forEach(k => settings[k] = i.values.includes(k));
+                global.guardSettings.set(guildId, settings);
+                await updateSetting(guildId, "guard_settings", settings);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
+            } else if (i.customId === "toggle_caps_2") {
+                const settings = global.guardSettings.get(guildId) || {};
+                const keys = [
+                    "capsAllowStaff", "capsAllowRoleWhitelist", "capsAllowChannelsWhitelist",
+                    "capsScanEdit", "capsSpamInsultsIntegration"
+                ];
+                keys.forEach(k => settings[k] = i.values.includes(k));
+                global.guardSettings.set(guildId, settings);
+                await updateSetting(guildId, "guard_settings", settings);
+                await interaction.editReply({
+                    embeds: [generateEmbed()],
+                    components: generateComponents()
+                });
             } else if (i.customId === "action_recommended") {
                 const settings = global.guardSettings.get(guildId) || {};
                 
@@ -2107,6 +2239,8 @@ ${divider}
                     "linkActionDelete", "linkActionWarn", "linkActionMute",
                     "kufurBlockAll", "kufurActionDelete", "kufurActionWarn", "kufurActionMute",
                     "everyoneHereEngel", "argoEngel",
+                    "capsEngel", "capsActionDelete", "capsActionWarn", "capsActionStaffLog",
+                    "capsAllowStaff", "capsExcludeMentions", "capsExcludeEmojis", "capsScanEdit",
                     
                     // Gelişmiş Spam Modülü
                     "spamBlockAll", "spamDuplicateLimit", "spamMaxMessages", "spamMaxMentions", 
