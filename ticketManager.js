@@ -1,5 +1,3 @@
-const fs = require('fs');
-const path = require('path');
 const {
     EmbedBuilder,
     ActionRowBuilder,
@@ -13,28 +11,54 @@ const {
     PermissionFlagsBits
 } = require('discord.js');
 
-const dbPath = path.join(__dirname, 'tickets.json');
-
-// Initialize local database file
-if (!fs.existsSync(dbPath)) {
-    fs.writeFileSync(dbPath, JSON.stringify({ tickets: [], staffStats: {}, blacklist: [] }, null, 4));
-}
+const { updateSettings } = require('./db.js');
 
 let dbData = { tickets: [], staffStats: {}, blacklist: [] };
-try {
-    dbData = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
-    if (!dbData.tickets) dbData.tickets = [];
-    if (!dbData.staffStats) dbData.staffStats = {};
-    if (!dbData.blacklist) dbData.blacklist = [];
-} catch (e) {
-    console.error('❌ tickets.json okunamadı, boş veriyle başlatılıyor:', e);
+
+function loadFromSettings() {
+    dbData.tickets.length = 0;
+    for (const key in dbData.staffStats) delete dbData.staffStats[key];
+    dbData.blacklist.length = 0;
+
+    for (const [guildId, gs] of global.guardSettings.entries()) {
+        if (gs.tickets && Array.isArray(gs.tickets)) {
+            dbData.tickets.push(...gs.tickets);
+        }
+        if (gs.staffStats) {
+            Object.assign(dbData.staffStats, gs.staffStats);
+        }
+        if (gs.blacklist && Array.isArray(gs.blacklist)) {
+            dbData.blacklist.push(...gs.blacklist);
+        }
+    }
+    console.log(`[TICKET DEBUG] Hafızaya ${dbData.tickets.length} aktif bilet yüklendi.`);
 }
 
-function saveDB() {
+async function saveGuildTickets(guildId) {
+    if (!guildId) return;
     try {
-        fs.writeFileSync(dbPath, JSON.stringify(dbData, null, 4));
+        const guildTickets = dbData.tickets.filter(t => t.guildId === guildId);
+        const guildStaffStats = {};
+        for (const [staffId, stats] of Object.entries(dbData.staffStats)) {
+            guildStaffStats[staffId] = stats;
+        }
+
+        await updateSettings(guildId, {
+            guard_settings: {
+                ...global.guardSettings.get(guildId),
+                tickets: guildTickets,
+                staffStats: guildStaffStats,
+                blacklist: dbData.blacklist
+            }
+        });
+
+        const gs = global.guardSettings.get(guildId) || {};
+        gs.tickets = guildTickets;
+        gs.staffStats = guildStaffStats;
+        gs.blacklist = dbData.blacklist;
+        global.guardSettings.set(guildId, gs);
     } catch (e) {
-        console.error('❌ tickets.json kaydedilemedi:', e);
+        console.error(`❌ Supabase bilet güncelleme hatası (Guild: ${guildId}):`, e);
     }
 }
 
@@ -295,7 +319,7 @@ async function openTicketChannel(interaction, category) {
         };
 
         dbData.tickets.push(ticketInfo);
-        saveDB();
+        await saveGuildTickets(guildId);
 
         const ticketEmbed = new EmbedBuilder()
             .setColor(category.renk || 0x5865F2)
@@ -354,14 +378,14 @@ async function closeTicket(client, channelId, closedByUserId) {
     t.status = 'closed';
     t.closedAt = Date.now();
     t.closedBy = closedByUserId;
-    saveDB();
+    await saveGuildTickets(t.guildId);
 
     // Increment staff stats
     if (t.claimedBy) {
         const stats = dbData.staffStats[t.claimedBy] || { claimedCount: 0, closedCount: 0, ratings: [] };
         stats.closedCount++;
         dbData.staffStats[t.claimedBy] = stats;
-        saveDB();
+        await saveGuildTickets(t.guildId);
     }
 
     const guild = client.guilds.cache.get(t.guildId);
@@ -465,7 +489,7 @@ function init(client) {
         const t = dbData.tickets.find(x => x.channelId === message.channel.id);
         if (t) {
             t.lastMessageAt = Date.now();
-            saveDB();
+            await saveGuildTickets(t.guildId);
 
             const content = message.content.toLowerCase();
             const faqs = [
@@ -557,12 +581,12 @@ function init(client) {
                     }
 
                     t.claimedBy = userId;
-                    saveDB();
+                    await saveGuildTickets(guildId);
 
                     const stats = dbData.staffStats[userId] || { claimedCount: 0, closedCount: 0, ratings: [] };
                     stats.claimedCount++;
                     dbData.staffStats[userId] = stats;
-                    saveDB();
+                    await saveGuildTickets(guildId);
 
                     const claimEmbed = new EmbedBuilder()
                         .setColor(0x5865F2)
@@ -581,7 +605,7 @@ function init(client) {
                     }
 
                     t.claimedBy = null;
-                    saveDB();
+                    await saveGuildTickets(guildId);
 
                     const releaseEmbed = new EmbedBuilder()
                         .setColor(0x34495E)
@@ -617,7 +641,7 @@ function init(client) {
                     if (!t) return interaction.reply({ content: '❌ Ticket bulunamadı.', ephemeral: true });
 
                     t.status = 'archived';
-                    saveDB();
+                    await saveGuildTickets(guildId);
 
                     await interaction.reply({ content: '📂 Ticket başarıyla arşivlendi. Yetkiler güncelleniyor...', ephemeral: true });
 
@@ -705,13 +729,13 @@ function init(client) {
                     if (t) {
                         t.rating = rating;
                         t.feedbackText = comment;
-                        saveDB();
+                        await saveGuildTickets(guildId);
 
                         if (t.claimedBy) {
                             const stats = dbData.staffStats[t.claimedBy] || { claimedCount: 0, closedCount: 0, ratings: [] };
                             stats.ratings.push(rating);
                             dbData.staffStats[t.claimedBy] = stats;
-                            saveDB();
+                            await saveGuildTickets(guildId);
                         }
 
                         await interaction.reply({ content: `✅ Geri bildiriminiz için teşekkür ederiz! (${rating}/5 ⭐)`, ephemeral: true });
@@ -749,6 +773,7 @@ module.exports = {
     blacklist: dbData.blacklist,
     init,
     closeTicket,
-    saveDB,
+    saveGuildTickets,
+    loadFromSettings,
     getCategories
 };
