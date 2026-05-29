@@ -59,34 +59,35 @@ async function loadFromSettings() {
 async function saveGuildPolls(guildId) {
     if (!guildId) return;
     try {
-        const guildPolls = polls.filter(p => p.guildId === guildId);
+        const guildPolls = polls.filter(p => p.guildId === guildId && p.messageId);
         
-        for (const p of guildPolls) {
-            if (!p.messageId) continue;
+        const rows = guildPolls.map(p => ({
+            message_id: p.messageId,
+            channel_id: p.channelId,
+            guild_id: p.guildId,
+            creator_id: p.hostId,
+            question: p.question,
+            choices: p.choices,
+            votes: p.votes,
+            ended: p.ended,
+            end_at: p.endAt,
+            sure_text: p.sureText,
+            use_captcha: p.useCaptcha,
+            customization: {
+                ...p.customization,
+                customEmojis: p.customEmojis,
+                minVoters: p.minVoters,
+                requirements: p.requirements,
+                bypassRoles: p.bypassRoles
+            }
+        }));
+
+        if (rows.length > 0) {
             const { error } = await supabase
                 .from('polls')
-                .upsert({
-                    message_id: p.messageId,
-                    channel_id: p.channelId,
-                    guild_id: p.guildId,
-                    creator_id: p.hostId,
-                    question: p.question,
-                    choices: p.choices,
-                    votes: p.votes,
-                    ended: p.ended,
-                    end_at: p.endAt,
-                    sure_text: p.sureText,
-                    use_captcha: p.useCaptcha,
-                    customization: {
-                        ...p.customization,
-                        customEmojis: p.customEmojis,
-                        minVoters: p.minVoters,
-                        requirements: p.requirements,
-                        bypassRoles: p.bypassRoles
-                    }
-                }, { onConflict: 'message_id' });
+                .upsert(rows, { onConflict: 'message_id' });
             if (error) {
-                console.error(`❌ Supabase anket upsert hatası (Message: ${p.messageId}):`, error.message);
+                console.error(`❌ Supabase anket toplu upsert hatası:`, error.message);
             }
         }
 
