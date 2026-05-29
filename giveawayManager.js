@@ -5,19 +5,45 @@ const {
     ButtonStyle,
     PermissionFlagsBits
 } = require('discord.js');
-
-const { updateSettings } = require('./db.js');
+const { supabase, updateSettings } = require('./db.js');
 
 let giveaways = [];
 const activeTimers = new Map();
 const captchaSessions = new Map(); // userId -> { answer: number, giveawayId: string }
 
-function loadFromSettings() {
+async function loadFromSettings() {
     giveaways.length = 0;
-    for (const [guildId, gs] of global.guardSettings.entries()) {
-        if (gs.giveaways && Array.isArray(gs.giveaways)) {
-            giveaways.push(...gs.giveaways);
+    try {
+        const { data, error } = await supabase
+            .from('giveaways')
+            .select('*');
+
+        if (error) {
+            console.error('❌ Supabase çekilişleri yüklenirken hata oluştu:', error.message);
+        } else if (data) {
+            const mappedGiveaways = data.map(g => ({
+                messageId: g.message_id,
+                channelId: g.channel_id,
+                guildId: g.guild_id,
+                hostId: g.host_id,
+                reward: g.reward,
+                winnersCount: g.winners_count,
+                ended: g.ended,
+                endAt: Number(g.end_at),
+                sureText: g.sure_text,
+                participants: Array.isArray(g.participants) ? g.participants : [],
+                winners: Array.isArray(g.winners) ? g.winners : [],
+                requirements: g.requirements || {},
+                bonusRoles: g.bonus_roles || {},
+                bypassRoles: Array.isArray(g.bypass_roles) ? g.bypass_roles : [],
+                customization: g.customization || {},
+                useCaptcha: g.use_captcha,
+                claimed: g.claimed || {}
+            }));
+            giveaways.push(...mappedGiveaways);
         }
+    } catch (err) {
+        console.error('❌ Supabase çekilişleri yükleme hatası:', err);
     }
     console.log(`[GIVEAWAY DEBUG] Hafızaya ${giveaways.length} aktif çekiliş yüklendi.`);
 }
@@ -26,15 +52,44 @@ async function saveGuildGiveaways(guildId) {
     if (!guildId) return;
     try {
         const guildGiveaways = giveaways.filter(g => g.guildId === guildId);
+        
+        for (const g of guildGiveaways) {
+            if (!g.messageId) continue;
+            const { error } = await supabase
+                .from('giveaways')
+                .upsert({
+                    message_id: g.messageId,
+                    channel_id: g.channelId,
+                    guild_id: g.guildId,
+                    host_id: g.hostId,
+                    reward: g.reward,
+                    winners_count: g.winnersCount,
+                    ended: g.ended,
+                    end_at: g.endAt,
+                    sure_text: g.sureText,
+                    participants: g.participants,
+                    winners: g.winners,
+                    requirements: g.requirements,
+                    bonus_roles: g.bonusRoles,
+                    bypass_roles: g.bypassRoles,
+                    customization: g.customization,
+                    use_captcha: g.useCaptcha,
+                    claimed: g.claimed
+                }, { onConflict: 'message_id' });
+            if (error) {
+                console.error(`❌ Supabase çekiliş upsert hatası (Message: ${g.messageId}):`, error.message);
+            }
+        }
+
         await updateSettings(guildId, {
             guard_settings: {
                 ...global.guardSettings.get(guildId),
-                giveaways: guildGiveaways
+                giveaways: undefined
             }
         });
 
         const gs = global.guardSettings.get(guildId) || {};
-        gs.giveaways = guildGiveaways;
+        delete gs.giveaways;
         global.guardSettings.set(guildId, gs);
     } catch (e) {
         console.error(`❌ Supabase çekiliş güncelleme hatası (Guild: ${guildId}):`, e);
