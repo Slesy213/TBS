@@ -303,10 +303,20 @@ client.on('interactionCreate', async interaction => {
 // STARTUP BOOTSTRAP
 // ==========================================
 const { loadSettings } = require('./db.js');
+const ticketManager = require('./ticketManager.js');
+const pollManager = require('./pollManager.js');
+const giveawayManager = require('./giveawayManager.js');
 
 async function startBot() {
   try {
     await loadSettings();
+
+    // Populate managers from global.guardSettings loaded from Supabase
+    ticketManager.loadFromSettings();
+    pollManager.loadFromSettings();
+    giveawayManager.loadFromSettings();
+    log.success('Veritabanı hafıza yüklemesi (Supabase -> Cache) başarıyla tamamlandı.');
+
     await client.login(process.env.DISCORD_TOKEN);
   } catch (e) {
     log.error('Bot başlatma hatası:', e);
