@@ -146,32 +146,161 @@ async function generateTranscriptHTML(channel, ticketInfo) {
     if (!messages) return '';
 
     const sorted = Array.from(messages.values()).reverse();
+    
+    const totalMsg = sorted.length;
+    const botMsg = sorted.filter(m => m.author.bot).length;
+    const userMsg = totalMsg - botMsg;
+    const attachmentCount = sorted.reduce((sum, m) => sum + m.attachments.size, 0);
+    const embedCount = sorted.reduce((sum, m) => sum + m.embeds.length, 0);
+
+    const guild = channel.guild;
+    const creatorUser = guild.members.cache.get(ticketInfo.creatorId)?.user || { tag: 'Bilinmeyen Kullanıcı#' + ticketInfo.creatorId, displayAvatarURL: () => 'https://cdn.discordapp.com/embed/avatars/0.png' };
+    const claimUser = ticketInfo.claimedBy ? (guild.members.cache.get(ticketInfo.claimedBy)?.user || { tag: 'Yetkili#' + ticketInfo.claimedBy, displayAvatarURL: () => 'https://cdn.discordapp.com/embed/avatars/1.png' }) : null;
+
+    const participants = {};
+    for (const m of sorted) {
+        if (!participants[m.author.id]) {
+            participants[m.author.id] = {
+                tag: m.author.tag,
+                avatar: m.author.displayAvatarURL({ size: 32 }),
+                count: 0,
+                isBot: m.author.bot
+            };
+        }
+        participants[m.author.id].count++;
+    }
+
+    let participantListHtml = '';
+    for (const p of Object.values(participants)) {
+        participantListHtml += `
+        <div style="display: flex; align-items: center; margin-bottom: 8px;">
+            <img src="${p.avatar}" style="width: 24px; height: 24px; border-radius: 50%; margin-right: 8px;">
+            <span style="color: ${p.isBot ? '#5865F2' : '#ffffff'}; font-size: 0.9em;">${escapeHtml(p.tag)} (${p.count} mesaj)</span>
+        </div>
+        `;
+    }
 
     let html = `
     <!DOCTYPE html>
     <html lang="tr">
     <head>
         <meta charset="UTF-8">
-        <title>${channel.name} - Transcript</title>
+        <title>${escapeHtml(channel.name)} - Premium Transcript</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
         <style>
-            body { background-color: #36393f; color: #dcddde; font-family: sans-serif; padding: 20px; }
-            .message { display: flex; margin-bottom: 15px; }
-            .avatar { width: 40px; height: 40px; border-radius: 50%; margin-right: 15px; }
-            .content { display: flex; flex-direction: column; }
-            .header { display: flex; align-items: center; margin-bottom: 5px; }
-            .author { font-weight: bold; color: #ffffff; margin-right: 10px; }
-            .time { font-size: 0.8em; color: #72767d; }
-            .body { color: #dcddde; }
-            .embed { border-left: 4px solid #5865f2; background-color: #2f3136; padding: 10px; margin-top: 5px; border-radius: 4px; }
-            .embed-title { font-weight: bold; color: #ffffff; margin-bottom: 5px; }
-            .embed-desc { color: #b9bbbe; }
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body { font-family: 'Inter', sans-serif; background-color: #2f3136; color: #dcddde; display: flex; height: 100vh; overflow: hidden; }
+            
+            /* Sidebar */
+            .sidebar { width: 320px; background-color: #202225; padding: 20px; display: flex; flex-direction: column; border-right: 1px solid #2f3136; overflow-y: auto; }
+            .sidebar-title { font-size: 1.2em; font-weight: 700; color: #ffffff; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+            .meta-card { background-color: #2f3136; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+            .meta-item { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.85em; border-bottom: 1px dashed #40444b; padding-bottom: 5px; }
+            .meta-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+            .meta-label { color: #8e9297; }
+            .meta-value { color: #ffffff; font-weight: 500; }
+            
+            /* Main Content */
+            .main { flex: 1; display: flex; flex-direction: column; height: 100%; background-color: #36393f; }
+            .header-bar { height: 60px; background-color: #36393f; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid #202225; }
+            .header-title { font-size: 1.1em; font-weight: 600; color: #ffffff; }
+            .search-box { background-color: #202225; border: none; padding: 8px 12px; border-radius: 4px; color: #ffffff; outline: none; width: 250px; font-size: 0.9em; }
+            
+            /* Chat Container */
+            .chat-container { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+            .message-wrapper { display: flex; align-items: flex-start; }
+            .message-wrapper:hover { background-color: #32353b; margin: 0 -20px; padding: 4px 20px; }
+            .avatar { width: 40px; height: 40px; border-radius: 50%; margin-right: 16px; object-fit: cover; }
+            .msg-content { display: flex; flex-direction: column; flex: 1; }
+            .msg-header { display: flex; align-items: baseline; margin-bottom: 4px; }
+            .author-name { font-weight: 600; color: #ffffff; margin-right: 8px; cursor: pointer; }
+            .author-name:hover { text-decoration: underline; }
+            .bot-tag { background-color: #5865F2; color: #ffffff; font-size: 0.65em; padding: 1px 4px; border-radius: 3px; margin-right: 8px; font-weight: 700; text-transform: uppercase; }
+            .msg-time { font-size: 0.75em; color: #72767d; }
+            .msg-body { font-size: 0.95em; color: #dcddde; line-height: 1.4; word-break: break-word; }
+            
+            /* Embeds */
+            .embed-card { border-left: 4px solid #5865f2; background-color: #2f3136; padding: 12px; border-radius: 4px; margin-top: 8px; max-width: 520px; }
+            .embed-title { font-weight: 600; color: #ffffff; margin-bottom: 6px; font-size: 0.95em; }
+            .embed-description { color: #b9bbbe; font-size: 0.85em; line-height: 1.4; }
+            
+            /* Attachments */
+            .attachment-card { margin-top: 8px; background-color: #2f3136; border: 1px solid #202225; padding: 10px; border-radius: 6px; display: flex; align-items: center; max-width: 400px; gap: 10px; }
+            .attachment-icon { font-size: 1.5em; }
+            .attachment-info { display: flex; flex-direction: column; overflow: hidden; }
+            .attachment-name { color: #00b0f4; font-size: 0.85em; font-weight: 500; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
+            .attachment-name:hover { text-decoration: underline; }
+            .attachment-size { color: #72767d; font-size: 0.75em; }
+            .attachment-image { margin-top: 8px; max-width: 400px; max-height: 300px; border-radius: 6px; border: 1px solid #202225; cursor: pointer; }
+            
+            /* Timeline component */
+            .timeline { margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; background-color: #2f3136; padding: 12px; border-radius: 6px; font-size: 0.8em; }
+            .timeline-point { display: flex; align-items: center; gap: 8px; }
+            .timeline-dot { width: 8px; height: 8px; border-radius: 50%; background-color: #43b581; }
+            .timeline-dot.orange { background-color: #faa61a; }
+            .timeline-dot.red { background-color: #f04747; }
         </style>
     </head>
     <body>
-        <h2>🎫 Ticket Sohbet Geçmişi: ${channel.name}</h2>
-        <p>Açan: &lt;@${ticketInfo.creatorId}&gt; | Tür: ${ticketInfo.type} | Tarih: ${new Date(ticketInfo.openedAt).toLocaleString('tr-TR')}</p>
-        <hr/>
-        <div class="messages">
+        <div class="sidebar">
+            <div class="sidebar-title">🎫 Slesy Transcript</div>
+            
+            <div class="timeline">
+                <div class="timeline-point">
+                    <span class="timeline-dot"></span>
+                    <span>Açılış: ${new Date(ticketInfo.openedAt).toLocaleString('tr-TR')}</span>
+                </div>
+                ${ticketInfo.claimedBy ? `
+                <div class="timeline-point">
+                    <span class="timeline-dot orange"></span>
+                    <span>Sahiplenildi: <br><small>${escapeHtml(claimUser ? claimUser.tag : 'Yetkili')}</small></span>
+                </div>
+                ` : ''}
+                ${ticketInfo.closedAt ? `
+                <div class="timeline-point">
+                    <span class="timeline-dot red"></span>
+                    <span>Kapanış: ${new Date(ticketInfo.closedAt).toLocaleString('tr-TR')}</span>
+                </div>
+                ` : ''}
+            </div>
+
+            <div class="meta-card">
+                <h4 style="margin-bottom: 10px; font-size: 0.9em; color: #ffffff;">Destek Bilgileri</h4>
+                <div class="meta-item"><span class="meta-label">Kanal Adı</span><span class="meta-value">#${escapeHtml(channel.name)}</span></div>
+                <div class="meta-item"><span class="meta-label">Bilet Sahibi</span><span class="meta-value">${escapeHtml(creatorUser.tag)}</span></div>
+                <div class="meta-item"><span class="meta-label">Tür</span><span class="meta-value">${escapeHtml(ticketInfo.type)}</span></div>
+                <div class="meta-item"><span class="meta-label">Öncelik</span><span class="meta-value">${escapeHtml(ticketInfo.priority || 'Orta')}</span></div>
+                <div class="meta-item"><span class="meta-label">Durum</span><span class="meta-value">${escapeHtml(ticketInfo.status)}</span></div>
+                ${ticketInfo.rating ? `
+                <div class="meta-item"><span class="meta-label">Puan</span><span class="meta-value" style="color: #faa61a;">${'★'.repeat(ticketInfo.rating)}${'☆'.repeat(5 - ticketInfo.rating)}</span></div>
+                ` : ''}
+                ${ticketInfo.feedbackText ? `
+                <div class="meta-item" style="flex-direction: column; align-items: flex-start; border-bottom: none;"><span class="meta-label">Geri Bildirim</span><span class="meta-value" style="margin-top: 4px; font-style: italic; white-space: normal;">"${escapeHtml(ticketInfo.feedbackText)}"</span></div>
+                ` : ''}
+            </div>
+
+            <div class="meta-card">
+                <h4 style="margin-bottom: 10px; font-size: 0.9em; color: #ffffff;">Sohbet İstatistikleri</h4>
+                <div class="meta-item"><span class="meta-label">Toplam Mesaj</span><span class="meta-value">${totalMsg}</span></div>
+                <div class="meta-item"><span class="meta-label">Kullanıcı Mesajları</span><span class="meta-value">${userMsg}</span></div>
+                <div class="meta-item"><span class="meta-label">Bot Mesajları</span><span class="meta-value">${botMsg}</span></div>
+                <div class="meta-item"><span class="meta-label">Ek / Dosyalar</span><span class="meta-value">${attachmentCount}</span></div>
+                <div class="meta-item"><span class="meta-label">Embedler</span><span class="meta-value">${embedCount}</span></div>
+            </div>
+
+            <div class="meta-card">
+                <h4 style="margin-bottom: 10px; font-size: 0.9em; color: #ffffff;">Katılımcılar</h4>
+                ${participantListHtml}
+            </div>
+        </div>
+
+        <div class="main">
+            <div class="header-bar">
+                <span class="header-title">💬 #${escapeHtml(channel.name)} Sohbet Kaydı</span>
+                <input type="text" id="search" class="search-box" placeholder="Mesajlarda ara..." onkeyup="filterMessages()">
+            </div>
+            
+            <div class="chat-container" id="chat">
     `;
 
     for (const msg of sorted) {
@@ -179,22 +308,44 @@ async function generateTranscriptHTML(channel, ticketInfo) {
 
         const avatarUrl = msg.author.displayAvatarURL({ size: 64 });
         html += `
-        <div class="message">
+        <div class="message-wrapper" data-author="${escapeHtml(msg.author.tag.toLowerCase())}" data-content="${escapeHtml(msg.content.toLowerCase())}">
             <img class="avatar" src="${avatarUrl}" alt="avatar">
-            <div class="content">
-                <div class="header">
-                    <span class="author">${msg.author.tag}</span>
-                    <span class="time">${msg.createdAt.toLocaleString('tr-TR')}</span>
+            <div class="msg-content">
+                <div class="msg-header">
+                    <span class="author-name">${escapeHtml(msg.author.tag)}</span>
+                    ${msg.author.bot ? '<span class="bot-tag">Bot</span>' : ''}
+                    <span class="msg-time">${msg.createdAt.toLocaleString('tr-TR')}</span>
                 </div>
-                <div class="body">${escapeHtml(msg.content)}</div>
+                ${msg.content ? `<div class="msg-body">${escapeHtml(msg.content)}</div>` : ''}
         `;
+
+        if (msg.attachments.size > 0) {
+            for (const att of msg.attachments.values()) {
+                const isImage = att.contentType && att.contentType.startsWith('image/');
+                if (isImage) {
+                    html += `<a href="${att.url}" target="_blank"><img class="attachment-image" src="${att.url}" alt="Attachment"></a>`;
+                } else {
+                    const sizeKB = (att.size / 1024).toFixed(1) + ' KB';
+                    html += `
+                    <div class="attachment-card">
+                        <span class="attachment-icon">📁</span>
+                        <div class="attachment-info">
+                            <a href="${att.url}" target="_blank" class="attachment-name">${escapeHtml(att.name)}</a>
+                            <span class="attachment-size">${sizeKB}</span>
+                        </div>
+                    </div>
+                    `;
+                }
+            }
+        }
 
         if (msg.embeds.length > 0) {
             for (const emb of msg.embeds) {
+                const colorHex = emb.hexColor || '#5865f2';
                 html += `
-                <div class="embed">
+                <div class="embed-card" style="border-left-color: ${colorHex}">
                     ${emb.title ? `<div class="embed-title">${escapeHtml(emb.title)}</div>` : ''}
-                    ${emb.description ? `<div class="embed-desc">${escapeHtml(emb.description)}</div>` : ''}
+                    ${emb.description ? `<div class="embed-description">${escapeHtml(emb.description)}</div>` : ''}
                 </div>
                 `;
             }
@@ -207,7 +358,23 @@ async function generateTranscriptHTML(channel, ticketInfo) {
     }
 
     html += `
+            </div>
         </div>
+        <script>
+            function filterMessages() {
+                var query = document.getElementById('search').value.toLowerCase();
+                var messages = document.getElementsByClassName('message-wrapper');
+                for (var i = 0; i < messages.length; i++) {
+                    var author = messages[i].getAttribute('data-author');
+                    var content = messages[i].getAttribute('data-content');
+                    if (author.includes(query) || content.includes(query)) {
+                        messages[i].style.display = 'flex';
+                    } else {
+                        messages[i].style.display = 'none';
+                    }
+                }
+            }
+        </script>
     </body>
     </html>
     `;
@@ -219,16 +386,56 @@ async function generateTranscriptTXT(channel, ticketInfo) {
     if (!messages) return '';
     const sorted = Array.from(messages.values()).reverse();
 
-    let txt = `Ticket Raporu: ${channel.name}\n`;
-    txt += `Açılış: ${new Date(ticketInfo.openedAt).toLocaleString('tr-TR')}\n\n`;
+    const guild = channel.guild;
+    const creatorUser = guild.members.cache.get(ticketInfo.creatorId)?.user || { tag: 'Bilinmeyen Kullanıcı#' + ticketInfo.creatorId };
+    const claimUser = ticketInfo.claimedBy ? (guild.members.cache.get(ticketInfo.claimedBy)?.user || { tag: 'Yetkili#' + ticketInfo.claimedBy }) : null;
+
+    let txt = `==================================================\n`;
+    txt += `       SLESY TICKET SYSTEM PREMIUM REPORT        \n`;
+    txt += `==================================================\n\n`;
+    txt += `Bilet Bilgileri:\n`;
+    txt += `--------------------------------------------------\n`;
+    txt += `Kanal Adı:     #${channel.name} (${channel.id})\n`;
+    txt += `Sunucu:        ${guild.name} (${guild.id})\n`;
+    txt += `Açan Kullanıcı: ${creatorUser.tag} (${ticketInfo.creatorId})\n`;
+    txt += `Destek Türü:   ${ticketInfo.type}\n`;
+    txt += `Öncelik:       ${ticketInfo.priority || 'Orta'}\n`;
+    txt += `Açılış Zamanı: ${new Date(ticketInfo.openedAt).toLocaleString('tr-TR')}\n`;
+    if (ticketInfo.claimedBy) {
+        txt += `Sahiplenen:    ${claimUser ? claimUser.tag : 'Yetkili'} (${ticketInfo.claimedBy})\n`;
+    }
+    if (ticketInfo.closedAt) {
+        txt += `Kapanış:       ${new Date(ticketInfo.closedAt).toLocaleString('tr-TR')}\n`;
+    }
+    if (ticketInfo.rating) {
+        txt += `Değerlendirme: ${ticketInfo.rating}/5 Yıldız\n`;
+    }
+    if (ticketInfo.feedbackText) {
+        txt += `Geri Bildirim: "${ticketInfo.feedbackText}"\n`;
+    }
+    txt += `--------------------------------------------------\n\n`;
+    
+    txt += `Sohbet Geçmişi:\n`;
+    txt += `==================================================\n`;
     for (const msg of sorted) {
-        txt += `[${msg.createdAt.toLocaleString('tr-TR')}] ${msg.author.tag}: ${msg.content}\n`;
+        txt += `[${msg.createdAt.toLocaleString('tr-TR')}] ${msg.author.tag}${msg.author.bot ? ' [BOT]' : ''}:\n`;
+        if (msg.content) {
+            txt += `  ${msg.content}\n`;
+        }
+        if (msg.attachments.size > 0) {
+            for (const att of msg.attachments.values()) {
+                txt += `  [Ek Dosya] ${att.name}: ${att.url}\n`;
+            }
+        }
         if (msg.embeds.length > 0) {
             for (const emb of msg.embeds) {
                 txt += `  [Embed] ${emb.title || ''} - ${emb.description || ''}\n`;
             }
         }
+        txt += `\n`;
     }
+    txt += `==================================================\n`;
+    txt += `Rapor Sonu. Slesy Premium Ticket Logger.\n`;
     return txt;
 }
 
@@ -633,12 +840,12 @@ function init(client) {
                     }
 
                     t.claimedBy = userId;
-                    await saveGuildTickets(guildId);
+                    await saveGuildTickets(t.guildId);
 
                     const stats = dbData.staffStats[userId] || { claimedCount: 0, closedCount: 0, ratings: [] };
                     stats.claimedCount++;
                     dbData.staffStats[userId] = stats;
-                    await saveGuildTickets(guildId);
+                    await saveGuildTickets(t.guildId);
 
                     const claimEmbed = new EmbedBuilder()
                         .setColor(0x5865F2)
@@ -657,7 +864,7 @@ function init(client) {
                     }
 
                     t.claimedBy = null;
-                    await saveGuildTickets(guildId);
+                    await saveGuildTickets(t.guildId);
 
                     const releaseEmbed = new EmbedBuilder()
                         .setColor(0x34495E)
@@ -693,7 +900,7 @@ function init(client) {
                     if (!t) return interaction.reply({ content: '❌ Ticket bulunamadı.', ephemeral: true });
 
                     t.status = 'archived';
-                    await saveGuildTickets(guildId);
+                    await saveGuildTickets(t.guildId);
 
                     await interaction.reply({ content: '📂 Ticket başarıyla arşivlendi. Yetkiler güncelleniyor...', ephemeral: true });
 
@@ -781,13 +988,13 @@ function init(client) {
                     if (t) {
                         t.rating = rating;
                         t.feedbackText = comment;
-                        await saveGuildTickets(guildId);
+                        await saveGuildTickets(t.guildId);
 
                         if (t.claimedBy) {
                             const stats = dbData.staffStats[t.claimedBy] || { claimedCount: 0, closedCount: 0, ratings: [] };
                             stats.ratings.push(rating);
                             dbData.staffStats[t.claimedBy] = stats;
-                            await saveGuildTickets(guildId);
+                            await saveGuildTickets(t.guildId);
                         }
 
                         await interaction.reply({ content: `✅ Geri bildiriminiz için teşekkür ederiz! (${rating}/5 ⭐)`, ephemeral: true });
