@@ -11,25 +11,52 @@ const {
     PermissionFlagsBits
 } = require('discord.js');
 
-const { updateSettings } = require('./db.js');
+const { supabase, updateSettings } = require('./db.js');
 
 let dbData = { tickets: [], staffStats: {}, blacklist: [] };
 
-function loadFromSettings() {
+async function loadFromSettings() {
     dbData.tickets.length = 0;
     for (const key in dbData.staffStats) delete dbData.staffStats[key];
     dbData.blacklist.length = 0;
 
     for (const [guildId, gs] of global.guardSettings.entries()) {
-        if (gs.tickets && Array.isArray(gs.tickets)) {
-            dbData.tickets.push(...gs.tickets);
-        }
         if (gs.staffStats) {
             Object.assign(dbData.staffStats, gs.staffStats);
         }
         if (gs.blacklist && Array.isArray(gs.blacklist)) {
             dbData.blacklist.push(...gs.blacklist);
         }
+    }
+
+    try {
+        const { data, error } = await supabase
+            .from('tickets')
+            .select('*');
+
+        if (error) {
+            console.error('❌ Supabase biletleri yüklenirken hata oluştu:', error.message);
+        } else if (data) {
+            const mappedTickets = data.map(t => ({
+                channelId: t.channel_id,
+                guildId: t.guild_id,
+                creatorId: t.creator_id,
+                type: t.type,
+                status: t.status,
+                claimedBy: t.claimed_by,
+                openedAt: Number(t.opened_at),
+                closedAt: t.closed_at ? Number(t.closed_at) : null,
+                lastMessageAt: Number(t.last_message_at),
+                priority: t.priority,
+                notes: Array.isArray(t.notes) ? t.notes : [],
+                rating: t.rating,
+                feedbackText: t.feedback_text,
+                closedBy: t.closed_by
+            }));
+            dbData.tickets.push(...mappedTickets);
+        }
+    } catch (err) {
+        console.error('❌ Supabase biletleri yükleme hatası:', err);
     }
     console.log(`[TICKET DEBUG] Hafızaya ${dbData.tickets.length} aktif bilet yüklendi.`);
 }
@@ -38,6 +65,31 @@ async function saveGuildTickets(guildId) {
     if (!guildId) return;
     try {
         const guildTickets = dbData.tickets.filter(t => t.guildId === guildId);
+        
+        for (const t of guildTickets) {
+            const { error } = await supabase
+                .from('tickets')
+                .upsert({
+                    channel_id: t.channelId,
+                    guild_id: t.guildId,
+                    creator_id: t.creatorId,
+                    type: t.type,
+                    status: t.status,
+                    claimed_by: t.claimedBy,
+                    opened_at: t.openedAt,
+                    closed_at: t.closedAt,
+                    last_message_at: t.lastMessageAt,
+                    priority: t.priority,
+                    notes: t.notes,
+                    rating: t.rating,
+                    feedback_text: t.feedbackText,
+                    closed_by: t.closedBy
+                }, { onConflict: 'channel_id' });
+            if (error) {
+                console.error(`❌ Supabase ticket upsert hatası (Channel: ${t.channelId}):`, error.message);
+            }
+        }
+
         const guildStaffStats = {};
         for (const [staffId, stats] of Object.entries(dbData.staffStats)) {
             guildStaffStats[staffId] = stats;
@@ -46,14 +98,12 @@ async function saveGuildTickets(guildId) {
         await updateSettings(guildId, {
             guard_settings: {
                 ...global.guardSettings.get(guildId),
-                tickets: guildTickets,
                 staffStats: guildStaffStats,
                 blacklist: dbData.blacklist
             }
         });
 
         const gs = global.guardSettings.get(guildId) || {};
-        gs.tickets = guildTickets;
         gs.staffStats = guildStaffStats;
         gs.blacklist = dbData.blacklist;
         global.guardSettings.set(guildId, gs);
