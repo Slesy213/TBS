@@ -47,7 +47,10 @@ const defaultTypes = [
 
 function getCategories(guildId) {
     const settings = global.guardSettings.get(guildId) || {};
-    return settings.ticketCategories || defaultTypes;
+    if (settings.ticketCategories && Array.isArray(settings.ticketCategories) && settings.ticketCategories.length > 0) {
+        return settings.ticketCategories;
+    }
+    return defaultTypes;
 }
 
 // ─── HELPER: ESCAPE HTML ───
@@ -171,155 +174,175 @@ async function logTicketEvent(guild, eventTitle, description, color = 0x5865F2, 
 
 // ─── ACTUAL TICKET CHANNEL OPEN ───
 async function openTicketChannel(interaction, category) {
+    console.log(`[TICKET DEBUG] openTicketChannel çağrıldı. Kategori: ${category.label}`);
     await interaction.deferReply({ ephemeral: true });
 
-    const guild = interaction.guild;
-    const user = interaction.user;
-    const guildId = guild.id;
+    try {
+        const guild = interaction.guild;
+        const user = interaction.user;
+        const guildId = guild.id;
 
-    const ticketKategori = global.ticketKategoris.get(guildId);
-    const ticketYetkiliRol = global.ticketYetkiliRols.get(guildId);
+        const ticketKategori = global.ticketKategoris.get(guildId);
+        const ticketYetkiliRol = global.ticketYetkiliRols.get(guildId);
 
-    if (!ticketKategori || !ticketYetkiliRol) {
-        return interaction.editReply({
-            content: '❌ Ticket sistemi henüz kurulmamış veya veritabanında ayarlar eksik! Lütfen önce `/ticket kurulum` komutunu çalıştırarak paneli kurun.'
-        });
-    }
+        console.log(`[TICKET DEBUG] Kategori: ${ticketKategori}, Yetkili Rolü: ${ticketYetkiliRol}`);
 
-    // Active limit check: Max 1 active ticket per category per user
-    const hasActive = dbData.tickets.some(t => 
-        t.guildId === guildId && 
-        t.creatorId === user.id && 
-        t.status === 'open' && 
-        t.type === category.id
-    );
-
-    if (hasActive) {
-        return interaction.editReply({
-            content: `❌ Zaten bu kategoride açık bir destek talebiniz bulunuyor.`
-        });
-    }
-
-    // Blacklist user check
-    if (dbData.blacklist.includes(user.id)) {
-        return interaction.editReply({
-            content: '❌ Destek sisteminden kara listeye alındığınız için bilet açamazsınız.'
-        });
-    }
-
-    // Requirements checks
-    const settings = global.guardSettings.get(guildId) || {};
-    const minAccountAge = settings.ticketMinAccountAge || 0;
-    if (minAccountAge > 0) {
-        const ageDays = (Date.now() - user.createdTimestamp) / (1000 * 60 * 60 * 24);
-        if (ageDays < minAccountAge) {
+        if (!ticketKategori || !ticketYetkiliRol) {
+            console.log(`[TICKET DEBUG] Kategori veya Yetkili Rolü tanımlı değil!`);
             return interaction.editReply({
-                content: `❌ Hesabınız en az **${minAccountAge} günlük** olmalıdır. (Mevcut: **${Math.floor(ageDays)} günlük**)`
+                content: '❌ Ticket sistemi henüz kurulmamış veya veritabanında ayarlar eksik! Lütfen önce `/ticket kurulum` komutunu çalıştırarak paneli kurun.'
             });
         }
-    }
 
-    const minServerAge = settings.ticketMinServerAge || 0;
-    if (minServerAge > 0) {
-        const joinDays = (Date.now() - interaction.member.joinedTimestamp) / (1000 * 60 * 60 * 24);
-        if (joinDays < minServerAge) {
+        // Active limit check: Max 1 active ticket per category per user
+        const hasActive = dbData.tickets.some(t => 
+            t.guildId === guildId && 
+            t.creatorId === user.id && 
+            t.status === 'open' && 
+            t.type === category.id
+        );
+
+        if (hasActive) {
+            console.log(`[TICKET DEBUG] Kullanıcının zaten açık ticketı var.`);
             return interaction.editReply({
-                content: `❌ Sunucuya en az **${minServerAge} gün önce** katılmış olmalısınız. (Mevcut: **${Math.floor(joinDays)} gündür buradasınız**)`
+                content: `❌ Zaten bu kategoride açık bir destek talebiniz bulunuyor.`
             });
         }
-    }
 
-    const permissionOverwrites = [
-        {
-            id: guild.roles.everyone,
-            deny: [PermissionFlagsBits.ViewChannel]
-        },
-        {
-            id: user.id,
-            allow: [
-                PermissionFlagsBits.ViewChannel,
-                PermissionFlagsBits.SendMessages,
-                PermissionFlagsBits.ReadMessageHistory
-            ]
+        // Blacklist user check
+        if (dbData.blacklist.includes(user.id)) {
+            console.log(`[TICKET DEBUG] Kullanıcı kara listede.`);
+            return interaction.editReply({
+                content: '❌ Destek sisteminden kara listeye alındığınız için bilet açamazsınız.'
+            });
         }
-    ];
 
-    const targetRoleId = category.roleId || ticketYetkiliRol;
-    if (targetRoleId) {
-        permissionOverwrites.push({
-            id: targetRoleId,
-            allow: [
-                PermissionFlagsBits.ViewChannel,
-                PermissionFlagsBits.SendMessages,
-                PermissionFlagsBits.ReadMessageHistory,
-                PermissionFlagsBits.ManageMessages
+        // Requirements checks
+        const settings = global.guardSettings.get(guildId) || {};
+        const minAccountAge = settings.ticketMinAccountAge || 0;
+        if (minAccountAge > 0) {
+            const ageDays = (Date.now() - user.createdTimestamp) / (1000 * 60 * 60 * 24);
+            if (ageDays < minAccountAge) {
+                console.log(`[TICKET DEBUG] Hesap yaş sınırı yetersiz.`);
+                return interaction.editReply({
+                    content: `❌ Hesabınız en az **${minAccountAge} günlük** olmalıdır. (Mevcut: **${Math.floor(ageDays)} günlük**)`
+                });
+            }
+        }
+
+        const minServerAge = settings.ticketMinServerAge || 0;
+        if (minServerAge > 0) {
+            const joinDays = (Date.now() - interaction.member.joinedTimestamp) / (1000 * 60 * 60 * 24);
+            if (joinDays < minServerAge) {
+                console.log(`[TICKET DEBUG] Sunucu üyelik süresi yetersiz.`);
+                return interaction.editReply({
+                    content: `❌ Sunucuya en az **${minServerAge} gün önce** katılmış olmalısınız. (Mevcut: **${Math.floor(joinDays)} gündür buradasınız**)`
+                });
+            }
+        }
+
+        const permissionOverwrites = [
+            {
+                id: guild.roles.everyone,
+                deny: [PermissionFlagsBits.ViewChannel]
+            },
+            {
+                id: user.id,
+                allow: [
+                    PermissionFlagsBits.ViewChannel,
+                    PermissionFlagsBits.SendMessages,
+                    PermissionFlagsBits.ReadMessageHistory
+                ]
+            }
+        ];
+
+        const targetRoleId = category.roleId || ticketYetkiliRol;
+        if (targetRoleId) {
+            permissionOverwrites.push({
+                id: targetRoleId,
+                allow: [
+                    PermissionFlagsBits.ViewChannel,
+                    PermissionFlagsBits.SendMessages,
+                    PermissionFlagsBits.ReadMessageHistory,
+                    PermissionFlagsBits.ManageMessages
+                ]
+            });
+        }
+
+        console.log(`[TICKET DEBUG] Kanal oluşturuluyor...`);
+        const channel = await guild.channels.create({
+            name: `${category.kanalAdi}-${user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+            type: ChannelType.GuildText,
+            parent: ticketKategori,
+            permissionOverwrites: permissionOverwrites
+        });
+        console.log(`[TICKET DEBUG] Kanal oluşturuldu: ${channel.name} (${channel.id})`);
+
+        const ticketInfo = {
+            channelId: channel.id,
+            guildId,
+            creatorId: user.id,
+            type: category.id,
+            status: 'open',
+            claimedBy: null,
+            openedAt: Date.now(),
+            closedAt: null,
+            lastMessageAt: Date.now(),
+            priority: 'Orta',
+            notes: [],
+            rating: null,
+            feedbackText: null
+        };
+
+        dbData.tickets.push(ticketInfo);
+        saveDB();
+
+        const ticketEmbed = new EmbedBuilder()
+            .setColor(category.renk || 0x5865F2)
+            .setTitle(`${category.emoji} ${category.label}`)
+            .setDescription(`👋 Destek kanalına hoş geldiniz <@${user.id}>.\nLütfen sorununuzu detaylıca yazınız, yetkililerimiz en kısa sürede yardımcı olacaktır.`)
+            .addFields(
+                { name: '👤 Bilet Sahibi', value: `<@${user.id}>`, inline: true },
+                { name: '📂 Kategori', value: `${category.label}`, inline: true },
+                { name: '📊 Öncelik', value: 'Orta', inline: true }
+            )
+            .setTimestamp();
+
+        const sahiplen = new ButtonBuilder().setCustomId('ticket_sahiplen').setLabel('👤 Sahiplen').setStyle(ButtonStyle.Primary);
+        const birak = new ButtonBuilder().setCustomId('ticket_birak').setLabel('🚪 Bırak').setStyle(ButtonStyle.Secondary);
+        const ekle = new ButtonBuilder().setCustomId('ticket_ekle_btn').setLabel('➕ Ekle').setStyle(ButtonStyle.Success);
+        const kapat = new ButtonBuilder().setCustomId('ticket_kapat').setLabel('🔒 Kapat').setStyle(ButtonStyle.Danger);
+        const arsivle = new ButtonBuilder().setCustomId('ticket_arsivle').setLabel('📂 Arşivle').setStyle(ButtonStyle.Danger);
+
+        await channel.send({
+            content: `<@${user.id}> | <@&${targetRoleId}> yetkilileri buraya davet edildi.`,
+            embeds: [ticketEmbed],
+            components: [
+                new ActionRowBuilder().addComponents(sahiplen, birak, ekle, kapat, arsivle)
             ]
         });
+
+        await logTicketEvent(
+            guild,
+            'Ticket Açıldı',
+            `❓ **Ticket:** <#${channel.id}>\n👤 **Açan:** <@${user.id}>\n📂 **Destek Türü:** \`${category.label}\``,
+            0x57F287
+        );
+
+        await interaction.editReply({
+            content: `✅ Destek talebiniz oluşturuldu → <#${channel.id}>`
+        });
+
+        return channel;
+    } catch (error) {
+        console.error('❌ Ticket kanalı açılırken hata:', error);
+        try {
+            await interaction.editReply({
+                content: `❌ Destek kanalı oluşturulamadı. Hata: ${error.message || error}`
+            });
+        } catch {}
+        return null;
     }
-
-    const channel = await guild.channels.create({
-        name: `${category.kanalAdi}-${user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
-        type: ChannelType.GuildText,
-        parent: ticketKategori,
-        permissionOverwrites: permissionOverwrites
-    });
-
-    const ticketInfo = {
-        channelId: channel.id,
-        guildId,
-        creatorId: user.id,
-        type: category.id,
-        status: 'open',
-        claimedBy: null,
-        openedAt: Date.now(),
-        closedAt: null,
-        lastMessageAt: Date.now(),
-        priority: 'Orta',
-        notes: [],
-        rating: null,
-        feedbackText: null
-    };
-
-    dbData.tickets.push(ticketInfo);
-    saveDB();
-
-    const ticketEmbed = new EmbedBuilder()
-        .setColor(category.renk || 0x5865F2)
-        .setTitle(`${category.emoji} ${category.label}`)
-        .setDescription(`👋 Destek kanalına hoş geldiniz <@${user.id}>.\nLütfen sorununuzu detaylıca yazınız, yetkililerimiz en kısa sürede yardımcı olacaktır.`)
-        .addFields(
-            { name: '👤 Bilet Sahibi', value: `<@${user.id}>`, inline: true },
-            { name: '📂 Kategori', value: `${category.label}`, inline: true },
-            { name: '📊 Öncelik', value: 'Orta', inline: true }
-        )
-        .setTimestamp();
-
-    const sahiplen = new ButtonBuilder().setCustomId('ticket_sahiplen').setLabel('👤 Sahiplen').setStyle(ButtonStyle.Primary);
-    const birak = new ButtonBuilder().setCustomId('ticket_birak').setLabel('🚪 Bırak').setStyle(ButtonStyle.Secondary);
-    const ekle = new ButtonBuilder().setCustomId('ticket_ekle_btn').setLabel('➕ Ekle').setStyle(ButtonStyle.Success);
-    const kapat = new ButtonBuilder().setCustomId('ticket_kapat').setLabel('🔒 Kapat').setStyle(ButtonStyle.Danger);
-    const arsivle = new ButtonBuilder().setCustomId('ticket_arsivle').setLabel('📂 Arşivle').setStyle(ButtonStyle.Danger);
-
-    await channel.send({
-        content: `<@${user.id}> | <@&${targetRoleId}> yetkilileri buraya davet edildi.`,
-        embeds: [ticketEmbed],
-        components: [
-            new ActionRowBuilder().addComponents(sahiplen, birak, ekle, kapat, arsivle)
-        ]
-    });
-
-    await logTicketEvent(
-        guild,
-        'Ticket Açıldı',
-        `❓ **Ticket:** <#${channel.id}>\n👤 **Açan:** <@${user.id}>\n📂 **Destek Türü:** \`${category.label}\``,
-        0x57F287
-    );
-
-    await interaction.editReply({
-        content: `✅ Destek talebiniz oluşturuldu → <#${channel.id}>`
-    });
-
-    return channel;
 }
 
 // ─── TICKETS CLOSING ───
@@ -470,231 +493,252 @@ function init(client) {
 
     // 3. GLOBAL INTERACTION LISTENER
     client.on('interactionCreate', async (interaction) => {
-        const guildId = interaction.guild?.id;
-        const userId = interaction.user.id;
-        const customId = interaction.customId;
+        try {
+            const guildId = interaction.guild?.id;
+            const userId = interaction.user.id;
+            const customId = interaction.customId;
 
-        // BUTTON CLICKS
-        if (interaction.isButton()) {
-            if (customId.startsWith('ticket_ac_')) {
-                const turId = customId.replace('ticket_ac_', '');
-                const categories = getCategories(guildId);
-                const tur = categories.find(t => t.id === turId);
-                if (!tur) return;
+            console.log(`[TICKET DEBUG] interactionCreate alındı: ${customId}`);
 
-                // Ban Appeal Form Modal popup
-                if (turId === 'ban_itiraz') {
-                    const modal = new ModalBuilder()
-                        .setCustomId('ban_itiraz_modal')
-                        .setTitle('Ban İtiraz Formu');
+            // BUTTON CLICKS
+            if (interaction.isButton()) {
+                if (customId.startsWith('ticket_ac_')) {
+                    const turId = customId.replace('ticket_ac_', '');
+                    const categories = getCategories(guildId);
+                    const tur = categories.find(t => t.id === turId) || defaultTypes.find(t => t.id === turId);
+                    console.log(`[TICKET DEBUG] Buton tıklandı: ${customId}, Kategori Bulundu: ${tur ? tur.label : 'Bulunamadı'}`);
+                    if (!tur) {
+                        return interaction.reply({
+                            content: `❌ Hata: Bu butonun ait olduğu destek kategorisi (\`${turId}\`) sistemde bulunamadı. Lütfen paneli tekrar kurun.`,
+                            ephemeral: true
+                        }).catch(() => {});
+                    }
 
-                    const sebepInput = new TextInputBuilder()
-                        .setCustomId('ban_sebep')
-                        .setLabel('Ban Sebebi')
-                        .setStyle(TextInputStyle.Paragraph)
-                        .setRequired(true);
+                    // Ban Appeal Form Modal popup
+                    if (turId === 'ban_itiraz') {
+                        const modal = new ModalBuilder()
+                            .setCustomId('ban_itiraz_modal')
+                            .setTitle('Ban İtiraz Formu');
 
-                    const itirazInput = new TextInputBuilder()
-                        .setCustomId('ban_itiraz_metni')
-                        .setLabel('Neden Banınız Kaldırılmalı?')
-                        .setStyle(TextInputStyle.Paragraph)
-                        .setRequired(true);
+                        const sebepInput = new TextInputBuilder()
+                            .setCustomId('ban_sebep')
+                            .setLabel('Ban Sebebi')
+                            .setStyle(TextInputStyle.Paragraph)
+                            .setRequired(true);
 
-                    modal.addComponents(
-                        new ActionRowBuilder().addComponents(sebepInput),
-                        new ActionRowBuilder().addComponents(itirazInput)
-                    );
+                        const itirazInput = new TextInputBuilder()
+                            .setCustomId('ban_itiraz_metni')
+                            .setLabel('Neden Banınız Kaldırılmalı?')
+                            .setStyle(TextInputStyle.Paragraph)
+                            .setRequired(true);
 
-                    return interaction.showModal(modal);
+                        modal.addComponents(
+                            new ActionRowBuilder().addComponents(sebepInput),
+                            new ActionRowBuilder().addComponents(itirazInput)
+                        );
+
+                        return interaction.showModal(modal);
+                    }
+
+                    await openTicketChannel(interaction, tur);
                 }
 
-                await openTicketChannel(interaction, tur);
-            }
+                else if (customId === 'ticket_sahiplen') {
+                    const t = dbData.tickets.find(x => x.channelId === interaction.channel.id);
+                    if (!t) return interaction.reply({ content: '❌ Ticket bulunamadı.', ephemeral: true });
 
-            else if (customId === 'ticket_sahiplen') {
-                const t = dbData.tickets.find(x => x.channelId === interaction.channel.id);
-                if (!t) return interaction.reply({ content: '❌ Ticket bulunamadı.', ephemeral: true });
-
-                const ticketYetkiliRol = global.ticketYetkiliRols.get(guildId);
-                if (ticketYetkiliRol && !interaction.member.roles.cache.has(ticketYetkiliRol)) {
-                    return interaction.reply({ content: '❌ Bu işlemi gerçekleştirmek için yetkili olmalısınız.', ephemeral: true });
-                }
-
-                if (t.claimedBy) {
-                    return interaction.reply({ content: `⚠️ Bu ticket zaten <@${t.claimedBy}> tarafından sahiplenilmiş.`, ephemeral: true });
-                }
-
-                t.claimedBy = userId;
-                saveDB();
-
-                const stats = dbData.staffStats[userId] || { claimedCount: 0, closedCount: 0, ratings: [] };
-                stats.claimedCount++;
-                dbData.staffStats[userId] = stats;
-                saveDB();
-
-                const claimEmbed = new EmbedBuilder()
-                    .setColor(0x5865F2)
-                    .setDescription(`👤 Bu destek talebi ${interaction.user} tarafından sahiplenildi.`)
-                    .setTimestamp();
-
-                await interaction.reply({ embeds: [claimEmbed] });
-            }
-
-            else if (customId === 'ticket_birak') {
-                const t = dbData.tickets.find(x => x.channelId === interaction.channel.id);
-                if (!t) return interaction.reply({ content: '❌ Ticket bulunamadı.', ephemeral: true });
-
-                if (t.claimedBy !== userId) {
-                    return interaction.reply({ content: '❌ Bu ticketi sadece sahiplenen yetkili bırakabilir.', ephemeral: true });
-                }
-
-                t.claimedBy = null;
-                saveDB();
-
-                const releaseEmbed = new EmbedBuilder()
-                    .setColor(0x34495E)
-                    .setDescription(`🚪 ${interaction.user} ticket sahiplenmesini bıraktı. Ticket sıraya geri alındı.`)
-                    .setTimestamp();
-
-                await interaction.reply({ embeds: [releaseEmbed] });
-            }
-
-            else if (customId === 'ticket_ekle_btn') {
-                const modal = new ModalBuilder()
-                    .setCustomId('ticket_ekle_modal_direct')
-                    .setTitle('Tickete Kullanıcı Ekle');
-
-                const userInput = new TextInputBuilder()
-                    .setCustomId('eklencek_user_id')
-                    .setLabel('Kullanıcı ID')
-                    .setStyle(TextInputStyle.Short)
-                    .setPlaceholder('Eklemek istediğiniz üyenin ID\'sini yazın')
-                    .setRequired(true);
-
-                modal.addComponents(new ActionRowBuilder().addComponents(userInput));
-                await interaction.showModal(modal);
-            }
-
-            else if (customId === 'ticket_kapat') {
-                await closeTicket(client, interaction.channel.id, userId);
-            }
-
-            else if (customId === 'ticket_arsivle') {
-                const t = dbData.tickets.find(x => x.channelId === interaction.channel.id);
-                if (!t) return interaction.reply({ content: '❌ Ticket bulunamadı.', ephemeral: true });
-
-                t.status = 'archived';
-                saveDB();
-
-                await interaction.reply({ content: '📂 Ticket başarıyla arşivlendi. Yetkiler güncelleniyor...', ephemeral: true });
-
-                await interaction.channel.permissionOverwrites.edit(t.creatorId, {
-                    ViewChannel: false
-                }).catch(() => {});
-
-                const archiveEmbed = new EmbedBuilder()
-                    .setColor(0xE67E22)
-                    .setDescription(`📂 Ticket <@${userId}> tarafından arşivlendi. Kullanıcı erişimi kapatıldı.`)
-                    .setTimestamp();
-
-                await interaction.channel.send({ embeds: [archiveEmbed] });
-            }
-
-            else if (customId.startsWith('ticket_rate_')) {
-                const parts = customId.split('_');
-                const rating = parseInt(parts[2]);
-                const tId = parts[3];
-
-                const t = dbData.tickets.find(x => x.channelId === tId);
-                if (!t) return interaction.reply({ content: '❌ Ticket verisi bulunamadı veya süre aşımına uğramış.', ephemeral: true });
-
-                const modal = new ModalBuilder()
-                    .setCustomId(`ticket_feedback_modal_${rating}_${tId}`)
-                    .setTitle('🌟 Deneyiminizi Paylaşın');
-
-                const feedbackInput = new TextInputBuilder()
-                    .setCustomId('feedback_comment')
-                    .setLabel('Yorumunuz (İsteğe bağlı)')
-                    .setStyle(TextInputStyle.Paragraph)
-                    .setRequired(false);
-
-                modal.addComponents(new ActionRowBuilder().addComponents(feedbackInput));
-                await interaction.showModal(modal);
-            }
-        }
-
-        // MODAL SUBMITS
-        else if (interaction.isModalSubmit()) {
-            if (customId === 'ban_itiraz_modal') {
-                const sebep = interaction.fields.getTextInputValue('ban_sebep');
-                const itiraz = interaction.fields.getTextInputValue('ban_itiraz_metni');
-
-                const categories = getCategories(guildId);
-                const category = categories.find(t => t.id === 'ban_itiraz') || defaultTypes.find(t => t.id === 'ban_itiraz');
-
-                const channel = await openTicketChannel(interaction, category);
-                if (channel) {
-                    const embedApp = new EmbedBuilder()
-                        .setColor(0xED4245)
-                        .setTitle('🔨 Ban İtiraz Başvurusu')
-                        .addFields(
-                            { name: 'Sebep', value: sebep },
-                            { name: 'İtiraz Metni', value: itiraz }
-                        )
-                        .setTimestamp();
-                    await channel.send({ embeds: [embedApp] }).catch(() => {});
-                }
-            }
-
-            else if (customId.startsWith('ticket_ekle_modal_direct')) {
-                const userIdVal = interaction.fields.getTextInputValue('eklencek_user_id');
-                try {
-                    const member = await interaction.guild.members.fetch(userIdVal);
-                    await interaction.channel.permissionOverwrites.edit(member.id, {
-                        ViewChannel: true,
-                        SendMessages: true,
-                        ReadMessageHistory: true,
-                    });
-                    await interaction.reply({ content: `✅ <@${member.id}> tickete eklendi.` });
-                } catch {
-                    await interaction.reply({ content: '❌ Geçersiz kullanıcı ID\'si girdiniz.', ephemeral: true });
-                }
-            }
-
-            else if (customId.startsWith('ticket_feedback_modal_')) {
-                const parts = customId.split('_');
-                const rating = parseInt(parts[3]);
-                const tId = parts[4];
-                const comment = interaction.fields.getTextInputValue('feedback_comment') || '';
-
-                const t = dbData.tickets.find(x => x.channelId === tId);
-                if (t) {
-                    t.rating = rating;
-                    t.feedbackText = comment;
-                    saveDB();
+                    const ticketYetkiliRol = global.ticketYetkiliRols.get(guildId);
+                    if (ticketYetkiliRol && !interaction.member.roles.cache.has(ticketYetkiliRol)) {
+                        return interaction.reply({ content: '❌ Bu işlemi gerçekleştirmek için yetkili olmalısınız.', ephemeral: true });
+                    }
 
                     if (t.claimedBy) {
-                        const stats = dbData.staffStats[t.claimedBy] || { claimedCount: 0, closedCount: 0, ratings: [] };
-                        stats.ratings.push(rating);
-                        dbData.staffStats[t.claimedBy] = stats;
-                        saveDB();
+                        return interaction.reply({ content: `⚠️ Bu ticket zaten <@${t.claimedBy}> tarafından sahiplenilmiş.`, ephemeral: true });
                     }
 
-                    await interaction.reply({ content: `✅ Geri bildiriminiz için teşekkür ederiz! (${rating}/5 ⭐)`, ephemeral: true });
+                    t.claimedBy = userId;
+                    saveDB();
 
-                    const guild = client.guilds.cache.get(t.guildId);
-                    if (guild) {
-                        const stars = '⭐'.repeat(rating) + '☆'.repeat(5 - rating);
-                        await logTicketEvent(
-                            guild, 
-                            'Kullanıcı Değerlendirmesi', 
-                            `👤 **Kullanıcı:** <@${t.creatorId}>\n💼 **İlgilenen Yetkili:** ${t.claimedBy ? `<@${t.claimedBy}>` : 'Yok'}\n📊 **Puan:** \`${stars}\` (\`${rating}/5\`)\n📝 **Yorum:** ${comment || '*Yorum belirtilmedi*'}`
-                        );
+                    const stats = dbData.staffStats[userId] || { claimedCount: 0, closedCount: 0, ratings: [] };
+                    stats.claimedCount++;
+                    dbData.staffStats[userId] = stats;
+                    saveDB();
+
+                    const claimEmbed = new EmbedBuilder()
+                        .setColor(0x5865F2)
+                        .setDescription(`👤 Bu destek talebi ${interaction.user} tarafından sahiplenildi.`)
+                        .setTimestamp();
+
+                    await interaction.reply({ embeds: [claimEmbed] });
+                }
+
+                else if (customId === 'ticket_birak') {
+                    const t = dbData.tickets.find(x => x.channelId === interaction.channel.id);
+                    if (!t) return interaction.reply({ content: '❌ Ticket bulunamadı.', ephemeral: true });
+
+                    if (t.claimedBy !== userId) {
+                        return interaction.reply({ content: '❌ Bu ticketi sadece sahiplenen yetkili bırakabilir.', ephemeral: true });
                     }
-                } else {
-                    await interaction.reply({ content: '❌ Hata: Geri bildirim kaydedilemedi.', ephemeral: true });
+
+                    t.claimedBy = null;
+                    saveDB();
+
+                    const releaseEmbed = new EmbedBuilder()
+                        .setColor(0x34495E)
+                        .setDescription(`🚪 ${interaction.user} ticket sahiplenmesini bıraktı. Ticket sıraya geri alındı.`)
+                        .setTimestamp();
+
+                    await interaction.reply({ embeds: [releaseEmbed] });
+                }
+
+                else if (customId === 'ticket_ekle_btn') {
+                    const modal = new ModalBuilder()
+                        .setCustomId('ticket_ekle_modal_direct')
+                        .setTitle('Tickete Kullanıcı Ekle');
+
+                    const userInput = new TextInputBuilder()
+                        .setCustomId('eklencek_user_id')
+                        .setLabel('Kullanıcı ID')
+                        .setStyle(TextInputStyle.Short)
+                        .setPlaceholder('Eklemek istediğiniz üyenin ID\'sini yazın')
+                        .setRequired(true);
+
+                    modal.addComponents(new ActionRowBuilder().addComponents(userInput));
+                    await interaction.showModal(modal);
+                }
+
+                else if (customId === 'ticket_kapat') {
+                    await interaction.deferUpdate().catch(() => {});
+                    await closeTicket(client, interaction.channel.id, userId);
+                }
+
+                else if (customId === 'ticket_arsivle') {
+                    const t = dbData.tickets.find(x => x.channelId === interaction.channel.id);
+                    if (!t) return interaction.reply({ content: '❌ Ticket bulunamadı.', ephemeral: true });
+
+                    t.status = 'archived';
+                    saveDB();
+
+                    await interaction.reply({ content: '📂 Ticket başarıyla arşivlendi. Yetkiler güncelleniyor...', ephemeral: true });
+
+                    await interaction.channel.permissionOverwrites.edit(t.creatorId, {
+                        ViewChannel: false
+                    }).catch(() => {});
+
+                    const archiveEmbed = new EmbedBuilder()
+                        .setColor(0xE67E22)
+                        .setDescription(`📂 Ticket <@${userId}> tarafından arşivlendi. Kullanıcı erişimi kapatıldı.`)
+                        .setTimestamp();
+
+                    await interaction.channel.send({ embeds: [archiveEmbed] });
+                }
+
+                else if (customId.startsWith('ticket_rate_')) {
+                    const parts = customId.split('_');
+                    const rating = parseInt(parts[2]);
+                    const tId = parts[3];
+
+                    const t = dbData.tickets.find(x => x.channelId === tId);
+                    if (!t) return interaction.reply({ content: '❌ Ticket verisi bulunamadı veya süre aşımına uğramış.', ephemeral: true });
+
+                    const modal = new ModalBuilder()
+                        .setCustomId(`ticket_feedback_modal_${rating}_${tId}`)
+                        .setTitle('🌟 Deneyiminizi Paylaşın');
+
+                    const feedbackInput = new TextInputBuilder()
+                        .setCustomId('feedback_comment')
+                        .setLabel('Yorumunuz (İsteğe bağlı)')
+                        .setStyle(TextInputStyle.Paragraph)
+                        .setRequired(false);
+
+                    modal.addComponents(new ActionRowBuilder().addComponents(feedbackInput));
+                    await interaction.showModal(modal);
                 }
             }
+
+            // MODAL SUBMITS
+            else if (interaction.isModalSubmit()) {
+                console.log(`[TICKET DEBUG] Modal submit alındı: ${customId}`);
+                if (customId === 'ban_itiraz_modal') {
+                    const sebep = interaction.fields.getTextInputValue('ban_sebep');
+                    const itiraz = interaction.fields.getTextInputValue('ban_itiraz_metni');
+
+                    const categories = getCategories(guildId);
+                    const category = categories.find(t => t.id === 'ban_itiraz') || defaultTypes.find(t => t.id === 'ban_itiraz');
+
+                    const channel = await openTicketChannel(interaction, category);
+                    if (channel) {
+                        const embedApp = new EmbedBuilder()
+                            .setColor(0xED4245)
+                            .setTitle('🔨 Ban İtiraz Başvurusu')
+                            .addFields(
+                                { name: 'Sebep', value: sebep },
+                                { name: 'İtiraz Metni', value: itiraz }
+                            )
+                            .setTimestamp();
+                        await channel.send({ embeds: [embedApp] }).catch(() => {});
+                    }
+                }
+
+                else if (customId.startsWith('ticket_ekle_modal_direct')) {
+                    const userIdVal = interaction.fields.getTextInputValue('eklencek_user_id');
+                    try {
+                        const member = await interaction.guild.members.fetch(userIdVal);
+                        await interaction.channel.permissionOverwrites.edit(member.id, {
+                            ViewChannel: true,
+                            SendMessages: true,
+                            ReadMessageHistory: true,
+                        });
+                        await interaction.reply({ content: `✅ <@${member.id}> tickete eklendi.` });
+                    } catch {
+                        await interaction.reply({ content: '❌ Geçersiz kullanıcı ID\'si girdiniz.', ephemeral: true });
+                    }
+                }
+
+                else if (customId.startsWith('ticket_feedback_modal_')) {
+                    const parts = customId.split('_');
+                    const rating = parseInt(parts[3]);
+                    const tId = parts[4];
+                    const comment = interaction.fields.getTextInputValue('feedback_comment') || '';
+
+                    const t = dbData.tickets.find(x => x.channelId === tId);
+                    if (t) {
+                        t.rating = rating;
+                        t.feedbackText = comment;
+                        saveDB();
+
+                        if (t.claimedBy) {
+                            const stats = dbData.staffStats[t.claimedBy] || { claimedCount: 0, closedCount: 0, ratings: [] };
+                            stats.ratings.push(rating);
+                            dbData.staffStats[t.claimedBy] = stats;
+                            saveDB();
+                        }
+
+                        await interaction.reply({ content: `✅ Geri bildiriminiz için teşekkür ederiz! (${rating}/5 ⭐)`, ephemeral: true });
+
+                        const guild = client.guilds.cache.get(t.guildId);
+                        if (guild) {
+                            const stars = '⭐'.repeat(rating) + '☆'.repeat(5 - rating);
+                            await logTicketEvent(
+                                guild, 
+                                'Kullanıcı Değerlendirmesi', 
+                                `👤 **Kullanıcı:** <@${t.creatorId}>\n💼 **İlgilenen Yetkili:** ${t.claimedBy ? `<@${t.claimedBy}>` : 'Yok'}\n📊 **Puan:** \`${stars}\` (\`${rating}/5\`)\n📝 **Yorum:** ${comment || '*Yorum belirtilmedi*'}`
+                            );
+                        }
+                    } else {
+                        await interaction.reply({ content: '❌ Hata: Geri bildirim kaydedilemedi.', ephemeral: true });
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('❌ Ticket Etkileşim Hatası:', error);
+            try {
+                if (interaction.deferred || interaction.replied) {
+                    await interaction.editReply({ content: `❌ Hata: ${error.message || error}`, components: [] });
+                } else {
+                    await interaction.reply({ content: `❌ Hata: ${error.message || error}`, ephemeral: true, components: [] });
+                }
+            } catch {}
         }
     });
 }
