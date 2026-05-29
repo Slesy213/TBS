@@ -13,10 +13,34 @@ const {
 const fs = require('fs');
 const path = require('path');
 
-// =========================
-// EXPRESS WEB SERVER
-// =========================
+// ==========================================
+// PREMIUM LOGGER UTILITY
+// ==========================================
+const log = {
+  info: (msg) => console.log(`\x1b[36m[BİLGİ] [${new Date().toLocaleTimeString()}]\x1b[0m ${msg}`),
+  success: (msg) => console.log(`\x1b[32m[BAŞARILI] [${new Date().toLocaleTimeString()}]\x1b[0m ${msg}`),
+  warn: (msg) => console.log(`\x1b[33m[UYARI] [${new Date().toLocaleTimeString()}]\x1b[0m ${msg}`),
+  error: (msg, err) => console.error(`\x1b[31m[HATA] [${new Date().toLocaleTimeString()}]\x1b[0m ${msg}`, err || '')
+};
 
+// ==========================================
+// GLOBAL UNHANDLED ERROR HANDLERS (ANTI-CRASH)
+// ==========================================
+process.on('unhandledRejection', (reason, promise) => {
+  log.error('Unhandled Promise Rejection:', reason);
+});
+
+process.on('uncaughtException', (err, origin) => {
+  log.error('Uncaught Exception:', err);
+});
+
+process.on('uncaughtExceptionMonitor', (err, origin) => {
+  log.error('Uncaught Exception Monitor:', err);
+});
+
+// ==========================================
+// EXPRESS WEB SERVER
+// ==========================================
 app.get('/status', (req, res) => {
   res.status(200).send('OK');
 });
@@ -26,15 +50,13 @@ app.get('/', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
-  console.log(`🌐 Web server aktif: ${PORT}`);
+  log.success(`Web server aktif: ${PORT}`);
 });
 
-// =========================
+// ==========================================
 // DISCORD CLIENT
-// =========================
-
+// ==========================================
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -47,10 +69,9 @@ const client = new Client({
 
 client.commands = new Collection();
 
-// =========================
-// GLOBAL DEĞİŞKENLER
-// =========================
-
+// ==========================================
+// GLOBAL MAPS & VARIABLES
+// ==========================================
 global.autoRoles = new Map();
 global.guardDurums = new Map();
 global.guvenliListes = new Map();
@@ -60,477 +81,236 @@ global.ticketYetkiliRols = new Map();
 global.ticketLogKanals = new Map();
 global.guardSettings = new Map();
 
-// =========================
-// KOMUTLAR
-// =========================
-
-const commandsPath =
-  path.join(__dirname, 'commands');
-
-const commandFiles =
-  fs.readdirSync(commandsPath)
-    .filter(f => f.endsWith('.js'));
+// ==========================================
+// DYNAMIC COMMAND LOADERS
+// ==========================================
+const commandsPath = path.join(__dirname, 'commands');
+const commandFiles = fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'));
 
 for (const file of commandFiles) {
-
   try {
+    const command = require(path.join(commandsPath, file));
 
-    const command =
-      require(path.join(commandsPath, file));
-
-    // SLASH KOMUT
-
+    // Slash command mapping
     if (command.data && command.execute) {
-
-      client.commands.set(
-        command.data.name,
-        command
-      );
-
-      console.log(
-        `✅ Slash yüklendi: ${command.data.name}`
-      );
+      client.commands.set(command.data.name, command);
+      log.success(`Slash komut yüklendi: /${command.data.name}`);
     }
-
-    // PREFIX KOMUT
-
+    // Prefix command mapping
     else if (command.name && command.execute) {
-
-      client.commands.set(
-        command.name,
-        command
-      );
-
-      console.log(
-        `✅ Prefix yüklendi: ${command.name}`
-      );
+      client.commands.set(command.name, command);
+      log.success(`Prefix komut yüklendi: .${command.name}`);
     }
-
     else {
-
-      console.log(
-        `❌ Hatalı komut dosyası: ${file}`
-      );
+      log.warn(`Hatalı komut formatı atlandı: ${file}`);
     }
 
-    // =========================
-    // GUARD INIT
-    // =========================
-
+    // Initialize command events / listeners if exported
     if (command.init) {
-
       command.init(client);
-
-      console.log(
-        `🛡️ Guard eventleri yüklendi: ${file}`
-      );
+      log.info(`Modül entegrasyonu yüklendi: ${file}`);
     }
 
   } catch (err) {
-
-    console.log(`❌ ${file} yüklenemedi:`);
-
-    console.error(err);
+    log.error(`${file} komut dosyası yüklenemedi!`, err);
   }
 }
 
-// =========================
-// BOT HAZIR
-// =========================
-
+// ==========================================
+// BOT READY EVENT (PREMIUM STATUS ROTATION)
+// ==========================================
 client.once('ready', () => {
+  log.success(`Bot hazır ve giriş yaptı: ${client.user.tag}`);
 
-  console.log(
-    `✅ Bot hazır: ${client.user.tag}`
-  );
-
-  client.user.setPresence({
-
-    activities: [
-      {
-        name:
-          'Slesy ile Sohbet Ediyor ✅',
-
-        type: ActivityType.Watching,
-      }
-    ],
-
-    status: 'online',
-  });
-});
-
-// =========================
-// OTO ROL
-// =========================
-
-client.on('guildMemberAdd', async member => {
-
-  const autoRoleId = global.autoRoles.get(member.guild.id);
-  if (!autoRoleId) return;
-
-  const role =
-    member.guild.roles.cache.get(
-      autoRoleId
-    );
-
-  if (!role) return;
-
-  try {
-
-    await member.roles.add(role);
-
-    console.log(
-      `✅ ${member.user.tag} kullanıcısına oto rol verildi.`
-    );
-
-  } catch (err) {
-
-    console.log(err);
-  }
-});
-
-// =========================
-// SA AS
-// =========================
-
-client.on('messageCreate', async message => {
-
-  if (message.author.bot) return;
-
-  const msg =
-    message.content.trim();
-
-  const saVariantlari = [
-    'sa',
-    'saa',
-    'Sa',
-    'sA',
-    'SA',
-    'Saa',
-    'SAa',
-    'SAA'
+  // Dynamic Presence rotation
+  const statuses = [
+    () => ({ name: 'Slesy ile Sohbet Ediyor 💬', type: ActivityType.Watching }),
+    () => ({ name: `${client.guilds.cache.size} Sunucuyu Koruyor 🛡️`, type: ActivityType.Watching }),
+    () => ({ name: `${client.guilds.cache.reduce((a, g) => a + g.memberCount, 0)} Üyeye Hizmet Veriyor 👥`, type: ActivityType.Watching }),
+    () => ({ name: 'Premium Sistemler | .yardım 💎', type: ActivityType.Listening })
   ];
 
-  if (
-    saVariantlari.includes(msg)
-  ) {
+  let statusIdx = 0;
+  setInterval(() => {
+    try {
+      const current = statuses[statusIdx]();
+      client.user.setPresence({
+        activities: [current],
+        status: 'online'
+      });
+      statusIdx = (statusIdx + 1) % statuses.length;
+    } catch (e) {
+      log.error('Status rotation error:', e);
+    }
+  }, 15000);
+});
 
-    await message.reply(
-      'As Kardeşim! 👋'
-    );
+// ==========================================
+// AUTO ROLE EVENT
+// ==========================================
+client.on('guildMemberAdd', async member => {
+  try {
+    const autoRoleId = global.autoRoles.get(member.guild.id);
+    if (!autoRoleId) return;
+
+    const role = member.guild.roles.cache.get(autoRoleId);
+    if (!role) return;
+
+    await member.roles.add(role);
+    log.info(`${member.user.tag} kullanıcısına otomatik rol verildi.`);
+  } catch (err) {
+    log.error('Oto-rol verme hatası:', err);
   }
 });
 
-// =========================
-// PREFIX KOMUT SİSTEMİ
-// =========================
-
+// ==========================================
+// SA - AS RESPONDER
+// ==========================================
 client.on('messageCreate', async message => {
+  if (message.author.bot || !message.guild) return;
 
-  if (message.author.bot) return;
+  const msg = message.content.trim();
+  const saVariants = ['sa', 'saa', 'Sa', 'sA', 'SA', 'Saa', 'SAa', 'SAA'];
+
+  if (saVariants.includes(msg)) {
+    await message.reply('As Kardeşim! 👋').catch(() => {});
+  }
+});
+
+// ==========================================
+// PREFIX COMMAND PARSER
+// ==========================================
+client.on('messageCreate', async message => {
+  if (message.author.bot || !message.guild) return;
 
   const prefix = ".";
+  if (!message.content.startsWith(prefix)) return;
 
-  if (
-    !message.content.startsWith(prefix)
-  ) return;
-
-  const args =
-    message.content
-      .slice(prefix.length)
-      .trim()
-      .split(/ +/);
-
-  const commandName =
-    args.shift()?.toLowerCase();
-
+  const args = message.content.slice(prefix.length).trim().split(/ +/);
+  const commandName = args.shift()?.toLowerCase();
   if (!commandName) return;
 
-  const command =
-    client.commands.get(commandName);
-
-  if (!command) return;
-
-  if (!command.execute) return;
+  const command = client.commands.get(commandName);
+  if (!command || !command.execute) return;
 
   try {
-
-    await command.execute(
-      message,
-      args,
-      client
-    );
-
+    await command.execute(message, args, client);
   } catch (err) {
-
-    console.error(err);
+    log.error(`Prefix komut hatası (${commandName}):`, err);
   }
 });
 
-// =========================
-// INTERACTION
-// =========================
-
+// ==========================================
+// INTERACTION ROUTING & HANDLERS
+// ==========================================
 client.on('interactionCreate', async interaction => {
+  try {
+    // 1. SLASH COMMANDS
+    if (interaction.isChatInputCommand()) {
+      const command = client.commands.get(interaction.commandName);
+      if (!command) return;
 
-  // =========================
-  // SLASH KOMUT
-  // =========================
+      try {
+        await command.execute(interaction, client);
+      } catch (error) {
+        log.error(`Slash komut hatası (/${interaction.commandName}):`, error);
 
-  if (
-    interaction.isChatInputCommand()
-  ) {
+        const errorMsg = {
+          content: '❌ Komut yürütülürken sistemsel bir hata oluştu!',
+          ephemeral: true
+        };
 
-    const command =
-      client.commands.get(
-        interaction.commandName
-      );
-
-    if (!command) return;
-
-    try {
-
-      await command.execute(
-        interaction,
-        client
-      );
-
-    } catch (error) {
-
-      console.error(error);
-
-      const msg = {
-        content: '❌ Hata oluştu!',
-        ephemeral: true
-      };
-
-      if (
-        interaction.replied ||
-        interaction.deferred
-      ) {
-
-        await interaction.followUp(msg);
-
-      } else {
-
-        await interaction.reply(msg);
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp(errorMsg).catch(() => {});
+        } else {
+          await interaction.reply(errorMsg).catch(() => {});
+        }
       }
     }
-  }
 
-  // =========================
-  // MODAL
-  // =========================
+    // 2. MODAL SUBMISSIONS
+    else if (interaction.isModalSubmit()) {
+      const customId = interaction.customId;
 
-  if (
-    interaction.isModalSubmit()
-  ) {
-
-    try {
-
-      // DM MODAL
-
-      if (
-        interaction.customId ===
-        'dm_modal'
-      ) {
-
-        const command =
-          client.commands.get(
-            'dm-gonder'
-          );
-
-        if (
-          command?.handleModal
-        ) {
-
-          return await command.handleModal(
-            interaction
-          );
+      // DM GÖNDER Modal
+      if (customId === 'dm_modal') {
+        const command = client.commands.get('dm-gonder');
+        if (command && typeof command.handleModal === 'function') {
+          return await command.handleModal(interaction);
         }
       }
 
-      // TICKET MODAL
-
-      if (
-        interaction.customId ===
-        'ticket_modal'
-      ) {
-
-        const command =
-          client.commands.get(
-            'ticket'
-          );
-
-        if (
-          command?.handleModal
-        ) {
-
-          return await command.handleModal(
-            interaction
-          );
+      // TICKET Modals
+      if (customId === 'ticket_modal' || customId === 'ticket_ekle_modal' || customId === 'ban_itiraz_modal') {
+        const command = client.commands.get('ticket');
+        if (command && typeof command.handleModal === 'function') {
+          return await command.handleModal(interaction);
         }
       }
 
-      // BAN İTİRAZ
-
-      if (
-        interaction.customId ===
-        'ban_itiraz_modal'
-      ) {
-
-        const command =
-          client.commands.get(
-            'ticket'
-          );
-
-        if (
-          command?.handleBanItirazModal
-        ) {
-
-          return await command.handleBanItirazModal(
-            interaction
-          );
+      // BAN İTİRAZ Modal
+      if (customId === 'ban_itiraz_modal') {
+        const command = client.commands.get('ticket');
+        if (command && typeof command.handleBanItirazModal === 'function') {
+          return await command.handleBanItirazModal(interaction);
         }
       }
 
-      // TICKET EKLE
-
-      if (
-        interaction.customId ===
-        'ticket_ekle_modal'
-      ) {
-
-        const command =
-          client.commands.get(
-            'ticket'
-          );
-
-        if (
-          command?.handleEkleModal
-        ) {
-
-          return await command.handleEkleModal(
-            interaction
-          );
+      // TICKET EKLE Modal
+      if (customId === 'ticket_ekle_modal') {
+        const command = client.commands.get('ticket');
+        if (command && typeof command.handleEkleModal === 'function') {
+          return await command.handleEkleModal(interaction);
         }
       }
 
-      // DUYURU
-
-      if (
-        interaction.customId ===
-        'duyuru_modal'
-      ) {
-
-        const command =
-          client.commands.get(
-            'duyuru'
-          );
-
-        if (
-          command?.handleModal
-        ) {
-
-          return await command.handleModal(
-            interaction
-          );
+      // DUYURU Modal
+      if (customId === 'duyuru_modal') {
+        const command = client.commands.get('duyuru');
+        if (command && typeof command.handleModal === 'function') {
+          return await command.handleModal(interaction);
         }
       }
 
-      if (interaction.customId.startsWith('modal_limit_')) {
+      // LIMIT GUARDS Modal
+      if (customId.startsWith('modal_limit_')) {
         const command = client.commands.get('guard');
-        if (command?.handleLimitModal) {
+        if (command && typeof command.handleLimitModal === 'function') {
           return await command.handleLimitModal(interaction);
         }
       }
-
-    } catch (e) {
-
-      console.error(e);
     }
-  }
 
-  // =========================
-  // BUTTON
-  // =========================
+    // 3. BUTTON CLICKS
+    else if (interaction.isButton()) {
+      const customId = interaction.customId;
 
-  if (
-    interaction.isButton()
-  ) {
-
-    const ticket =
-      client.commands.get(
-        'ticket'
-      );
-
-    try {
-
-      // TICKET AÇ
-
-      if (
-        interaction.customId.startsWith(
-          'ticket_ac_'
-        )
-      ) {
-
-        return await ticket?.handleButton(
-          interaction
-        );
+      // Routing ticket welcome panel action buttons
+      if (customId.startsWith('ticket_ac_') || customId === 'ticket_kapat' || customId === 'ticket_sahiplen' || customId === 'ticket_ekle') {
+        const ticketCommand = client.commands.get('ticket');
+        if (ticketCommand && typeof ticketCommand.handleButton === 'function') {
+          return await ticketCommand.handleButton(interaction);
+        }
       }
-
-      // KAPAT
-
-      if (
-        interaction.customId ===
-        'ticket_kapat'
-      ) {
-
-        return await ticket?.handleKapat(
-          interaction
-        );
-      }
-
-      // SAHİPLEN
-
-      if (
-        interaction.customId ===
-        'ticket_sahiplen'
-      ) {
-
-        return await ticket?.handleSahiplen(
-          interaction
-        );
-      }
-
-      // EKLE
-
-      if (
-        interaction.customId ===
-        'ticket_ekle'
-      ) {
-
-        return await ticket?.handleEkle(
-          interaction
-        );
-      }
-
-    } catch (e) {
-
-      console.error(e);
     }
+
+  } catch (err) {
+    log.error('Etkileşim yönlendirme hatası:', err);
   }
 });
 
-// =========================
-// LOGIN
-// =========================
-
+// ==========================================
+// STARTUP BOOTSTRAP
+// ==========================================
 const { loadSettings } = require('./db.js');
 
 async function startBot() {
-  await loadSettings();
-  client.login(process.env.DISCORD_TOKEN);
+  try {
+    await loadSettings();
+    await client.login(process.env.DISCORD_TOKEN);
+  } catch (e) {
+    log.error('Bot başlatma hatası:', e);
+  }
 }
 
 startBot();
