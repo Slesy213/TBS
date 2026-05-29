@@ -6,18 +6,52 @@ const {
     StringSelectMenuBuilder
 } = require('discord.js');
 
-const { updateSettings } = require('./db.js');
+const { supabase, updateSettings } = require('./db.js');
 
 let polls = [];
 const activeTimers = new Map();
 const captchaSessions = new Map(); // userId -> { answer: number, pollId: string, values: [number] }
 
-function loadFromSettings() {
+async function loadFromSettings() {
     polls.length = 0;
-    for (const [guildId, gs] of global.guardSettings.entries()) {
-        if (gs.polls && Array.isArray(gs.polls)) {
-            polls.push(...gs.polls);
+    try {
+        const { data, error } = await supabase
+            .from('polls')
+            .select('*');
+
+        if (error) {
+            console.error('❌ Supabase anketleri yüklenirken hata oluştu:', error.message);
+        } else if (data) {
+            const mappedPolls = data.map(p => ({
+                messageId: p.message_id,
+                channelId: p.channel_id,
+                guildId: p.guild_id,
+                hostId: p.creator_id,
+                question: p.question,
+                choices: Array.isArray(p.choices) ? p.choices : [],
+                votes: p.votes || {},
+                ended: p.ended,
+                endAt: Number(p.end_at),
+                sureText: p.sure_text,
+                useCaptcha: p.use_captcha,
+                customEmojis: p.customization?.customEmojis || [],
+                minVoters: p.customization?.minVoters || 0,
+                requirements: p.customization?.requirements || {},
+                bypassRoles: p.customization?.bypassRoles || [],
+                customization: {
+                    color: p.customization?.color,
+                    banner: p.customization?.banner,
+                    thumbnail: p.customization?.thumbnail,
+                    btnStyle: p.customization?.btnStyle,
+                    multiChoice: p.customization?.multiChoice,
+                    revealMode: p.customization?.revealMode,
+                    winnerRole: p.customization?.winnerRole
+                }
+            }));
+            polls.push(...mappedPolls);
         }
+    } catch (err) {
+        console.error('❌ Supabase anketleri yükleme hatası:', err);
     }
     console.log(`[POLL DEBUG] Hafızaya ${polls.length} aktif anket yüklendi.`);
 }
@@ -26,15 +60,45 @@ async function saveGuildPolls(guildId) {
     if (!guildId) return;
     try {
         const guildPolls = polls.filter(p => p.guildId === guildId);
+        
+        for (const p of guildPolls) {
+            if (!p.messageId) continue;
+            const { error } = await supabase
+                .from('polls')
+                .upsert({
+                    message_id: p.messageId,
+                    channel_id: p.channelId,
+                    guild_id: p.guildId,
+                    creator_id: p.hostId,
+                    question: p.question,
+                    choices: p.choices,
+                    votes: p.votes,
+                    ended: p.ended,
+                    end_at: p.endAt,
+                    sure_text: p.sureText,
+                    use_captcha: p.useCaptcha,
+                    customization: {
+                        ...p.customization,
+                        customEmojis: p.customEmojis,
+                        minVoters: p.minVoters,
+                        requirements: p.requirements,
+                        bypassRoles: p.bypassRoles
+                    }
+                }, { onConflict: 'message_id' });
+            if (error) {
+                console.error(`❌ Supabase anket upsert hatası (Message: ${p.messageId}):`, error.message);
+            }
+        }
+
         await updateSettings(guildId, {
             guard_settings: {
                 ...global.guardSettings.get(guildId),
-                polls: guildPolls
+                polls: undefined
             }
         });
 
         const gs = global.guardSettings.get(guildId) || {};
-        gs.polls = guildPolls;
+        delete gs.polls;
         global.guardSettings.set(guildId, gs);
     } catch (e) {
         console.error(`❌ Supabase anket güncelleme hatası (Guild: ${guildId}):`, e);
