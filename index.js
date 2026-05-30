@@ -127,7 +127,7 @@ client.once('ready', () => {
     () => ({ name: 'Slesy ile Sohbet Ediyor 💬', type: ActivityType.Watching }),
     () => ({ name: `${client.guilds.cache.size} Sunucuyu Koruyor 🛡️`, type: ActivityType.Watching }),
     () => ({ name: `${client.guilds.cache.reduce((a, g) => a + g.memberCount, 0)} Üyeye Hizmet Veriyor 👥`, type: ActivityType.Watching }),
-    () => ({ name: 'Premium Sistemler | .yardım 💎', type: ActivityType.Listening })
+    () => ({ name: 'Premium Sistemler | /yardım 💎', type: ActivityType.Listening })
   ];
 
   let statusIdx = 0;
@@ -278,6 +278,14 @@ client.on('interactionCreate', async interaction => {
       // DM GÖNDER Modal
       if (customId === 'dm_modal') {
         const command = client.commands.get('dm-gonder');
+        if (command && typeof command.handleModal === 'function') {
+          return await command.handleModal(interaction);
+        }
+      }
+
+      // GÜNCELLEME YAYINLA Modal
+      if (customId === 'guncelleme_modal') {
+        const command = client.commands.get('guncelleme-yayinla');
         if (command && typeof command.handleModal === 'function') {
           return await command.handleModal(interaction);
         }
