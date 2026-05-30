@@ -178,13 +178,25 @@ module.exports = (client) => {
         tracker.messages.push({
             time: Date.now(),
             content: message.content || "",
-            channelId: message.channel.id
+            channelId: message.channel.id,
+            hasMedia: message.attachments && message.attachments.size > 0
         });
 
         const content = message.content || "";
         let violated = false;
         let violationReason = "";
         let violationDetails = "";
+
+        // ─── Feature: mediaSpamEngel ───
+        if (!violated && isFeatureEnabled(guildId, "mediaSpamEngel")) {
+            const maxMedia = getSetting(guildId, "spamMaxMediaVal") || 3;
+            const recentMediaMsgs = tracker.messages.filter(m => m.hasMedia);
+            if (recentMediaMsgs.length > maxMedia) {
+                violated = true;
+                violationReason = "Medya Spamı";
+                violationDetails = `30 saniye içinde ${recentMediaMsgs.length} adet medya içeren mesaj gönderildi (Limit: ${maxMedia})`;
+            }
+        }
 
         // ─── Feature 2: spamDuplicateLimit ───
         if (!violated && isFeatureEnabled(guildId, "spamDuplicateLimit")) {
