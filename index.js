@@ -186,6 +186,68 @@ client.once('ready', () => {
   } catch (restoreErr) {
     log.error('[SES RECOVERY] Ses kanalı kurtarma döngüsünde hata:', restoreErr);
   }
+
+  // Süreli Ban Kontrol Döngüsü (Temp-ban check scheduler - Every 60s)
+  setInterval(async () => {
+    try {
+      const now = Date.now();
+      for (const [guildId, settings] of global.guardSettings.entries()) {
+        if (settings && settings.temp_bans && settings.temp_bans.length > 0) {
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) continue;
+
+          const activeBans = [];
+          let updated = false;
+
+          for (const banInfo of settings.temp_bans) {
+            if (now >= banInfo.unbanAt) {
+              // Unban time reached
+              try {
+                const bans = await guild.bans.fetch().catch(() => null);
+                const isBanned = bans?.has(banInfo.userId);
+                if (isBanned) {
+                  await guild.members.unban(banInfo.userId, 'Süreli yasaklama süresi doldu.');
+                  log.success(`[SÜRELİ BAN] ${guild.name} sunucusunda ${banInfo.userId} ID'li kullanıcının süreli banı bitti, unban yapıldı.`);
+
+                  // Log to log channel
+                  const logChannelId = global.ticketLogKanals.get(guildId);
+                  const logChannel = logChannelId ? guild.channels.cache.get(logChannelId) : null;
+                  if (logChannel) {
+                    const { EmbedBuilder } = require('discord.js');
+                    const autoUnbanEmbed = new EmbedBuilder()
+                      .setTitle('🔓 Süreli Yasaklama Sona Erdi')
+                      .setColor('#2ECC71')
+                      .setDescription(`<@${banInfo.userId}> kullanıcısının süreli yasaklama süresi dolduğu için yasağı otomatik olarak kaldırıldı.`)
+                      .addFields(
+                        { name: '👤 Kullanıcı ID', value: `\`${banInfo.userId}\``, inline: true },
+                        { name: '📝 Orijinal Sebep', value: `\`${banInfo.reason || 'Belirtilmedi'}\``, inline: true }
+                      )
+                      .setTimestamp()
+                      .setFooter({ text: 'TBS Otomatik Moderasyon Sistemi' });
+                    await logChannel.send({ embeds: [autoUnbanEmbed] }).catch(() => {});
+                  }
+                }
+              } catch (err) {
+                log.error(`[SÜRELİ BAN] Unban hatası (User: ${banInfo.userId}, Sunucu: ${guild.name}):`, err);
+              }
+              updated = true;
+            } else {
+              activeBans.push(banInfo);
+            }
+          }
+
+          if (updated) {
+            settings.temp_bans = activeBans;
+            global.guardSettings.set(guildId, settings);
+            const { updateSetting } = require('./db.js');
+            await updateSetting(guildId, 'guard_settings', settings);
+          }
+        }
+      }
+    } catch (loopErr) {
+      log.error('[SÜRELİ BAN] Kontrol döngüsü hatası:', loopErr);
+    }
+  }, 60000);
 });
 
 // ==========================================
