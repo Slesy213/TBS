@@ -143,6 +143,49 @@ client.once('ready', () => {
       log.error('Status rotation error:', e);
     }
   }, 15000);
+
+  // Ses Kanalı Otomatik Kurtarma Sistemi (Restore Voice Connections)
+  try {
+    const { joinVoiceChannel, entersState, VoiceConnectionStatus } = require('@discordjs/voice');
+    const { ChannelType } = require('discord.js');
+
+    for (const [guildId, settings] of global.guardSettings.entries()) {
+      if (settings && settings.voice_channel_restore_id) {
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) continue;
+
+        const channel = guild.channels.cache.get(settings.voice_channel_restore_id);
+        if (channel && channel.type === ChannelType.GuildVoice) {
+          const selfMute = settings.voice_self_mute ?? false;
+          const selfDeaf = settings.voice_self_deaf ?? true;
+
+          log.info(`[SES RECOVERY] ${guild.name} sunucusunda ${channel.name} kanalına otomatik bağlanılıyor...`);
+          
+          try {
+            const connection = joinVoiceChannel({
+              channelId: channel.id,
+              guildId: guild.id,
+              adapterCreator: guild.voiceAdapterCreator,
+              selfDeaf: selfDeaf,
+              selfMute: selfMute,
+            });
+
+            entersState(connection, VoiceConnectionStatus.Ready, 5000)
+              .then(() => {
+                log.success(`[SES RECOVERY] ${guild.name} sunucusunda ses kanalı kurtarıldı: ${channel.name}`);
+              })
+              .catch(err => {
+                log.error(`[SES RECOVERY] ${guild.name} ses kanalına bağlanırken zaman aşımı:`, err);
+              });
+          } catch (connErr) {
+            log.error(`[SES RECOVERY] ${guild.name} ses kanalı bağlantı hatası:`, connErr);
+          }
+        }
+      }
+    }
+  } catch (restoreErr) {
+    log.error('[SES RECOVERY] Ses kanalı kurtarma döngüsünde hata:', restoreErr);
+  }
 });
 
 // ==========================================
@@ -290,6 +333,14 @@ client.on('interactionCreate', async interaction => {
         const ticketCommand = client.commands.get('ticket');
         if (ticketCommand && typeof ticketCommand.handleButton === 'function') {
           return await ticketCommand.handleButton(interaction);
+        }
+      }
+
+      // Routing voice connection control panel buttons
+      if (customId.startsWith('join_')) {
+        const voiceCommand = client.commands.get('join');
+        if (voiceCommand && typeof voiceCommand.handleButton === 'function') {
+          return await voiceCommand.handleButton(interaction);
         }
       }
     }
