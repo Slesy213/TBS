@@ -689,6 +689,235 @@ module.exports = (client) => {
         return true;
     }
 
+    function evaluateEveryoneContent(message) {
+        if (!message.guild || message.author.bot || !message.member) return null;
+        const guildId = message.guild.id;
+        const content = message.content || "";
+
+        // Check if master switch is enabled
+        if (!isFeatureEnabled(guildId, "everyoneHereEngel")) return null;
+
+        // Exemptions:
+        // Staff Check (everyoneAllowStaff)
+        if (getSetting(guildId, "everyoneAllowStaff") ?? true) {
+            if (message.member.permissions.has(PermissionFlagsBits.MentionEveryone) ||
+                message.member.permissions.has(PermissionFlagsBits.ManageMessages) ||
+                message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+                return null;
+            }
+        }
+
+        // Role Whitelist Check (everyoneAllowRoleWhitelist)
+        if (getSetting(guildId, "everyoneAllowRoleWhitelist") ?? true) {
+            if (isWhitelisted(message.guild, message.author.id, "chat")) {
+                return null;
+            }
+        }
+
+        // Channel Whitelist Check (everyoneAllowChannelsWhitelist)
+        if (getSetting(guildId, "everyoneAllowChannelsWhitelist") ?? true) {
+            const chName = message.channel.name.toLowerCase();
+            const whitelistChannels = ["bot", "komut", "spam", "oyun", "serbest", "duyuru"];
+            if (whitelistChannels.some(ch => chName.includes(ch))) {
+                return null;
+            }
+        }
+
+        let violated = false;
+        let reason = "";
+
+        // Normalize message content for bypass detection
+        const normalized = content.toLowerCase();
+
+        // 1. Unicode bypass detection (everyoneDetectUnicode)
+        const unhomoglyph = (text) => {
+            return text
+                .replace(/[\u0435\u03b5\u0454\u04d5]/g, "e") // cyrillic, greek e
+                .replace(/[\u043e\u03bf\u045c]/g, "o") // cyrillic, greek o
+                .replace(/[\u0430\u03b1]/g, "a") // cyrillic, greek a
+                .replace(/[\u0440\u03c1]/g, "r") // cyrillic, greek r
+                .replace(/[\u0443\u03c5]/g, "y") // cyrillic, greek y
+                .replace(/[\u0456\u0457\u03b9]/g, "i") // cyrillic, greek i
+                .replace(/[\u043d]/g, "n") // cyrillic n
+                .replace(/[\u0445]/g, "x") // cyrillic x
+                .replace(/[\u0455]/g, "s") // cyrillic s
+                .replace(/[\u0441]/g, "c"); // cyrillic c
+        };
+
+        const cleanContent = unhomoglyph(normalized);
+
+        // 2. Spaced tag detection (everyoneDetectSpaced)
+        const isSpacedEveryone = (text) => {
+            return /@\s*e\s*v\s*e\s*r\s*y\s*o\s*n\s*e/.test(text) ||
+                   /@\s*h\s*e\s*r\s*e/.test(text);
+        };
+
+        // 3. Formatted tag detection (everyoneDetectFormatted)
+        const isFormattedEveryone = (text) => {
+            return text.includes("everyone") || text.includes("here");
+        };
+
+        // Check for normal @everyone & @here first
+        if (content.includes("@everyone")) {
+            violated = true;
+            reason = "@everyone Etiketi";
+        }
+        if (content.includes("@here")) {
+            violated = true;
+            reason = "@here Etiketi";
+        }
+
+        // Check for Unicode bypass
+        if (!violated && isFeatureEnabled(guildId, "everyoneDetectUnicode")) {
+            const hasUnicodeBypass = cleanContent.includes("@everyone") || cleanContent.includes("@here");
+            if (hasUnicodeBypass && (content !== cleanContent)) {
+                violated = true;
+                reason = "Unicode Karakterli Etiket Bypass Girişimi";
+            }
+        }
+
+        // Check for Spaced bypass
+        if (!violated && isFeatureEnabled(guildId, "everyoneDetectSpaced")) {
+            if (isSpacedEveryone(normalized)) {
+                violated = true;
+                reason = "Aralıklı Yazılmış Etiket Bypass Girişimi";
+            }
+        }
+
+        // Check for Formatted/Unlabeled bypass
+        if (!violated && isFeatureEnabled(guildId, "everyoneDetectFormatted")) {
+            if (isFormattedEveryone(normalized) && !normalized.includes("@everyone") && !normalized.includes("@here")) {
+                violated = true;
+                reason = "Formatlı/Gizli Etiket İstismarı";
+            }
+        }
+
+        // Check for Role Mentions (everyoneBlockRoleMentions)
+        if (!violated && isFeatureEnabled(guildId, "everyoneBlockRoleMentions")) {
+            const roleMentions = message.mentions.roles.size;
+            if (roleMentions >= 3) {
+                violated = true;
+                reason = `Toplu Rol Etiketleme (${roleMentions} Rol)`;
+            }
+        }
+
+        if (violated) {
+            return { reason };
+        }
+        return null;
+    }
+
+    async function handleEveryoneViolation(message) {
+        if (!message.guild || message.author.bot || !message.member) return false;
+
+        const everyoneViol = evaluateEveryoneContent(message);
+        if (!everyoneViol) return false;
+
+        const guildId = message.guild.id;
+        const userId = message.author.id;
+
+        // EYLEMLER / CEZALANDIRMA
+        // 1. Silme Cezası (everyoneActionDelete)
+        if (getSetting(guildId, "everyoneActionDelete") ?? true) {
+            await message.delete().catch(() => {});
+        }
+
+        // 2. Tolerans Uyarı Sayısı (everyoneToleranceWarnings)
+        const warnKey = `everyone-${guildId}-${userId}`;
+        global.everyoneWarningTracker = global.everyoneWarningTracker || new Map();
+        let userWarnings = global.everyoneWarningTracker.get(warnKey) || { count: 0, lastViol: Date.now() };
+
+        if (Date.now() - userWarnings.lastViol > 60000) {
+            userWarnings.count = 0;
+        }
+
+        userWarnings.count++;
+        userWarnings.lastViol = Date.now();
+        global.everyoneWarningTracker.set(warnKey, userWarnings);
+
+        const tolerance = getSetting(guildId, "everyoneToleranceWarnings") ?? 1;
+
+        // 3. Raid/Spam Entegrasyonu (everyoneSpamInsultsIntegration)
+        if (getSetting(guildId, "everyoneSpamInsultsIntegration") ?? false) {
+            const threat = global.guildThreatLevels.get(guildId) || 0;
+            if (threat >= 35) {
+                userWarnings.count = tolerance; // Raid/Şüpheli durumda direkt mute limitine eşitle
+            }
+        }
+
+        let actionTaken = "Mesaj Silindi";
+
+        // 4. Mute Cezası (everyoneActionMute)
+        const actionMuteEnabled = getSetting(guildId, "everyoneActionMute") ?? false;
+        if (actionMuteEnabled && userWarnings.count >= tolerance) {
+            const muteDuration = (getSetting(guildId, "everyoneActionMuteDuration") ?? 300) * 1000;
+            await message.member.timeout(muteDuration, "Guard | Toplu Etiket İhlali").catch(() => {});
+            actionTaken = `Geçici Susturma (${(muteDuration / 1000)} Saniye)`;
+            userWarnings.count = 0;
+            global.everyoneWarningTracker.set(warnKey, userWarnings);
+        }
+
+        // 5. Kick Cezası (everyoneActionKick)
+        const actionKickEnabled = getSetting(guildId, "everyoneActionKick") ?? false;
+        if (actionKickEnabled && userWarnings.count >= tolerance) {
+            if (message.member.kickable) {
+                await message.member.kick("Guard | Toplu Etiket İhlali").catch(() => {});
+                actionTaken = "Sunucudan Atıldı (Kick)";
+                userWarnings.count = 0;
+                global.everyoneWarningTracker.set(warnKey, userWarnings);
+            }
+        }
+
+        // 6. Ban Cezası (everyoneActionBan)
+        const actionBanEnabled = getSetting(guildId, "everyoneActionBan") ?? false;
+        if (actionBanEnabled && userWarnings.count >= tolerance) {
+            if (message.member.bannable) {
+                await message.member.ban({ reason: "Guard | Toplu Etiket İhlali", deleteMessageSeconds: 60 }).catch(() => {});
+                actionTaken = "Sunucudan Yasaklandı (Ban)";
+                userWarnings.count = 0;
+                global.everyoneWarningTracker.set(warnKey, userWarnings);
+            }
+        }
+
+        // 7. Kanalda Uyarma (everyoneActionWarn)
+        if (getSetting(guildId, "everyoneActionWarn") ?? true) {
+            await message.channel.send({ content: `🚫 ${message.author}, **Yetkisiz Etiket Kullanımı** nedeniyle iletiniz engellendi. (${userWarnings.count}/${tolerance})` }).then(msg => {
+                setTimeout(() => msg.delete().catch(() => {}), 5000);
+            });
+            if (actionTaken === "Mesaj Silindi") {
+                actionTaken = `Uyarıldı (${userWarnings.count}/${tolerance})`;
+            }
+        }
+
+        // Tehdit derecesini artır
+        const threatPoints = getSetting(guildId, "everyoneThreatLevelIncrease") ?? 15;
+        increaseThreat(guildId, threatPoints, everyoneViol.reason, message.guild);
+
+        // 8. Staff Log Gönderimi (everyoneActionStaffLog)
+        if (getSetting(guildId, "everyoneActionStaffLog") ?? true) {
+            const logChId = getSetting(guildId, "logChannelId");
+            if (logChId) {
+                const logCh = message.guild.channels.cache.get(logChId);
+                if (logCh) {
+                    const embed = new EmbedBuilder()
+                        .setColor(0xFF0000)
+                        .setTitle("🚨 Toplu Etiket Koruması İhlali")
+                        .setDescription(`
+**Kullanıcı**   :: ${message.author} (\`${message.author.id}\`)
+**Kanal**       :: ${message.channel}
+**Sebep**       :: \`${everyoneViol.reason}\`
+**Ceza/Eylem**  :: \`${actionTaken}\`
+**İçerik**      :: \`${message.content.substring(0, 500)}\`
+                        `)
+                        .setTimestamp();
+                    await logCh.send({ embeds: [embed] }).catch(() => {});
+                }
+            }
+        }
+
+        return true;
+    }
+
     // Sohbet Filtreleri ve İletiler
     client.on("messageCreate", async message => {
         if (!message.guild) return;
@@ -1037,34 +1266,9 @@ module.exports = (client) => {
             return;
         }
 
-        // Argo Filtresi
-        if (isFeatureEnabled(guildId, "argoEngel")) {
-            const argolar = ["lan", "gerizekalı", "aptal", "salak"];
-            const words = message.content.toLowerCase().split(/\s+/);
-            if (words.some(w => argolar.includes(w))) {
-                increaseThreat(guildId, 3, "Argo İleti", message.guild);
-                await message.delete().catch(() => {});
-                await message.channel.send({ content: `🚫 ${message.author}, **Argo İleti** nedeniyle iletiniz engellendi.` }).then(msg => {
-                    setTimeout(() => msg.delete().catch(() => {}), 5000);
-                });
-                await message.member.timeout(30000, `Guard | Argo İleti`).catch(() => {});
-                return;
-            }
-        }
-
-
-        // Everyone / Here Engeli
-        if (isFeatureEnabled(guildId, "everyoneHereEngel") && (message.content.includes("@everyone") || message.content.includes("@here"))) {
-            if (!message.member.permissions.has(PermissionFlagsBits.MentionEveryone)) {
-                increaseThreat(guildId, 15, "Yetkisiz Everyone/Here Etiketi", message.guild);
-                await message.delete().catch(() => {});
-                await message.channel.send({ content: `🚫 ${message.author}, **Yetkisiz Everyone/Here Etiketi** nedeniyle iletiniz engellendi.` }).then(msg => {
-                    setTimeout(() => msg.delete().catch(() => {}), 5000);
-                });
-                await message.member.timeout(30000, `Guard | Everyone/Here`).catch(() => {});
-                return;
-            }
-        }
+        // Mass Tag Protection Execution
+        const everyoneViolated = await handleEveryoneViolation(message);
+        if (everyoneViolated) return;
     });
 
     // Message Edit Monitor for Webhook and User Messages
@@ -1111,6 +1315,12 @@ module.exports = (client) => {
         if (isFeatureEnabled(guildId, "capsScanEdit") ?? true) {
             const capsViolated = await handleCapsViolation(newMessage);
             if (capsViolated) return;
+        }
+
+        // 20-Feature Mass Tag Protection execution for edited messages
+        if (isFeatureEnabled(guildId, "everyoneScanEdit") ?? true) {
+            const everyoneViolated = await handleEveryoneViolation(newMessage);
+            if (everyoneViolated) return;
         }
 
         const violation = evaluateLinkContent(newMessage);
