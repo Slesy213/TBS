@@ -66,7 +66,7 @@ module.exports = {
         .setCustomId('detay_input')
         .setLabel('Yenilikler ve Değişiklikler')
         .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder('• Ses paneli buton kontrolleri eklendi.\n• Otomatik kanal kurtarma sistemi aktif edildi.\n• Sunucu limitleri güncellendi.')
+        .setPlaceholder('Örn:\n• Ses paneli buton kontrolleri eklendi.\n• Hatalar giderildi.')
         .setRequired(true)
         .setMaxLength(1500);
 
