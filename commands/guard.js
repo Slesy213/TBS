@@ -2367,9 +2367,43 @@ ${divider}
                 global.guardSettings.set(guildId, settings);
                 await updateSetting(guildId, "guard_settings", settings);
 
+                // Detaylı Embed mesajını oluşturalım
+                const detailsEmbed = new EmbedBuilder()
+                    .setTitle("⭐ Önerilen Korumalar Aktif Edildi")
+                    .setDescription("Sunucunuz için en ideal ve en güvenli koruma yapılandırması başarıyla uygulandı! Aktif edilen tüm ayarlar ve limitler aşağıda listelenmiştir:")
+                    .setColor("#F1C40F")
+                    .addFields(
+                        { 
+                            name: "🛡️ Sunucu & Rol Korumaları", 
+                            value: "• **Kanal Koruma:** Silme, Güncelleme, İzin Değişiklikleri Engeli\n• **Rol Koruma:** Silme, Güncelleme, Pozisyon Değişiklikleri Engeli\n• **Yönetici/Rol Koruma:** Rollerde yetki verilmesi takibi\n• **Webhook Koruma:** Oluşturma, Silme, Güncelleme Engelleri\n• **Prune Koruması:** Toplu üye çıkarma tespiti" 
+                        },
+                        { 
+                            name: "🤖 Anti-Bot & Güvenlik Korumaları", 
+                            value: "• **Bot Engeli:** Sunucuya izinsiz bot ekleme & ekleyen yetkiliyi cezalandırma\n• **Token Sızıntısı:** Bot token sızıntısı tespiti ve koruması\n• **Otonom Koruma Modu:** Sunucu güvenliği için otomatik sistem yönetimi" 
+                        },
+                        { 
+                            name: "💬 Sohbet & İçerik Korumaları", 
+                            value: "• **Link Engeli:** Tüm linkler, davetler, phishing, IP loggers engeli\n• **Küfür Engeli:** Hakaret ve küfürlü içerik tespiti & silme\n• **Büyük Harf (Caps):** Büyük harfle yazılan mesaj engeli (%70 barajı)\n• **Etiket Koruması:** Everyone/Here spam tespiti, otomatik uyarı & susturma" 
+                        },
+                        { 
+                            name: "⚡ Gelişmiş Spam Koruması", 
+                            value: "• **Maksimum Mesaj:** Arka arkaya hızlı mesaj gönderim sınırı (7 mesaj)\n• **Çift Mesaj:** Aynı mesajın tekrarı tespiti (3 tekrar sınırı)\n• **Medya Spam:** Hızlı resim/video/dosya gönderim engeli" 
+                        },
+                        { 
+                            name: "👥 Anti-Raid & Giriş Filtreleri", 
+                            value: "• **Şüpheli Giriş (Raid):** 10 saniyede 5 kişi girerse kanalları kilitleme & bildirim\n• **Profil Resmi:** Varsayılan (boş) profil resimli kullanıcı engeli/uyarısı\n• **Hesap Yaşı:** 7 günden yeni hesapların sunucuya girişi engeli\n• **Kullanıcı Adı:** Küfürlü veya reklamlı kullanıcı adı değiştirme tespiti" 
+                        },
+                        { 
+                            name: "📊 Sistem Limitleri (5 Dakikalık Eşikler)", 
+                            value: "• **Ban Sınırı:** 3 ban/5dk\n• **Kick Sınırı:** 3 kick/5dk\n• **Kanal Silme Sınırı:** 2 kanal/5dk\n• **Rol Silme Sınırı:** 2 rol/5dk\n• **Yetkili Rol Verme:** 3 rol/5dk" 
+                        }
+                    )
+                    .setTimestamp()
+                    .setFooter({ text: "TBS Güvenlik & Koruma Sistemleri", iconURL: interaction.client.user.avatarURL() });
+
                 // Kullanıcıya mesaj verip menüyü güncelleyelim
                 await interaction.followUp({ 
-                    content: "✅ **Önerilen ayarlar başarıyla uygulandı!**\n*Ana sistem, otonom mod, kritik sunucu korumaları (Rol/Kanal silme), gelişmiş spam/küfür/link filtreleri ve ideal işlem limitleri aktif edildi.*", 
+                    embeds: [detailsEmbed],
                     ephemeral: true 
                 });
 
