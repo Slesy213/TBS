@@ -251,22 +251,9 @@ client.once('ready', () => {
 });
 
 // ==========================================
-// AUTO ROLE EVENT
+// AUTO ROLE EVENT (PASSED TO MODULAR COMMAND LISTENER)
 // ==========================================
-client.on('guildMemberAdd', async member => {
-  try {
-    const autoRoleId = global.autoRoles.get(member.guild.id);
-    if (!autoRoleId) return;
-
-    const role = member.guild.roles.cache.get(autoRoleId);
-    if (!role) return;
-
-    await member.roles.add(role);
-    log.info(`${member.user.tag} kullanıcısına otomatik rol verildi.`);
-  } catch (err) {
-    log.error('Oto-rol verme hatası:', err);
-  }
-});
+// Disabled in favor of commands/otorol.js modular init() handler
 
 // ==========================================
 // SA - AS RESPONDER
@@ -348,6 +335,14 @@ client.on('interactionCreate', async interaction => {
       // GÜNCELLEME YAYINLA Modal
       if (customId === 'guncelleme_modal') {
         const command = client.commands.get('guncelleme-yayinla');
+        if (command && typeof command.handleModal === 'function') {
+          return await command.handleModal(interaction);
+        }
+      }
+
+      // OTOROL Modal
+      if (customId === 'otorol_modal') {
+        const command = client.commands.get('otorol');
         if (command && typeof command.handleModal === 'function') {
           return await command.handleModal(interaction);
         }
