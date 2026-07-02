@@ -15,6 +15,7 @@ const ticketManager = require('../ticketManager.js');
 const { updateSettings } = require('../db.js');
 
 global.ticketSetups = global.ticketSetups || new Map();
+global.processingTickets = new Set(); // İşlemdeki ticket'ları takip et
 
 const defaultTypes = [
     { id: 'genel', label: 'Genel Destek', emoji: '🎫', renk: 0x5865F2, kanalAdi: 'genel-destek' },
@@ -112,20 +113,6 @@ module.exports = {
         const subcommand = interaction.options.getSubcommand();
 
         if (subcommand === 'kurulum') {
-            // Kullanıcının zaten kurulumu var mı kontrol et
-            const existingSession = global.ticketSetups.get(`${guildId}-${interaction.user.id}`);
-            if (existingSession && existingSession.kategoriId) {
-                // Eğer kurulum varsa ve butonlarla devam ediyorsa, tekrar açma
-                const embed = generateTicketWizardEmbed(existingSession, interaction.guild.name);
-                const buttons = generateTicketWizardButtons();
-                return interaction.reply({
-                    content: '⚠️ Zaten devam eden bir kurulumun var! Aşağıdan devam edebilirsin.',
-                    embeds: [embed],
-                    components: buttons,
-                    ephemeral: true
-                });
-            }
-
             const kategori = interaction.options.getChannel('kategori');
             const yetkiliRol = interaction.options.getRole('yetkili_rol');
             const logKanal = interaction.options.getChannel('log_kanal');
@@ -210,7 +197,6 @@ module.exports = {
 
         const session = getSetupSession(guildId, userId);
 
-        // Eğer session'da kategori yoksa hata ver
         if (!session.kategoriId && customId !== 'setup_ticket_cancel') {
             return interaction.reply({
                 content: '❌ Önce `/ticket kurulum` komutunu çalıştırmalısın!',
@@ -304,7 +290,6 @@ module.exports = {
         }
 
         else if (customId === 'setup_ticket_launch') {
-            // Kategori, yetkili rol ve log kanalı kontrol et
             if (!session.kategoriId || !session.yetkiliRolId || !session.logKanalId) {
                 return interaction.reply({
                     content: '❌ Kategori, Yetkili Rolü ve Log Kanalı belirtilmeli! `/ticket kurulum` komutunu kullan.',
@@ -312,7 +297,6 @@ module.exports = {
                 });
             }
 
-            // Kategori ve kanalların varlığını kontrol et
             const category = interaction.guild.channels.cache.get(session.kategoriId);
             if (!category) {
                 return interaction.reply({
@@ -344,13 +328,11 @@ module.exports = {
                 rows.push(new ActionRowBuilder().addComponents(buttons.slice(i, i + 3)));
             }
 
-            // Panel mesajını gönder
             const message = await interaction.channel.send({
                 embeds: [finalEmbed],
                 components: rows
             });
 
-            // Ayarları kaydet
             await updateSettings(guildId, {
                 ticket_kategori: session.kategoriId,
                 ticket_yetkili_rol: session.yetkiliRolId,
@@ -361,7 +343,6 @@ module.exports = {
             global.ticketYetkiliRols.set(guildId, session.yetkiliRolId);
             global.ticketLogKanals.set(guildId, session.logKanalId);
 
-            // Oturumu temizle
             global.ticketSetups.delete(`${guildId}-${userId}`);
 
             await interaction.update({
@@ -387,225 +368,246 @@ module.exports = {
         const guildId = interaction.guild.id;
         const userId = interaction.user.id;
 
-        if (customId.startsWith('ticket_ac_')) {
-            const ticketType = customId.replace('ticket_ac_', '');
-            
-            // Kara liste kontrolü
-            if (ticketManager.blacklist.includes(userId)) {
-                return interaction.reply({
-                    content: '❌ Ticket kara listesindesin!',
-                    ephemeral: true
-                });
-            }
+        // Eğer bu buton zaten işleniyorsa durdur
+        const buttonKey = `${interaction.message.id}-${userId}-${customId}`;
+        if (global.processingTickets.has(buttonKey)) {
+            return;
+        }
+        global.processingTickets.add(buttonKey);
 
-            // Açık ticket kontrolü
-            const existingTicket = ticketManager.tickets.find(
-                t => t.creatorId === userId && t.guildId === guildId && t.status === 'open'
-            );
+        try {
+            if (customId.startsWith('ticket_ac_')) {
+                // Butonu hemen devre dışı bırak (spam koruması)
+                await interaction.deferReply({ ephemeral: true });
 
-            if (existingTicket) {
-                return interaction.reply({
-                    content: `❌ Zaten açık ticket var! <#${existingTicket.channelId}>`,
-                    ephemeral: true
-                });
-            }
-
-            // Global ayarları al
-            const kategoriId = global.ticketKategoris.get(guildId);
-            const yetkiliRolId = global.ticketYetkiliRols.get(guildId);
-            const logKanalId = global.ticketLogKanals.get(guildId);
-
-            if (!kategoriId) {
-                return interaction.reply({
-                    content: '❌ Ticket sistemi kurulmamış! Yöneticiden `/ticket kurulum` yapmasını iste.',
-                    ephemeral: true
-                });
-            }
-
-            const category = interaction.guild.channels.cache.get(kategoriId);
-            if (!category) {
-                return interaction.reply({
-                    content: '❌ Kategori bulunamadı! Yöneticiden tekrar `/ticket kurulum` yapmasını iste.',
-                    ephemeral: true
-                });
-            }
-
-            // Ticket tipini bul
-            const allTypes = [...defaultTypes, ...(global.guardSettings.get(guildId)?.ticketCategories || [])];
-            const typeInfo = allTypes.find(t => t.id === ticketType);
-
-            if (!typeInfo) {
-                return interaction.reply({
-                    content: '❌ Geçersiz ticket tipi!',
-                    ephemeral: true
-                });
-            }
-
-            const channelName = `${typeInfo.kanalAdi || 'destek'}-${interaction.user.username.toLowerCase()}`;
-
-            try {
-                const channel = await interaction.guild.channels.create({
-                    name: channelName,
-                    type: ChannelType.GuildText,
-                    parent: category.id,
-                    permissionOverwrites: [
-                        {
-                            id: interaction.guild.id,
-                            deny: [PermissionFlagsBits.ViewChannel],
-                        },
-                        {
-                            id: interaction.user.id,
-                            allow: [
-                                PermissionFlagsBits.ViewChannel,
-                                PermissionFlagsBits.SendMessages,
-                                PermissionFlagsBits.ReadMessageHistory,
-                                PermissionFlagsBits.AttachFiles,
-                                PermissionFlagsBits.EmbedLinks,
-                            ],
-                        },
-                        {
-                            id: yetkiliRolId,
-                            allow: [
-                                PermissionFlagsBits.ViewChannel,
-                                PermissionFlagsBits.SendMessages,
-                                PermissionFlagsBits.ReadMessageHistory,
-                                PermissionFlagsBits.ManageMessages,
-                                PermissionFlagsBits.AttachFiles,
-                                PermissionFlagsBits.EmbedLinks,
-                            ],
-                        },
-                    ],
-                });
-
-                // Ticket'ı kaydet
-                ticketManager.tickets.push({
-                    channelId: channel.id,
-                    creatorId: interaction.user.id,
-                    guildId: guildId,
-                    type: ticketType,
-                    status: 'open',
-                    createdAt: Date.now(),
-                });
-
-                // Ticket embed'i
-                const embed = new EmbedBuilder()
-                    .setColor(typeInfo.renk || 0x5865F2)
-                    .setTitle(`${typeInfo.emoji || '🎫'} ${typeInfo.label}`)
-                    .setDescription(`Merhaba ${interaction.user}, destek talebin oluşturuldu.`)
-                    .addFields(
-                        { name: '👤 Sahip', value: `<@${interaction.user.id}>`, inline: true },
-                        { name: '📂 Tür', value: typeInfo.label, inline: true },
-                        { name: '📅 Tarih', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false }
-                    )
-                    .setTimestamp();
-
-                const row = new ActionRowBuilder()
-                    .addComponents(
-                        new ButtonBuilder()
-                            .setCustomId('ticket_kapat')
-                            .setLabel('🔒 Kapat')
-                            .setStyle(ButtonStyle.Danger),
-                        new ButtonBuilder()
-                            .setCustomId('ticket_sahiplen')
-                            .setLabel('📋 Sahiplen')
-                            .setStyle(ButtonStyle.Primary)
-                    );
-
-                await channel.send({
-                    content: `<@${interaction.user.id}> <@&${yetkiliRolId}>`,
-                    embeds: [embed],
-                    components: [row]
-                });
-
-                // Log kanalına mesaj gönder
-                const logChannel = interaction.guild.channels.cache.get(logKanalId);
-                if (logChannel) {
-                    const logEmbed = new EmbedBuilder()
-                        .setColor(0x57F287)
-                        .setTitle('🎫 Yeni Ticket')
-                        .setDescription(`<@${interaction.user.id}> ticket oluşturdu.`)
-                        .addFields(
-                            { name: '📂 Tür', value: typeInfo.label, inline: true },
-                            { name: '🔗 Kanal', value: `<#${channel.id}>`, inline: true }
-                        )
-                        .setTimestamp();
-                    await logChannel.send({ embeds: [logEmbed] });
+                const ticketType = customId.replace('ticket_ac_', '');
+                
+                // Kara liste kontrolü
+                if (ticketManager.blacklist.includes(userId)) {
+                    return interaction.editReply({
+                        content: '❌ Ticket kara listesindesin!'
+                    });
                 }
 
-                await interaction.reply({
-                    content: `✅ Ticket oluşturuldu! <#${channel.id}>`,
-                    ephemeral: true
-                });
+                // Açık ticket kontrolü
+                const existingTicket = ticketManager.tickets.find(
+                    t => t.creatorId === userId && t.guildId === guildId && t.status === 'open'
+                );
 
-            } catch (error) {
-                console.error('Ticket hatası:', error);
-                await interaction.reply({
-                    content: '❌ Ticket oluşturulurken hata oluştu!',
-                    ephemeral: true
-                });
-            }
-        }
+                if (existingTicket) {
+                    return interaction.editReply({
+                        content: `❌ Zaten açık ticket var! <#${existingTicket.channelId}>`
+                    });
+                }
 
-        else if (customId === 'ticket_kapat') {
-            const ticket = ticketManager.tickets.find(t => t.channelId === interaction.channel.id);
-            if (!ticket) {
-                return interaction.reply({
-                    content: '❌ Bu bir ticket kanalı değil!',
-                    ephemeral: true
-                });
-            }
+                // Global ayarları al
+                const kategoriId = global.ticketKategoris.get(guildId);
+                const yetkiliRolId = global.ticketYetkiliRols.get(guildId);
+                const logKanalId = global.ticketLogKanals.get(guildId);
 
-            const yetkiliRolId = global.ticketYetkiliRols.get(guildId);
-            const isAuthorized = interaction.member.roles.cache.has(yetkiliRolId) || 
-                                interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+                if (!kategoriId) {
+                    return interaction.editReply({
+                        content: '❌ Ticket sistemi kurulmamış! Yöneticiden `/ticket kurulum` yapmasını iste.'
+                    });
+                }
 
-            if (!isAuthorized && interaction.user.id !== ticket.creatorId) {
-                return interaction.reply({
-                    content: '❌ Ticket kapatmaya yetkin yok!',
-                    ephemeral: true
-                });
-            }
+                const category = interaction.guild.channels.cache.get(kategoriId);
+                if (!category) {
+                    return interaction.editReply({
+                        content: '❌ Kategori bulunamadı! Yöneticiden tekrar `/ticket kurulum` yapmasını iste.'
+                    });
+                }
 
-            await interaction.reply('🔒 Ticket kapatılıyor...');
-            ticket.status = 'closed';
-            ticket.closedAt = Date.now();
-            ticket.closedBy = interaction.user.id;
+                // Ticket tipini bul
+                const allTypes = [...defaultTypes, ...(global.guardSettings.get(guildId)?.ticketCategories || [])];
+                const typeInfo = allTypes.find(t => t.id === ticketType);
 
-            setTimeout(async () => {
+                if (!typeInfo) {
+                    return interaction.editReply({
+                        content: '❌ Geçersiz ticket tipi!'
+                    });
+                }
+
+                const channelName = `${typeInfo.kanalAdi || 'destek'}-${interaction.user.username.toLowerCase()}`;
+
                 try {
-                    await interaction.channel.delete();
-                } catch (err) {}
-            }, 3000);
-        }
+                    const channel = await interaction.guild.channels.create({
+                        name: channelName,
+                        type: ChannelType.GuildText,
+                        parent: category.id,
+                        permissionOverwrites: [
+                            {
+                                id: interaction.guild.id,
+                                deny: [PermissionFlagsBits.ViewChannel],
+                            },
+                            {
+                                id: interaction.user.id,
+                                allow: [
+                                    PermissionFlagsBits.ViewChannel,
+                                    PermissionFlagsBits.SendMessages,
+                                    PermissionFlagsBits.ReadMessageHistory,
+                                    PermissionFlagsBits.AttachFiles,
+                                    PermissionFlagsBits.EmbedLinks,
+                                ],
+                            },
+                            {
+                                id: yetkiliRolId,
+                                allow: [
+                                    PermissionFlagsBits.ViewChannel,
+                                    PermissionFlagsBits.SendMessages,
+                                    PermissionFlagsBits.ReadMessageHistory,
+                                    PermissionFlagsBits.ManageMessages,
+                                    PermissionFlagsBits.AttachFiles,
+                                    PermissionFlagsBits.EmbedLinks,
+                                ],
+                            },
+                        ],
+                    });
 
-        else if (customId === 'ticket_sahiplen') {
-            const ticket = ticketManager.tickets.find(t => t.channelId === interaction.channel.id);
-            if (!ticket) {
-                return interaction.reply({
-                    content: '❌ Bu bir ticket kanalı değil!',
-                    ephemeral: true
-                });
+                    // Ticket'ı kaydet
+                    ticketManager.tickets.push({
+                        channelId: channel.id,
+                        creatorId: interaction.user.id,
+                        guildId: guildId,
+                        type: ticketType,
+                        status: 'open',
+                        createdAt: Date.now(),
+                    });
+
+                    // Ticket embed'i
+                    const embed = new EmbedBuilder()
+                        .setColor(typeInfo.renk || 0x5865F2)
+                        .setTitle(`${typeInfo.emoji || '🎫'} ${typeInfo.label}`)
+                        .setDescription(`Merhaba ${interaction.user}, destek talebin oluşturuldu.`)
+                        .addFields(
+                            { name: '👤 Sahip', value: `<@${interaction.user.id}>`, inline: true },
+                            { name: '📂 Tür', value: typeInfo.label, inline: true },
+                            { name: '📅 Tarih', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false }
+                        )
+                        .setTimestamp();
+
+                    const row = new ActionRowBuilder()
+                        .addComponents(
+                            new ButtonBuilder()
+                                .setCustomId('ticket_kapat')
+                                .setLabel('🔒 Kapat')
+                                .setStyle(ButtonStyle.Danger),
+                            new ButtonBuilder()
+                                .setCustomId('ticket_sahiplen')
+                                .setLabel('📋 Sahiplen')
+                                .setStyle(ButtonStyle.Primary)
+                        );
+
+                    await channel.send({
+                        content: `<@${interaction.user.id}> <@&${yetkiliRolId}>`,
+                        embeds: [embed],
+                        components: [row]
+                    });
+
+                    // Log kanalına mesaj gönder
+                    const logChannel = interaction.guild.channels.cache.get(logKanalId);
+                    if (logChannel) {
+                        const logEmbed = new EmbedBuilder()
+                            .setColor(0x57F287)
+                            .setTitle('🎫 Yeni Ticket')
+                            .setDescription(`<@${interaction.user.id}> ticket oluşturdu.`)
+                            .addFields(
+                                { name: '📂 Tür', value: typeInfo.label, inline: true },
+                                { name: '🔗 Kanal', value: `<#${channel.id}>`, inline: true }
+                            )
+                            .setTimestamp();
+                        await logChannel.send({ embeds: [logEmbed] });
+                    }
+
+                    await interaction.editReply({
+                        content: `✅ Ticket oluşturuldu! <#${channel.id}>`
+                    });
+
+                } catch (error) {
+                    console.error('Ticket hatası:', error);
+                    await interaction.editReply({
+                        content: '❌ Ticket oluşturulurken hata oluştu!'
+                    });
+                }
             }
 
-            const yetkiliRolId = global.ticketYetkiliRols.get(guildId);
-            const isAuthorized = interaction.member.roles.cache.has(yetkiliRolId) || 
-                                interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+            else if (customId === 'ticket_kapat') {
+                const ticket = ticketManager.tickets.find(t => t.channelId === interaction.channel.id);
+                if (!ticket) {
+                    return interaction.reply({
+                        content: '❌ Bu bir ticket kanalı değil!',
+                        ephemeral: true
+                    });
+                }
 
-            if (!isAuthorized) {
-                return interaction.reply({
-                    content: '❌ Ticket sahiplenmeye yetkin yok!',
-                    ephemeral: true
-                });
+                const yetkiliRolId = global.ticketYetkiliRols.get(guildId);
+                const isAuthorized = interaction.member.roles.cache.has(yetkiliRolId) || 
+                                    interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+
+                if (!isAuthorized && interaction.user.id !== ticket.creatorId) {
+                    return interaction.reply({
+                        content: '❌ Ticket kapatmaya yetkin yok!',
+                        ephemeral: true
+                    });
+                }
+
+                // Butonu hemen devre dışı bırak
+                await interaction.deferReply();
+
+                ticket.status = 'closed';
+                ticket.closedAt = Date.now();
+                ticket.closedBy = interaction.user.id;
+
+                await interaction.editReply('🔒 Ticket kapatılıyor...');
+
+                setTimeout(async () => {
+                    try {
+                        await interaction.channel.delete();
+                    } catch (err) {}
+                }, 3000);
             }
 
-            ticket.claimedBy = interaction.user.id;
+            else if (customId === 'ticket_sahiplen') {
+                const ticket = ticketManager.tickets.find(t => t.channelId === interaction.channel.id);
+                if (!ticket) {
+                    return interaction.reply({
+                        content: '❌ Bu bir ticket kanalı değil!',
+                        ephemeral: true
+                    });
+                }
 
-            const embed = new EmbedBuilder()
-                .setColor(0x57F287)
-                .setDescription(`📋 Ticket <@${interaction.user.id}> tarafından sahiplenildi.`)
-                .setTimestamp();
+                const yetkiliRolId = global.ticketYetkiliRols.get(guildId);
+                const isAuthorized = interaction.member.roles.cache.has(yetkiliRolId) || 
+                                    interaction.member.permissions.has(PermissionFlagsBits.Administrator);
 
-            await interaction.reply({ embeds: [embed] });
+                if (!isAuthorized) {
+                    return interaction.reply({
+                        content: '❌ Ticket sahiplenmeye yetkin yok!',
+                        ephemeral: true
+                    });
+                }
+
+                ticket.claimedBy = interaction.user.id;
+
+                const embed = new EmbedBuilder()
+                    .setColor(0x57F287)
+                    .setDescription(`📋 Ticket <@${interaction.user.id}> tarafından sahiplenildi.`)
+                    .setTimestamp();
+
+                await interaction.reply({ embeds: [embed] });
+            }
+
+        } catch (error) {
+            console.error('Button hatası:', error);
+            if (!interaction.replied) {
+                await interaction.reply({
+                    content: '❌ Bir hata oluştu!',
+                    ephemeral: true
+                }).catch(() => {});
+            }
+        } finally {
+            // İşlem bitti, buton kilidini kaldır
+            global.processingTickets.delete(buttonKey);
         }
     },
 
