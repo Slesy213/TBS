@@ -34,18 +34,21 @@ module.exports = {
             try {
                 const user = await interaction.client.users.fetch(entry.user_id);
                 const level = db.calculateLevel(entry.total_points || 0);
+                const rank = db.getRank(entry.total_points || 0);
                 
-                description += `${rankEmoji} **${user.username}** — ${entry.total_points} ⭐ (Level ${level})\n`;
+                description += `${rankEmoji} **${user.username}** — ${entry.total_points} ⭐ | Level ${level} ${rank.emoji}\n`;
             } catch {
                 description += `${rankEmoji} **Bilinmeyen Kullanıcı** — ${entry.total_points} ⭐\n`;
             }
         }
 
         const embed = new EmbedBuilder()
-            .setColor('#FFD700')
+            .setColor('#FFB6C1') // Açık pembe
             .setTitle('🏆 Liderlik Tablosu')
             .setDescription(description)
-            .setFooter({ text: `${interaction.guild.name} • Toplam ${leaderboard.length} kullanıcı` })
+            .setFooter({ 
+                text: `${interaction.guild.name} • Toplam ${leaderboard.length} kullanıcı • ${new Date().toLocaleString('tr-TR')}` 
+            })
             .setTimestamp();
 
         await interaction.editReply({ embeds: [embed] });
