@@ -126,27 +126,17 @@ else {
 client.once('clientReady', () => {
   log.success(`Bot hazır ve giriş yaptı: ${client.user.tag}`);
 
-  // Dynamic Presence rotation
-  const statuses = [
-    () => ({ name: 'Slesy ile Sohbet Ediyor 💬', type: ActivityType.Watching }),
-    () => ({ name: `${client.guilds.cache.size} Sunucuyu Koruyor 🛡️`, type: ActivityType.Watching }),
-    () => ({ name: `${client.guilds.cache.reduce((a, g) => a + g.memberCount, 0)} Üyeye Hizmet Veriyor 👥`, type: ActivityType.Watching }),
-    () => ({ name: 'Premium Sistemler | /yardım 💎', type: ActivityType.Listening })
-  ];
+  client.user.setPresence({
+    activities: [
+      {
+        name: 'KERİŞHANEDE KERİŞİYOR',
+        type: ActivityType.Playing
+      }
+    ],
+    status: 'online'
+  });
 
-  let statusIdx = 0;
-  setInterval(() => {
-    try {
-      const current = statuses[statusIdx]();
-      client.user.setPresence({
-        activities: [current],
-        status: 'online'
-      });
-      statusIdx = (statusIdx + 1) % statuses.length;
-    } catch (e) {
-      log.error('Status rotation error:', e);
-    }
-  }, 15000);
+  // Ses Kanalı Otomatik Kurtarma Sistemi buradan devam edecek...
 
   // Ses Kanalı Otomatik Kurtarma Sistemi (Restore Voice Connections)
   try {
