@@ -43,7 +43,7 @@ module.exports = {
         }
 
         const embed = new EmbedBuilder()
-            .setColor('#FFB6C1') // Açık pembe
+            .setColor('#FFB6C1')
             .setTitle('🏆 Liderlik Tablosu')
             .setDescription(description)
             .setFooter({ 
