@@ -92,18 +92,22 @@ for (const file of commandFiles) {
     const command = require(path.join(commandsPath, file));
 
     // Slash command mapping
-    if (command.data && command.execute) {
-      client.commands.set(command.data.name, command);
-      log.success(`Slash komut yüklendi: /${command.data.name}`);
-    }
-    // Prefix command mapping
-    if (command.name && command.execute) {
-      client.commands.set(command.name, command);
-      log.success(`Prefix komut yüklendi: .${command.name}`);
-    }
-    else {
-      log.warn(`Hatalı komut formatı atlandı: ${file}`);
-    }
+// Slash command mapping
+if (command.data && command.execute) {
+  client.commands.set(command.data.name, command);
+  log.success(`Slash komut yüklendi: /${command.data.name}`);
+}
+
+// Prefix command mapping
+else if (command.name && command.execute) {
+  client.commands.set(command.name, command);
+  log.success(`Prefix komut yüklendi: .${command.name}`);
+}
+
+// Invalid format
+else {
+  log.warn(`Hatalı komut formatı atlandı: ${file}`);
+}
 
     // Initialize command events / listeners if exported
     if (command.init) {
@@ -119,7 +123,7 @@ for (const file of commandFiles) {
 // ==========================================
 // BOT READY EVENT (PREMIUM STATUS ROTATION)
 // ==========================================
-client.once('ready', () => {
+client.once('clientReady', () => {
   log.success(`Bot hazır ve giriş yaptı: ${client.user.tag}`);
 
   // Dynamic Presence rotation
