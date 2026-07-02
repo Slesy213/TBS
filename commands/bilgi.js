@@ -1,10 +1,10 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const db = require('../db.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('bilgi')
-        .setDescription('Kullanıcı bilgilerini ve puanlarını gösterir')
+        .setDescription('Kullanıcı bilgilerini ve tüm istatistikleri gösterir')
         .addUserOption(option =>
             option.setName('kullanici')
                 .setDescription('Bilgisini görmek istediğin kullanıcı')
@@ -34,38 +34,140 @@ module.exports = {
             `${totalPoints}/${nextLevelPoints} puan` : 
             'Maksimum seviye!';
 
-        // Embed oluştur
+        // İlerleme yüzdesi
+        const progressPercent = nextLevelPoints ? 
+            Math.floor((totalPoints / nextLevelPoints) * 100) : 100;
+
+        // Rütbe hesaplama (sadece gösterim için)
+        const rank = db.getRank(totalPoints);
+
+        // Embed oluştur - Açık Pembe Tema
         const embed = new EmbedBuilder()
-            .setColor('#0099ff')
-            .setTitle(`${targetUser.username}#${targetUser.discriminator}`)
+            .setColor('#FFB6C1') // Açık pembe
+            .setTitle(`📊 ${targetUser.username}#${targetUser.discriminator}`)
             .setThumbnail(targetUser.displayAvatarURL({ dynamic: true, size: 1024 }))
+            .setDescription([
+                `> **${targetUser.username}** kullanıcısının istatistikleri`,
+                `> ${rank.emoji} **Rütbe:** ${rank.name}`,
+                `> 📅 **Katılım:** <t:${Math.floor(member.joinedAt / 1000)}:F>`
+            ].join('\n'))
             .addFields(
-                { name: '👤 Kullanıcı Adı', value: targetUser.username, inline: true },
-                { name: '🆔 ID', value: `\`${targetUser.id}\``, inline: true },
-                { name: '📅 Katılım Tarihi', value: `<t:${Math.floor(member.joinedAt / 1000)}:F>`, inline: false },
-                { name: '📊 Seviye', value: `**${currentLevel}**`, inline: true },
-                { name: '⭐ Toplam Puan', value: `**${totalPoints}**`, inline: true },
-                { name: '📈 Level İlerleme', value: progressText, inline: false },
-                { name: '📝 Mesaj Puanı', value: `${messagePoints}`, inline: true },
-                { name: '🎤 Ses Puanı', value: `${voicePoints}`, inline: true }
+                // TEMEL BİLGİLER
+                { 
+                    name: '───────────────────', 
+                    value: '```css\n[ TEMEL BİLGİLER ]\n```', 
+                    inline: false 
+                },
+                { 
+                    name: '🆔 Kullanıcı ID', 
+                    value: `\`${targetUser.id}\``, 
+                    inline: true 
+                },
+                { 
+                    name: '📊 Seviye', 
+                    value: `**${currentLevel}**`, 
+                    inline: true 
+                },
+                { 
+                    name: '⭐ Toplam Puan', 
+                    value: `**${totalPoints}**`, 
+                    inline: true 
+                },
+
+                // PUAN DAĞILIMI
+                { 
+                    name: '───────────────────', 
+                    value: '```css\n[ PUAN DAĞILIMI ]\n```', 
+                    inline: false 
+                },
+                { 
+                    name: '📝 Mesaj Puanı', 
+                    value: `\`${messagePoints}\``, 
+                    inline: true 
+                },
+                { 
+                    name: '🎤 Ses Puanı', 
+                    value: `\`${voicePoints}\``, 
+                    inline: true 
+                },
+                { 
+                    name: '🎯 Toplam Puan', 
+                    value: `\`${totalPoints}\``, 
+                    inline: true 
+                },
+
+                // LEVEL İLERLEME
+                { 
+                    name: '───────────────────', 
+                    value: '```css\n[ LEVEL İLERLEME ]\n```', 
+                    inline: false 
+                },
+                { 
+                    name: '📈 İlerleme', 
+                    value: progressText, 
+                    inline: true 
+                },
+                { 
+                    name: '📊 Yüzde', 
+                    value: `${progressPercent}%`, 
+                    inline: true 
+                }
             )
             .setFooter({ 
-                text: 'Puan Sistemi • Her mesaj = 1 puan, Her 60sn ses = 5 puan',
+                text: `Puan Sistemi • Her mesaj = 1 puan, Her 60sn ses = 5 puan • ${new Date().toLocaleString('tr-TR')}`,
                 iconURL: interaction.client.user.displayAvatarURL()
             })
             .setTimestamp();
 
-        // Level bar (progress bar) ekle
+        // İlerleme bar'ı ekle (progress bar)
         if (nextLevelPoints) {
-            const progress = Math.floor((totalPoints / nextLevelPoints) * 20);
-            const bar = '█'.repeat(progress) + '░'.repeat(20 - progress);
-            embed.addFields({ 
-                name: '📊 İlerleme', 
-                value: `\`${bar}\` ${Math.floor((totalPoints / nextLevelPoints) * 100)}%`, 
-                inline: false 
+            const barLength = 20;
+            const filled = Math.floor((totalPoints / nextLevelPoints) * barLength);
+            const bar = '🟪'.repeat(filled) + '⬜'.repeat(barLength - filled);
+            embed.addFields({
+                name: '▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬',
+                value: `\`${bar}\` **${progressPercent}%**`,
+                inline: false
             });
         }
 
-        await interaction.editReply({ embeds: [embed] });
+        // BUTTONLAR (Opsiyonel)
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('refresh_stats')
+                    .setLabel('🔄 Yenile')
+                    .setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder()
+                    .setCustomId('leaderboard_go')
+                    .setLabel('🏆 Liderlik')
+                    .setStyle(ButtonStyle.Primary)
+            );
+
+        await interaction.editReply({ 
+            embeds: [embed],
+            components: [row]
+        });
+    },
+
+    // Button handler
+    async handleButton(interaction) {
+        if (interaction.customId === 'refresh_stats') {
+            // Yeniden yükle
+            const targetUser = interaction.message.embeds[0]?.title?.replace('📊 ', '').split('#')[0];
+            if (!targetUser) return;
+            
+            const user = await interaction.client.users.fetch(targetUser).catch(() => null);
+            if (!user) return;
+
+            // Bu kısmı yeniden çalıştır
+            const guildId = interaction.guild.id;
+            const points = await db.getUserPoints(user.id, guildId);
+            const levelData = await db.getUserLevel(user.id, guildId);
+            
+            // ... yeniden embed oluştur ...
+            
+            await interaction.update({ embeds: [embed] });
+        }
     }
 };
