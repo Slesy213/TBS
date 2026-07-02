@@ -82,6 +82,11 @@ global.ticketLogKanals = new Map();
 global.guardSettings = new Map();
 
 // ==========================================
+// DB IMPORT
+// ==========================================
+const db = require('./db.js');
+
+// ==========================================
 // DYNAMIC COMMAND LOADERS
 // ==========================================
 const commandsPath = path.join(__dirname, 'commands');
@@ -92,22 +97,21 @@ for (const file of commandFiles) {
     const command = require(path.join(commandsPath, file));
 
     // Slash command mapping
-// Slash command mapping
-if (command.data && command.execute) {
-  client.commands.set(command.data.name, command);
-  log.success(`Slash komut yüklendi: /${command.data.name}`);
-}
+    if (command.data && command.execute) {
+      client.commands.set(command.data.name, command);
+      log.success(`Slash komut yüklendi: /${command.data.name}`);
+    }
 
-// Prefix command mapping
-else if (command.name && command.execute) {
-  client.commands.set(command.name, command);
-  log.success(`Prefix komut yüklendi: .${command.name}`);
-}
+    // Prefix command mapping
+    else if (command.name && command.execute) {
+      client.commands.set(command.name, command);
+      log.success(`Prefix komut yüklendi: .${command.name}`);
+    }
 
-// Invalid format
-else {
-  log.warn(`Hatalı komut formatı atlandı: ${file}`);
-}
+    // Invalid format
+    else {
+      log.warn(`Hatalı komut formatı atlandı: ${file}`);
+    }
 
     // Initialize command events / listeners if exported
     if (command.init) {
@@ -121,7 +125,7 @@ else {
 }
 
 // ==========================================
-// BOT READY EVENT (PREMIUM STATUS ROTATION)
+// BOT READY EVENT
 // ==========================================
 client.once('clientReady', () => {
   log.success(`Bot hazır ve giriş yaptı: ${client.user.tag}`);
@@ -136,9 +140,7 @@ client.once('clientReady', () => {
     status: 'online'
   });
 
-  // Ses Kanalı Otomatik Kurtarma Sistemi buradan devam edecek...
-
-  // Ses Kanalı Otomatik Kurtarma Sistemi (Restore Voice Connections)
+  // Ses Kanalı Otomatik Kurtarma Sistemi
   try {
     const { joinVoiceChannel, entersState, VoiceConnectionStatus } = require('@discordjs/voice');
     const { ChannelType } = require('discord.js');
@@ -181,7 +183,7 @@ client.once('clientReady', () => {
     log.error('[SES RECOVERY] Ses kanalı kurtarma döngüsünde hata:', restoreErr);
   }
 
-  // Süreli Ban Kontrol Döngüsü (Temp-ban check scheduler - Every 60s)
+  // Süreli Ban Kontrol Döngüsü
   setInterval(async () => {
     try {
       const now = Date.now();
@@ -195,7 +197,6 @@ client.once('clientReady', () => {
 
           for (const banInfo of settings.temp_bans) {
             if (now >= banInfo.unbanAt) {
-              // Unban time reached
               try {
                 const bans = await guild.bans.fetch().catch(() => null);
                 const isBanned = bans?.has(banInfo.userId);
@@ -203,7 +204,6 @@ client.once('clientReady', () => {
                   await guild.members.unban(banInfo.userId, 'Süreli yasaklama süresi doldu.');
                   log.success(`[SÜRELİ BAN] ${guild.name} sunucusunda ${banInfo.userId} ID'li kullanıcının süreli banı bitti, unban yapıldı.`);
 
-                  // Log to log channel
                   const logChannelId = global.ticketLogKanals.get(guildId);
                   const logChannel = logChannelId ? guild.channels.cache.get(logChannelId) : null;
                   if (logChannel) {
@@ -233,8 +233,7 @@ client.once('clientReady', () => {
           if (updated) {
             settings.temp_bans = activeBans;
             global.guardSettings.set(guildId, settings);
-            const { updateSetting } = require('./db.js');
-            await updateSetting(guildId, 'guard_settings', settings);
+            await db.updateSetting(guildId, 'guard_settings', settings);
           }
         }
       }
@@ -243,11 +242,6 @@ client.once('clientReady', () => {
     }
   }, 60000);
 });
-
-// ==========================================
-// AUTO ROLE EVENT (PASSED TO MODULAR COMMAND LISTENER)
-// ==========================================
-// Disabled in favor of commands/otorol.js modular init() handler
 
 // ==========================================
 // SA - AS RESPONDER
@@ -262,6 +256,182 @@ client.on('messageCreate', async message => {
     await message.reply('As Kardeşim! 👋').catch(() => {});
   }
 });
+
+// ==========================================
+// ⭐ MESAJ PUAN SİSTEMİ
+// ==========================================
+client.on('messageCreate', async message => {
+  if (message.author.bot || !message.guild) return;
+
+  // Kullanıcı bilgilerini güncelle
+  await db.updateUserInfo(message.author, message.guild.id);
+
+  // Mesaj puanı ekle
+  const result = await db.addMessagePoint(message.author.id, message.guild.id);
+  
+  if (result.added) {
+    // Level kontrolü
+    const levelResult = await db.checkAndUpdateLevel(message.author.id, message.guild.id, result.total);
+    
+    if (levelResult.leveledUp) {
+      // Level atlama mesajı gönder
+      try {
+        const levelUpMessage = await message.channel.send(
+          `🎉 **${message.author.username}** seviye atladı! **${levelResult.oldLevel}** → **${levelResult.newLevel}** seviye! (${levelResult.points} puan)`
+        );
+        
+        // 2 saniye sonra mesajı sil
+        setTimeout(async () => {
+          try {
+            await levelUpMessage.delete();
+          } catch (err) {
+            // Mesaj zaten silinmiş olabilir
+          }
+        }, 2000);
+      } catch (err) {
+        log.error('Level atlama mesajı gönderilirken hata:', err);
+      }
+    }
+  }
+});
+
+// ==========================================
+// ⭐ SES PUAN SİSTEMİ
+// ==========================================
+// Ses kanalına giriş
+client.on('voiceStateUpdate', async (oldState, newState) => {
+  const member = newState.member || oldState.member;
+  if (!member || member.user.bot) return;
+
+  const userId = member.user.id;
+  const guildId = member.guild.id;
+
+  // Kullanıcı bilgilerini güncelle
+  await db.updateUserInfo(member.user, guildId);
+
+  // Ses kanalına girdi
+  if (!oldState.channelId && newState.channelId) {
+    // Başlangıç zamanını kaydet
+    await db.updateUserPoints(userId, guildId, {
+      voice_join_time: Date.now()
+    });
+  }
+
+  // Ses kanalından çıktı veya kanal değiştirdi
+  if (oldState.channelId && (!newState.channelId || oldState.channelId !== newState.channelId)) {
+    const points = await db.getUserPoints(userId, guildId);
+    
+    if (points && points.voice_join_time > 0) {
+      const duration = Math.floor((Date.now() - points.voice_join_time) / 1000);
+      
+      if (duration >= 60) {
+        const result = await db.addVoicePoints(userId, guildId, duration);
+        
+        if (result.added) {
+          log.info(`🎤 ${member.user.username} ses kanalında ${Math.floor(duration/60)} dakika durdu, +${result.points} puan kazandı!`);
+          
+          // Level kontrolü
+          const totalPoints = await db.getUserPoints(userId, guildId);
+          if (totalPoints) {
+            const levelResult = await db.checkAndUpdateLevel(userId, guildId, totalPoints.total_points);
+            
+            if (levelResult.leveledUp) {
+              // Level atlama mesajını genel bir kanala gönder
+              const generalChannel = member.guild.channels.cache
+                .filter(ch => ch.isTextBased())
+                .sort((a, b) => a.position - b.position)
+                .first();
+              
+              if (generalChannel) {
+                try {
+                  const levelUpMessage = await generalChannel.send(
+                    `🎉 **${member.user.username}** seviye atladı! **${levelResult.oldLevel}** → **${levelResult.newLevel}** seviye! (${levelResult.points} puan)`
+                  );
+                  
+                  setTimeout(async () => {
+                    try {
+                      await levelUpMessage.delete();
+                    } catch (err) {}
+                  }, 2000);
+                } catch (err) {
+                  log.error('Level atlama mesajı gönderilirken hata:', err);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Ses zamanını sıfırla
+      await db.updateUserPoints(userId, guildId, {
+        voice_join_time: 0
+      });
+    }
+  }
+});
+
+// Her 60 saniyede bir ses kanalındakilere puan ver (yedek mekanizma)
+setInterval(async () => {
+  try {
+    for (const [guildId, guild] of client.guilds.cache) {
+      for (const [channelId, channel] of guild.channels.cache) {
+        if (channel.isVoiceBased()) {
+          for (const [memberId, member] of channel.members) {
+            if (member.user.bot) continue;
+
+            const points = await db.getUserPoints(memberId, guildId);
+            
+            if (points && points.voice_join_time > 0) {
+              const duration = Math.floor((Date.now() - points.voice_join_time) / 1000);
+              
+              if (duration >= 60) {
+                const result = await db.addVoicePoints(memberId, guildId, duration);
+                
+                if (result.added) {
+                  // Level kontrolü
+                  const totalPoints = await db.getUserPoints(memberId, guildId);
+                  if (totalPoints) {
+                    const levelResult = await db.checkAndUpdateLevel(memberId, guildId, totalPoints.total_points);
+                    
+                    if (levelResult.leveledUp) {
+                      const generalChannel = guild.channels.cache
+                        .filter(ch => ch.isTextBased())
+                        .sort((a, b) => a.position - b.position)
+                        .first();
+                      
+                      if (generalChannel) {
+                        try {
+                          const levelUpMessage = await generalChannel.send(
+                            `🎉 **${member.user.username}** seviye atladı! **${levelResult.oldLevel}** → **${levelResult.newLevel}** seviye! (${levelResult.points} puan)`
+                          );
+                          
+                          setTimeout(async () => {
+                            try {
+                              await levelUpMessage.delete();
+                            } catch (err) {}
+                          }, 2000);
+                        } catch (err) {
+                          log.error('Level atlama mesajı gönderilirken hata:', err);
+                        }
+                      }
+                    }
+                  }
+                  
+                  // Ses zamanını sıfırla
+                  await db.updateUserPoints(memberId, guildId, {
+                    voice_join_time: Date.now()
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    log.error('Ses puanı periyodik kontrol hatası:', err);
+  }
+}, 60000);
 
 // ==========================================
 // PREFIX COMMAND PARSER
@@ -318,7 +488,6 @@ client.on('interactionCreate', async interaction => {
     else if (interaction.isModalSubmit()) {
       const customId = interaction.customId;
 
-      // DM GÖNDER Modal
       if (customId === 'dm_modal') {
         const command = client.commands.get('dm-gonder');
         if (command && typeof command.handleModal === 'function') {
@@ -326,7 +495,6 @@ client.on('interactionCreate', async interaction => {
         }
       }
 
-      // GÜNCELLEME YAYINLA Modal
       if (customId === 'guncelleme_modal') {
         const command = client.commands.get('guncelleme-yayinla');
         if (command && typeof command.handleModal === 'function') {
@@ -334,7 +502,6 @@ client.on('interactionCreate', async interaction => {
         }
       }
 
-      // OTOROL Modal
       if (customId === 'otorol_modal') {
         const command = client.commands.get('otorol');
         if (command && typeof command.handleModal === 'function') {
@@ -342,7 +509,6 @@ client.on('interactionCreate', async interaction => {
         }
       }
 
-      // TICKET Modals
       if (customId === 'ticket_modal' || customId === 'ticket_ekle_modal' || customId === 'ban_itiraz_modal') {
         const command = client.commands.get('ticket');
         if (command && typeof command.handleModal === 'function') {
@@ -350,7 +516,6 @@ client.on('interactionCreate', async interaction => {
         }
       }
 
-      // BAN İTİRAZ Modal
       if (customId === 'ban_itiraz_modal') {
         const command = client.commands.get('ticket');
         if (command && typeof command.handleBanItirazModal === 'function') {
@@ -358,7 +523,6 @@ client.on('interactionCreate', async interaction => {
         }
       }
 
-      // TICKET EKLE Modal
       if (customId === 'ticket_ekle_modal') {
         const command = client.commands.get('ticket');
         if (command && typeof command.handleEkleModal === 'function') {
@@ -366,7 +530,6 @@ client.on('interactionCreate', async interaction => {
         }
       }
 
-      // DUYURU Modal
       if (customId === 'duyuru_modal') {
         const command = client.commands.get('duyuru');
         if (command && typeof command.handleModal === 'function') {
@@ -374,7 +537,6 @@ client.on('interactionCreate', async interaction => {
         }
       }
 
-      // LIMIT GUARDS Modal
       if (customId.startsWith('modal_limit_')) {
         const command = client.commands.get('guard');
         if (command && typeof command.handleLimitModal === 'function') {
@@ -387,7 +549,7 @@ client.on('interactionCreate', async interaction => {
     else if (interaction.isButton()) {
       const customId = interaction.customId;
 
-      // Routing ticket welcome panel action buttons
+      // Ticket button
       if (customId.startsWith('ticket_ac_') || customId === 'ticket_kapat' || customId === 'ticket_sahiplen' || customId === 'ticket_ekle') {
         const ticketCommand = client.commands.get('ticket');
         if (ticketCommand && typeof ticketCommand.handleButton === 'function') {
@@ -395,7 +557,7 @@ client.on('interactionCreate', async interaction => {
         }
       }
 
-      // Routing voice connection control panel buttons
+      // Voice join button
       if (customId.startsWith('join_')) {
         const voiceCommand = client.commands.get('join');
         if (voiceCommand && typeof voiceCommand.handleButton === 'function') {
@@ -412,11 +574,9 @@ client.on('interactionCreate', async interaction => {
 // ==========================================
 // STARTUP BOOTSTRAP
 // ==========================================
-const { loadSettings } = require('./db.js');
-
 async function startBot() {
   try {
-    await loadSettings();
+    await db.loadSettings();
     log.success('Veritabanı hafıza yüklemesi (Supabase -> Cache) başarıyla tamamlandı.');
 
     await client.login(process.env.DISCORD_TOKEN);
