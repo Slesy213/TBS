@@ -127,6 +127,19 @@ function getNextLevelPoints(points) {
     return null; // Max level
 }
 
+/**
+ * Rütbe belirleme (Gösterim için)
+ */
+function getRank(totalPoints) {
+    if (totalPoints >= 100000) return { emoji: '👑', name: 'Efsane' };
+    if (totalPoints >= 50000) return { emoji: '💎', name: 'Elit' };
+    if (totalPoints >= 20000) return { emoji: '🌟', name: 'Aktif' };
+    if (totalPoints >= 5000) return { emoji: '📌', name: 'Düzenli' };
+    if (totalPoints >= 1000) return { emoji: '⭐', name: 'Katılımcı' };
+    if (totalPoints >= 100) return { emoji: '🟢', name: 'Üye' };
+    return { emoji: '🟡', name: 'Yeni' };
+}
+
 // ==========================================
 // ⭐ PUAN SİSTEMİ FONKSİYONLARI
 // ==========================================
@@ -428,5 +441,6 @@ module.exports = {
     addVoicePoints,
     checkAndUpdateLevel,
     calculateLevel,
-    getNextLevelPoints
+    getNextLevelPoints,
+    getRank // ✅ YENİ EKLENDİ
 };
