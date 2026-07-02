@@ -16,10 +16,7 @@ module.exports = {
         const targetUser = interaction.options.getUser('kullanici') || interaction.user;
         const guildId = interaction.guild.id;
 
-        // Kullanıcı bilgilerini al
         const member = await interaction.guild.members.fetch(targetUser.id);
-        
-        // Puan bilgilerini al
         const points = await db.getUserPoints(targetUser.id, guildId);
         const levelData = await db.getUserLevel(targetUser.id, guildId);
         
@@ -28,22 +25,18 @@ module.exports = {
         const voicePoints = points?.voice_points || 0;
         const currentLevel = levelData?.level || 0;
         
-        // Bir sonraki level için gereken puan
         const nextLevelPoints = db.getNextLevelPoints(totalPoints);
         const progressText = nextLevelPoints ? 
             `${totalPoints}/${nextLevelPoints} puan` : 
             'Maksimum seviye!';
 
-        // İlerleme yüzdesi
         const progressPercent = nextLevelPoints ? 
             Math.floor((totalPoints / nextLevelPoints) * 100) : 100;
 
-        // Rütbe hesaplama (sadece gösterim için)
         const rank = db.getRank(totalPoints);
 
-        // Embed oluştur - Açık Pembe Tema
         const embed = new EmbedBuilder()
-            .setColor('#FFB6C1') // Açık pembe
+            .setColor('#FFB6C1')
             .setTitle(`📊 ${targetUser.username}#${targetUser.discriminator}`)
             .setThumbnail(targetUser.displayAvatarURL({ dynamic: true, size: 1024 }))
             .setDescription([
@@ -52,7 +45,6 @@ module.exports = {
                 `> 📅 **Katılım:** <t:${Math.floor(member.joinedAt / 1000)}:F>`
             ].join('\n'))
             .addFields(
-                // TEMEL BİLGİLER
                 { 
                     name: '───────────────────', 
                     value: '```css\n[ TEMEL BİLGİLER ]\n```', 
@@ -73,8 +65,6 @@ module.exports = {
                     value: `**${totalPoints}**`, 
                     inline: true 
                 },
-
-                // PUAN DAĞILIMI
                 { 
                     name: '───────────────────', 
                     value: '```css\n[ PUAN DAĞILIMI ]\n```', 
@@ -95,8 +85,6 @@ module.exports = {
                     value: `\`${totalPoints}\``, 
                     inline: true 
                 },
-
-                // LEVEL İLERLEME
                 { 
                     name: '───────────────────', 
                     value: '```css\n[ LEVEL İLERLEME ]\n```', 
@@ -119,7 +107,6 @@ module.exports = {
             })
             .setTimestamp();
 
-        // İlerleme bar'ı ekle (progress bar)
         if (nextLevelPoints) {
             const barLength = 20;
             const filled = Math.floor((totalPoints / nextLevelPoints) * barLength);
@@ -131,7 +118,6 @@ module.exports = {
             });
         }
 
-        // BUTTONLAR (Opsiyonel)
         const row = new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
@@ -150,24 +136,77 @@ module.exports = {
         });
     },
 
-    // Button handler
     async handleButton(interaction) {
         if (interaction.customId === 'refresh_stats') {
-            // Yeniden yükle
-            const targetUser = interaction.message.embeds[0]?.title?.replace('📊 ', '').split('#')[0];
-            if (!targetUser) return;
+            const title = interaction.message.embeds[0]?.title || '';
+            const username = title.replace('📊 ', '').split('#')[0];
+            if (!username) return;
             
-            const user = await interaction.client.users.fetch(targetUser).catch(() => null);
+            const user = await interaction.client.users.fetch(username).catch(() => null);
             if (!user) return;
 
-            // Bu kısmı yeniden çalıştır
             const guildId = interaction.guild.id;
             const points = await db.getUserPoints(user.id, guildId);
             const levelData = await db.getUserLevel(user.id, guildId);
             
-            // ... yeniden embed oluştur ...
+            const totalPoints = points?.total_points || 0;
+            const messagePoints = points?.message_points || 0;
+            const voicePoints = points?.voice_points || 0;
+            const currentLevel = levelData?.level || 0;
             
+            const nextLevelPoints = db.getNextLevelPoints(totalPoints);
+            const progressPercent = nextLevelPoints ? 
+                Math.floor((totalPoints / nextLevelPoints) * 100) : 100;
+            const rank = db.getRank(totalPoints);
+            const member = await interaction.guild.members.fetch(user.id);
+
+            const embed = new EmbedBuilder()
+                .setColor('#FFB6C1')
+                .setTitle(`📊 ${user.username}#${user.discriminator}`)
+                .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 1024 }))
+                .setDescription([
+                    `> **${user.username}** kullanıcısının istatistikleri`,
+                    `> ${rank.emoji} **Rütbe:** ${rank.name}`,
+                    `> 📅 **Katılım:** <t:${Math.floor(member.joinedAt / 1000)}:F>`
+                ].join('\n'))
+                .addFields(
+                    { name: '───────────────────', value: '```css\n[ TEMEL BİLGİLER ]\n```', inline: false },
+                    { name: '🆔 Kullanıcı ID', value: `\`${user.id}\``, inline: true },
+                    { name: '📊 Seviye', value: `**${currentLevel}**`, inline: true },
+                    { name: '⭐ Toplam Puan', value: `**${totalPoints}**`, inline: true },
+                    { name: '───────────────────', value: '```css\n[ PUAN DAĞILIMI ]\n```', inline: false },
+                    { name: '📝 Mesaj Puanı', value: `\`${messagePoints}\``, inline: true },
+                    { name: '🎤 Ses Puanı', value: `\`${voicePoints}\``, inline: true },
+                    { name: '🎯 Toplam Puan', value: `\`${totalPoints}\``, inline: true },
+                    { name: '───────────────────', value: '```css\n[ LEVEL İLERLEME ]\n```', inline: false },
+                    { name: '📈 İlerleme', value: nextLevelPoints ? `${totalPoints}/${nextLevelPoints} puan` : 'Maksimum seviye!', inline: true },
+                    { name: '📊 Yüzde', value: `${progressPercent}%`, inline: true }
+                )
+                .setFooter({ 
+                    text: `Puan Sistemi • Her mesaj = 1 puan, Her 60sn ses = 5 puan • ${new Date().toLocaleString('tr-TR')}`,
+                    iconURL: interaction.client.user.displayAvatarURL()
+                })
+                .setTimestamp();
+
+            if (nextLevelPoints) {
+                const barLength = 20;
+                const filled = Math.floor((totalPoints / nextLevelPoints) * barLength);
+                const bar = '🟪'.repeat(filled) + '⬜'.repeat(barLength - filled);
+                embed.addFields({
+                    name: '▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬',
+                    value: `\`${bar}\` **${progressPercent}%**`,
+                    inline: false
+                });
+            }
+
             await interaction.update({ embeds: [embed] });
+        }
+        
+        if (interaction.customId === 'leaderboard_go') {
+            const command = interaction.client.commands.get('liderlik');
+            if (command) {
+                await command.execute(interaction);
+            }
         }
     }
 };
