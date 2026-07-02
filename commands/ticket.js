@@ -112,6 +112,20 @@ module.exports = {
         const subcommand = interaction.options.getSubcommand();
 
         if (subcommand === 'kurulum') {
+            // Kullanıcının zaten kurulumu var mı kontrol et
+            const existingSession = global.ticketSetups.get(`${guildId}-${interaction.user.id}`);
+            if (existingSession && existingSession.kategoriId) {
+                // Eğer kurulum varsa ve butonlarla devam ediyorsa, tekrar açma
+                const embed = generateTicketWizardEmbed(existingSession, interaction.guild.name);
+                const buttons = generateTicketWizardButtons();
+                return interaction.reply({
+                    content: '⚠️ Zaten devam eden bir kurulumun var! Aşağıdan devam edebilirsin.',
+                    embeds: [embed],
+                    components: buttons,
+                    ephemeral: true
+                });
+            }
+
             const kategori = interaction.options.getChannel('kategori');
             const yetkiliRol = interaction.options.getRole('yetkili_rol');
             const logKanal = interaction.options.getChannel('log_kanal');
@@ -195,6 +209,14 @@ module.exports = {
         if (!customId.startsWith('setup_ticket_')) return;
 
         const session = getSetupSession(guildId, userId);
+
+        // Eğer session'da kategori yoksa hata ver
+        if (!session.kategoriId && customId !== 'setup_ticket_cancel') {
+            return interaction.reply({
+                content: '❌ Önce `/ticket kurulum` komutunu çalıştırmalısın!',
+                ephemeral: true
+            });
+        }
 
         if (customId === 'setup_ticket_basic') {
             const modal = new ModalBuilder()
@@ -282,9 +304,19 @@ module.exports = {
         }
 
         else if (customId === 'setup_ticket_launch') {
+            // Kategori, yetkili rol ve log kanalı kontrol et
             if (!session.kategoriId || !session.yetkiliRolId || !session.logKanalId) {
                 return interaction.reply({
-                    content: '❌ Kategori, Yetkili Rolü ve Log Kanalı belirtilmeli!',
+                    content: '❌ Kategori, Yetkili Rolü ve Log Kanalı belirtilmeli! `/ticket kurulum` komutunu kullan.',
+                    ephemeral: true
+                });
+            }
+
+            // Kategori ve kanalların varlığını kontrol et
+            const category = interaction.guild.channels.cache.get(session.kategoriId);
+            if (!category) {
+                return interaction.reply({
+                    content: '❌ Kategori bulunamadı! Lütfen tekrar `/ticket kurulum` yap.',
                     ephemeral: true
                 });
             }
@@ -312,11 +344,13 @@ module.exports = {
                 rows.push(new ActionRowBuilder().addComponents(buttons.slice(i, i + 3)));
             }
 
+            // Panel mesajını gönder
             const message = await interaction.channel.send({
                 embeds: [finalEmbed],
                 components: rows
             });
 
+            // Ayarları kaydet
             await updateSettings(guildId, {
                 ticket_kategori: session.kategoriId,
                 ticket_yetkili_rol: session.yetkiliRolId,
@@ -327,10 +361,11 @@ module.exports = {
             global.ticketYetkiliRols.set(guildId, session.yetkiliRolId);
             global.ticketLogKanals.set(guildId, session.logKanalId);
 
+            // Oturumu temizle
             global.ticketSetups.delete(`${guildId}-${userId}`);
 
             await interaction.update({
-                content: `✅ **Ticket paneli kuruldu!** [Mesaj](${interaction.channel.url}/${message.id})`,
+                content: `✅ **Ticket paneli başarıyla kuruldu!**\n[Panel Mesajı](${interaction.channel.url}/${message.id})`,
                 embeds: [],
                 components: []
             });
@@ -355,6 +390,7 @@ module.exports = {
         if (customId.startsWith('ticket_ac_')) {
             const ticketType = customId.replace('ticket_ac_', '');
             
+            // Kara liste kontrolü
             if (ticketManager.blacklist.includes(userId)) {
                 return interaction.reply({
                     content: '❌ Ticket kara listesindesin!',
@@ -362,6 +398,7 @@ module.exports = {
                 });
             }
 
+            // Açık ticket kontrolü
             const existingTicket = ticketManager.tickets.find(
                 t => t.creatorId === userId && t.guildId === guildId && t.status === 'open'
             );
@@ -373,13 +410,14 @@ module.exports = {
                 });
             }
 
+            // Global ayarları al
             const kategoriId = global.ticketKategoris.get(guildId);
             const yetkiliRolId = global.ticketYetkiliRols.get(guildId);
             const logKanalId = global.ticketLogKanals.get(guildId);
 
             if (!kategoriId) {
                 return interaction.reply({
-                    content: '❌ Ticket sistemi kurulmamış!',
+                    content: '❌ Ticket sistemi kurulmamış! Yöneticiden `/ticket kurulum` yapmasını iste.',
                     ephemeral: true
                 });
             }
@@ -387,11 +425,12 @@ module.exports = {
             const category = interaction.guild.channels.cache.get(kategoriId);
             if (!category) {
                 return interaction.reply({
-                    content: '❌ Kategori bulunamadı!',
+                    content: '❌ Kategori bulunamadı! Yöneticiden tekrar `/ticket kurulum` yapmasını iste.',
                     ephemeral: true
                 });
             }
 
+            // Ticket tipini bul
             const allTypes = [...defaultTypes, ...(global.guardSettings.get(guildId)?.ticketCategories || [])];
             const typeInfo = allTypes.find(t => t.id === ticketType);
 
@@ -438,6 +477,7 @@ module.exports = {
                     ],
                 });
 
+                // Ticket'ı kaydet
                 ticketManager.tickets.push({
                     channelId: channel.id,
                     creatorId: interaction.user.id,
@@ -447,6 +487,7 @@ module.exports = {
                     createdAt: Date.now(),
                 });
 
+                // Ticket embed'i
                 const embed = new EmbedBuilder()
                     .setColor(typeInfo.renk || 0x5865F2)
                     .setTitle(`${typeInfo.emoji || '🎫'} ${typeInfo.label}`)
@@ -476,6 +517,7 @@ module.exports = {
                     components: [row]
                 });
 
+                // Log kanalına mesaj gönder
                 const logChannel = interaction.guild.channels.cache.get(logKanalId);
                 if (logChannel) {
                     const logEmbed = new EmbedBuilder()
