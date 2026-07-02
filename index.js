@@ -160,7 +160,7 @@ client.once('ready', () => {
           const selfDeaf = settings.voice_self_deaf ?? true;
 
           log.info(`[SES RECOVERY] ${guild.name} sunucusunda ${channel.name} kanalına otomatik bağlanılıyor...`);
-          
+
           try {
             const connection = joinVoiceChannel({
               channelId: channel.id,
@@ -419,18 +419,10 @@ client.on('interactionCreate', async interaction => {
 // STARTUP BOOTSTRAP
 // ==========================================
 const { loadSettings } = require('./db.js');
-const ticketManager = require('./ticketManager.js');
-const pollManager = require('./pollManager.js');
-const giveawayManager = require('./giveawayManager.js');
 
 async function startBot() {
   try {
     await loadSettings();
-
-    // Populate managers from global.guardSettings loaded from Supabase
-    await ticketManager.loadFromSettings();
-    await pollManager.loadFromSettings();
-    await giveawayManager.loadFromSettings();
     log.success('Veritabanı hafıza yüklemesi (Supabase -> Cache) başarıyla tamamlandı.');
 
     await client.login(process.env.DISCORD_TOKEN);
