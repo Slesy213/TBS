@@ -1,5 +1,3 @@
-// ticketManager.js
-
 const ticketManager = {
     tickets: [],
     blacklist: [],
@@ -19,11 +17,18 @@ const ticketManager = {
         if (!ticket) return false;
 
         ticket.status = "closed";
+        ticket.closedAt = Date.now();
+        ticket.closedBy = closedBy;
+        
         console.log(`Ticket kapatıldı: ${channelId}`);
 
         const channel = client.channels.cache.get(channelId);
         if (channel) {
-            await channel.delete().catch(() => {});
+            try {
+                await channel.delete();
+            } catch (err) {
+                console.error('Kanal silinirken hata:', err);
+            }
         }
 
         return true;
